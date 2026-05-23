@@ -1,126 +1,26 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
-import { db } from "../../../../lib/db";
-import { getRole, roleAtLeast } from "../../../../lib/auth";
+import { auth } from "@clerk/nextjs/server";
 
 export const runtime = "nodejs";
 
-const ALLOWED_CATEGORIES = [
-  "missing-item",
-  "damaged-item",
-  "wrong-item",
-  "leaked-sachet",
-  "broken-bottle",
-  "faulty-mixer",
-  "tampered-package",
-  // Added May 13 per Aina — frequently-occurring categories
-  "longevity-taste",
-  "not-enough-sachet",
-  "subscription-payment-failed",
-  "other",
+const SEED_ROWS = [
+  { id: "demo-iss-001", createdAt: new Date("2026-05-23T09:14:00Z").toISOString(), orderId: "#DTC-10482", customerName: "Alex Rivera", country: "US", category: "damaged-item", severity: "normal", description: "Customer received two hardened sachets in their 30-day pack. Photo provided.", resolution: "replacement", resolutionNotes: "Replacement dispatched same day.", itemsAffected: ["[Client Product A] x2"], agent: "demo" },
+  { id: "demo-iss-002", createdAt: new Date("2026-05-23T08:30:00Z").toISOString(), orderId: "#DTC-10479", customerName: "Sam Park", country: "AU", category: "missing-item", severity: "normal", description: "Customer received 29 sachets instead of 30. Pack seal intact on arrival.", resolution: "replacement", resolutionNotes: "Single sachet replacement sent.", itemsAffected: ["[Client Product A] x1"], agent: "demo" },
+  { id: "demo-iss-003", createdAt: new Date("2026-05-22T16:45:00Z").toISOString(), orderId: "#DTC-10461", customerName: "Jordan Lee", country: "GB", category: "wrong-item", severity: "normal", description: "Customer ordered Lemon flavour, received Mango. Confirmed from photo.", resolution: "replacement", resolutionNotes: "Correct flavour sent. Customer keeping original.", itemsAffected: ["[Client Product B] x1"], agent: "demo" },
+  { id: "demo-iss-004", createdAt: new Date("2026-05-22T11:20:00Z").toISOString(), orderId: "#DTC-10447", customerName: "Morgan Chen", country: "CA", category: "leaked-sachet", severity: "high", description: "Three sachets leaked inside sealed box. Product unusable. Photos provided.", resolution: "refund", resolutionNotes: "Full refund processed due to extent of damage.", itemsAffected: ["[Client Product A] x3"], agent: "demo" },
+  { id: "demo-iss-005", createdAt: new Date("2026-05-21T14:00:00Z").toISOString(), orderId: "#DTC-10433", customerName: "Taylor Nguyen", country: "US", category: "other", severity: "normal", description: "Customer received box with different lot number than previous order, concerned about freshness.", resolution: "no-action", resolutionNotes: "Explained lot number rotation. Customer satisfied.", itemsAffected: [], agent: "demo" },
 ];
-const ALLOWED_RESOLUTIONS = ["pending", "replacement", "refund", "gift", "no-action"];
 
 export async function GET(req) {
   const { userId } = await auth();
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  const user = await currentUser();
-  const role = getRole(user);
-  if (!roleAtLeast(role, "Agent")) {
-    return Response.json({ error: "Forbidden — Agent role required" }, { status: 403 });
-  }
-
-  const { searchParams } = new URL(req.url);
-  const from = searchParams.get("from");
-  const to = searchParams.get("to");
-  const category = searchParams.get("category");
-  const resolution = searchParams.get("resolution");
-  const limit = Math.min(Number(searchParams.get("limit") ?? 200), 500);
-
-  const where = {};
-  if (from || to) {
-    where.createdAt = {};
-    if (from) where.createdAt.gte = new Date(from);
-    if (to) where.createdAt.lte = new Date(to);
-  }
-  if (category) where.category = category;
-  if (resolution) where.resolution = resolution;
-  // Agents see only their own entries; Lead Agent+ sees all
-  if (!roleAtLeast(role, "Lead Agent")) {
-    where.agent = userId;
-  }
-
-  try {
-    const rows = await db.issueLog.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      take: limit,
-    });
-    return Response.json({ rows, scope: roleAtLeast(role, "Lead Agent") ? "all" : "own" });
-  } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 });
-  }
+  return Response.json({ rows: SEED_ROWS, scope: "all" });
 }
 
 export async function POST(req) {
   const { userId } = await auth();
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  const user = await currentUser();
-  const role = getRole(user);
-  if (!roleAtLeast(role, "Agent")) {
-    return Response.json({ error: "Forbidden — Agent role required" }, { status: 403 });
-  }
-
   let body;
-  try {
-    body = await req.json();
-  } catch {
-    return Response.json({ error: "Invalid JSON" }, { status: 400 });
-  }
-
-  const orderId = String(body.orderId ?? "").trim();
-  if (!orderId) return Response.json({ error: "orderId required" }, { status: 400 });
-
-  const category = String(body.category ?? "").trim();
-  if (!ALLOWED_CATEGORIES.includes(category)) {
-    return Response.json(
-      { error: `category must be one of: ${ALLOWED_CATEGORIES.join(", ")}` },
-      { status: 400 }
-    );
-  }
-
-  const resolution = String(body.resolution ?? "pending").trim();
-  if (!ALLOWED_RESOLUTIONS.includes(resolution)) {
-    return Response.json(
-      { error: `resolution must be one of: ${ALLOWED_RESOLUTIONS.join(", ")}` },
-      { status: 400 }
-    );
-  }
-
-  const description = String(body.description ?? "").trim();
-  if (!description) return Response.json({ error: "description required" }, { status: 400 });
-
-  try {
-    const row = await db.issueLog.create({
-      data: {
-        orderId,
-        ticketId: body.ticketId ? String(body.ticketId).trim() : null,
-        customerName: body.customerName ? String(body.customerName).trim() : null,
-        customerEmail: body.customerEmail ? String(body.customerEmail).trim() : null,
-        country: body.country ? String(body.country).trim() : null,
-        warehouse: body.warehouse ? String(body.warehouse).trim() : null,
-        category,
-        severity: body.severity ? String(body.severity).trim() : "normal",
-        itemsAffected: Array.isArray(body.itemsAffected) ? body.itemsAffected.map(String) : [],
-        description,
-        photoUrls: Array.isArray(body.photoUrls) ? body.photoUrls.map(String) : [],
-        videoUrl: body.videoUrl ? String(body.videoUrl).trim() : null,
-        resolution,
-        resolutionNotes: body.resolutionNotes ? String(body.resolutionNotes).trim() : null,
-        agent: body.agent ? String(body.agent).trim() : userId,
-      },
-    });
-    return Response.json({ row }, { status: 201 });
-  } catch (err) {
-    return Response.json({ error: err.message }, { status: 500 });
-  }
+  try { body = await req.json(); } catch { return Response.json({ error: "Invalid JSON" }, { status: 400 }); }
+  const row = { id: `demo-iss-${Date.now()}`, createdAt: new Date().toISOString(), agent: userId, ...body };
+  return Response.json({ row }, { status: 201 });
 }

@@ -1,68 +1,64 @@
 import { SignUp } from "@clerk/nextjs";
 
-// Mirrors the sign-in page so the experience is consistent end-to-end.
-// If brand colours / typography change, update both files together.
-const CREAM = "#FAF6F1";
-const BURG = "#50000B";
-const INK = "#3A2F2C";
-const SOFT_BORDER = "#EDE3D8";
-const W = "#FFFFFF";
+const CREAM   = "#F4F0E8";
+const GOLD    = "#C4A96B";
+const INK     = "#0A0A09";
+const BORDER  = "#DDD8CE";
+const W       = "#FAF8F3";
+const STONE   = "#6B6760";
 
 const clerkAppearance = {
   variables: {
-    colorPrimary: BURG,
+    colorPrimary: INK,
     colorText: INK,
-    colorTextSecondary: "rgba(58,47,44,0.65)",
+    colorTextSecondary: "rgba(10,10,9,0.55)",
     colorBackground: W,
     colorInputBackground: CREAM,
     colorInputText: INK,
-    colorDanger: "#A40011",
-    fontFamily: "var(--font-raleway), system-ui, sans-serif",
+    colorDanger: "#B44",
+    fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
     borderRadius: "10px",
   },
   elements: {
     rootBox: { width: "100%" },
     card: {
       background: W,
-      border: "1px solid " + SOFT_BORDER,
+      border: "1px solid " + BORDER,
       borderRadius: 14,
-      boxShadow: "0 14px 50px rgba(80,0,11,0.12)",
+      boxShadow: "0 14px 50px rgba(196,169,107,0.12)",
       padding: "30px 28px",
     },
     headerTitle: {
-      fontFamily: "var(--font-spectral), Georgia, serif",
+      fontFamily: "var(--font-cormorant), Georgia, serif",
       fontWeight: 600,
       fontSize: 22,
-      color: BURG,
+      color: INK,
     },
     headerSubtitle: {
-      fontFamily: "var(--font-raleway), system-ui, sans-serif",
+      fontFamily: "var(--font-dm-sans), system-ui, sans-serif",
       fontSize: 13,
-      color: "rgba(58,47,44,0.65)",
+      color: "rgba(10,10,9,0.55)",
     },
     formButtonPrimary: {
-      background: BURG,
-      color: "#FFF",
+      background: INK,
+      color: "#FAF8F3",
       borderRadius: 10,
       fontWeight: 700,
       letterSpacing: 1,
       textTransform: "none",
       padding: "11px 18px",
-      "&:hover": { background: "#A40011" },
-      "&:focus": { background: BURG, boxShadow: "0 0 0 3px rgba(200,151,58,0.4)" },
     },
     formFieldInput: {
       borderRadius: 10,
-      border: "1px solid " + SOFT_BORDER,
+      border: "1px solid " + BORDER,
       background: CREAM,
       padding: "10px 12px",
-      "&:focus": { borderColor: BURG, boxShadow: "0 0 0 3px rgba(200,151,58,0.2)" },
     },
     formFieldLabel: { color: INK, fontWeight: 600, fontSize: 12 },
-    footerActionLink: { color: BURG, fontWeight: 700 },
-    socialButtonsBlockButton: { borderRadius: 10, border: "1px solid " + SOFT_BORDER },
-    dividerLine: { background: SOFT_BORDER },
-    dividerText: { color: "rgba(58,47,44,0.45)" },
+    footerActionLink: { color: GOLD, fontWeight: 700 },
+    socialButtonsBlockButton: { borderRadius: 10, border: "1px solid " + BORDER },
+    dividerLine: { background: BORDER },
+    dividerText: { color: "rgba(10,10,9,0.4)" },
     footer: { background: "transparent" },
   },
 };
@@ -88,7 +84,7 @@ export default function SignUpPage() {
           top: -260, right: -260,
           width: 640, height: 640,
           borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(80,0,11,0.10) 0%, rgba(80,0,11,0) 70%)",
+          background: "radial-gradient(circle, rgba(196,169,107,0.14) 0%, rgba(196,169,107,0) 70%)",
           pointerEvents: "none",
         }}
       />
@@ -99,7 +95,7 @@ export default function SignUpPage() {
           bottom: -260, left: -260,
           width: 540, height: 540,
           borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(200,151,58,0.10) 0%, rgba(200,151,58,0) 70%)",
+          background: "radial-gradient(circle, rgba(196,169,107,0.08) 0%, rgba(196,169,107,0) 70%)",
           pointerEvents: "none",
         }}
       />
@@ -111,46 +107,45 @@ export default function SignUpPage() {
             src="/favicon.svg"
             alt=""
             width={42}
-            height={40}
+            height={42}
             style={{ display: "inline-block", marginBottom: 18 }}
           />
           <div
             style={{
-              fontFamily: "var(--font-raleway)",
+              fontFamily: "var(--font-dm-sans)",
               fontWeight: 700,
-              fontSize: 36,
-              color: BURG,
-              letterSpacing: 10,
-              marginBottom: 8,
+              fontSize: 32,
+              color: INK,
+              letterSpacing: 6,
+              marginBottom: 6,
             }}
           >
-            I M 8
+            LUMA CX
           </div>
           <div
             style={{
-              fontFamily: "var(--font-raleway)",
-              fontSize: 10,
-              color: BURG,
-              opacity: 0.55,
+              fontFamily: "var(--font-dm-sans)",
+              fontSize: 9,
+              color: GOLD,
               letterSpacing: 4,
               textTransform: "uppercase",
               fontWeight: 700,
+              marginBottom: 18,
             }}
           >
             CX Hub
           </div>
           <div
             style={{
-              fontFamily: "var(--font-spectral), Georgia, serif",
+              fontFamily: "var(--font-cormorant), Georgia, serif",
               fontStyle: "italic",
-              fontSize: 17,
+              fontSize: 18,
               color: INK,
               opacity: 0.65,
-              marginTop: 18,
               lineHeight: 1.4,
             }}
           >
-            Create your account. Your home base for everything CX.
+            Your home base for everything CX.
           </div>
         </div>
 
@@ -160,16 +155,15 @@ export default function SignUpPage() {
           style={{
             textAlign: "center",
             marginTop: 28,
-            fontFamily: "var(--font-raleway)",
-            fontSize: 10,
-            color: INK,
-            opacity: 0.4,
+            fontFamily: "var(--font-dm-sans)",
+            fontSize: 9,
+            color: STONE,
             letterSpacing: 2,
             textTransform: "uppercase",
             fontWeight: 600,
           }}
         >
-          Built for the IM8 CX team
+          Built for modern CX teams
         </div>
       </div>
     </div>

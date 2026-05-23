@@ -1,31 +1,31 @@
 import { ClerkProvider } from "@clerk/nextjs";
-import { Raleway, Spectral } from "next/font/google";
+import { DM_Sans, Cormorant_Garamond } from "next/font/google";
 
-const raleway = Raleway({
+const dmSans = DM_Sans({
   subsets: ["latin"],
-  weight: ["400", "600", "700"],
-  variable: "--font-raleway",
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-dm-sans",
   display: "swap",
 });
 
-const spectral = Spectral({
+const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
-  weight: ["400", "600"],
+  weight: ["400", "600", "700"],
   style: ["normal", "italic"],
-  variable: "--font-spectral",
+  variable: "--font-cormorant",
   display: "swap",
 });
 
 export const metadata = {
-  title: "IM8 CS Hub",
-  description: "IM8 Customer Experience Hub",
+  title: "Luma CX Hub",
+  description: "Luma CX — Customer Experience Hub",
   icons: { icon: "/favicon.svg" },
 };
 
 export default function RootLayout({ children }) {
   return (
     <ClerkProvider>
-      <html lang="en" className={`${raleway.variable} ${spectral.variable}`}>
+      <html lang="en" className={`${dmSans.variable} ${cormorant.variable}`}>
         <body style={{ margin: 0 }}>{children}</body>
       </html>
     </ClerkProvider>

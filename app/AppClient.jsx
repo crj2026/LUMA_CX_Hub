@@ -11,34 +11,34 @@ import { AFFILIATES_DATA } from "../lib/affiliates-data";
 import { PRODUCT_LIST, PRODUCT_CATALOGUE, PRODUCT_CATALOGUE_SIMPLE, PRODUCT_LIST_SIMPLE } from "../lib/products-catalogue";
 import { REPLACEMENT_MAIN_REASONS, getSubsForMains } from "../lib/replacement-reasons";
 import {
-  buildAskIM8System,
+  buildAskLumaSystem,
   SHIPPING_LEAD_TIMES,
   ESCALATE_IMMEDIATELY,
   DECISION_TREE,
   VOICE_RULES,
   TOOLKIT,
-} from "../lib/ask-im8-knowledge";
+} from "../lib/ask-luma-knowledge";
 
 // ─── Design Tokens ───────────────────────────────────────────────────────────
-const RED  = "#A40011";
-const BURG = "#50000B";
-const GOLD = "#C8973A";
-const CREAM = "#F5F0EB";
-const W = "#FFF";
+const RED  = "#B44444";
+const BURG = "#0A0A09";
+const GOLD = "#C4A96B";
+const CREAM = "#F4F0E8";
+const W = "#FAF8F3";
 const F = {
-  sans:  "'Raleway','Arial',sans-serif",
-  serif: "'Spectral','Georgia',serif",
+  sans:  "'DM Sans','Arial',sans-serif",
+  serif: "'Cormorant Garamond','Georgia',serif",
 };
-const HEADER_GRAD = "linear-gradient(160deg,#C41020 0%,#50000B 60%,#1a0005 100%)";
-const HERO_GRAD   = "linear-gradient(160deg,#C41020 0%,#50000B 55%,#0f0003 100%)";
+const HEADER_GRAD = "#FAF8F3";
+const HERO_GRAD   = "#F4F0E8";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
-const LB_KEY = "im8_lb_v9";
-const TABS = ["Home","Insights","Reports","Logs","Records","Ask IM8","Playbook","Affiliates","Training","Team"];
+const LB_KEY = "luma_cx_lb_v1";
+const TABS = ["Home","Insights","Reports","Logs","Records","Ask Luma","Playbook","Affiliates","Training","Team"];
 // Roles list mirrored from lib/auth.js — kept inline so the client bundle
 // doesn't have to pull in the server-only helpers from that module.
 const TEAM_ROLES = ["New Starter", "Agent", "Ops", "Lead Agent", "Manager", "Admin", "Owner"];
-const BC_KEY = "im8_bc_v1";
+const BC_KEY = "luma_cx_bc_v1";
 const BC_PASS = 0.75;
 
 // ─── Quiz Data ────────────────────────────────────────────────────────────────
@@ -1565,17 +1565,13 @@ async function callClaude(systemPrompt, messages, maxTokens = 600) {
 }
 
 // ─── System Prompts ───────────────────────────────────────────────────────────
-// Ask IM8 — operational chatbot for the CX team. Built from the curated
-// knowledge in lib/ask-im8-knowledge.js (Cherie's 29 agent + 30 customer
-// Q&As, May 11 policy). The legacy training-focused prompt below the new
-// const is preserved as `ASK_SYSTEM_LEGACY` in case we want to revisit
-// the training-assistant flavour later.
-const ASK_SYSTEM = buildAskIM8System();
+const ASK_SYSTEM = buildAskLumaSystem();
 
+// eslint-disable-next-line no-unused-vars
 const ASK_SYSTEM_LEGACY = [
-  "You are an expert IM8 CS training assistant. Help new agents learn to handle every type of customer ticket correctly.",
-  "Always teach using the real IM8 SOP. When showing example responses, write in IM8 voice: warm, confident, direct, short sentences, human empathy, no corporate jargon.",
-  "Sign every example response with: With health, [Your name] - IM8 Customer Experience",
+  "You are an expert CX training assistant. Help new agents learn to handle every type of customer ticket correctly.",
+  "Always teach using real SOPs. When showing example responses, write in the Luma CX voice: warm, confident, direct, short sentences, human empathy, no corporate jargon.",
+  "Sign every example response with: [Agent name] - Luma CX",
 
   "=== 3 GUIDING PRINCIPLES ===",
   "1. Empathetic Ownership: own the problem until resolved, measured by CSAT/NPS/Trustpilot.",
@@ -1769,15 +1765,15 @@ export default function App({ userId, role, displayName }) {
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      const stored = window.localStorage.getItem("im8_view_as_role");
+      const stored = window.localStorage.getItem("luma_view_as_role");
       if (stored) setViewAsRole(stored);
     } catch { /* ignore localStorage errors */ }
   }, []);
   function updateViewAsRole(next) {
     setViewAsRole(next);
     try {
-      if (next) window.localStorage.setItem("im8_view_as_role", next);
-      else window.localStorage.removeItem("im8_view_as_role");
+      if (next) window.localStorage.setItem("luma_view_as_role", next);
+      else window.localStorage.removeItem("luma_view_as_role");
     } catch { /* ignore */ }
   }
   // Only allow overrides to roles strictly LOWER than the actual role —
@@ -1796,7 +1792,7 @@ export default function App({ userId, role, displayName }) {
     const hash = window.location.hash.replace(/^#/, "").trim();
     if (!hash) return;
     const tabPart = hash.split(":")[0];
-    const valid = ["Home", "Insights", "Reports", "Logs", "Records", "Playbook", "Affiliates", "Ask IM8", "Training", "Quiz", "Progress"];
+    const valid = ["Home", "Insights", "Reports", "Logs", "Records", "Playbook", "Affiliates", "Ask Luma", "Training", "Quiz", "Progress"];
     const matched = valid.find((v) => v.toLowerCase() === tabPart.toLowerCase());
     if (matched) setTab(matched);
   }, []);
@@ -1855,7 +1851,7 @@ export default function App({ userId, role, displayName }) {
       setLeaderboard(lb);
     } catch(e) {}
     try {
-      const saved = JSON.parse(localStorage.getItem("im8_state") || "{}");
+      const saved = JSON.parse(localStorage.getItem("luma_cx_state") || "{}");
       if (saved.playerName)    setPlayerName(saved.playerName);
       if (saved.totalScore !== undefined) setTotalScore(saved.totalScore);
       if (saved.completed)     setCompleted(saved.completed);
@@ -1866,7 +1862,7 @@ export default function App({ userId, role, displayName }) {
   // Persist state
   useEffect(() => {
     try {
-      localStorage.setItem("im8_state", JSON.stringify({ playerName, totalScore, completed, sessionScores }));
+      localStorage.setItem("luma_cx_state", JSON.stringify({ playerName, totalScore, completed, sessionScores }));
     } catch(e) {}
   }, [playerName, totalScore, completed, sessionScores]);
 
@@ -2063,11 +2059,15 @@ export default function App({ userId, role, displayName }) {
       )}
 
       {/* ── HEADER ─────────────────────────────────────────────────────── */}
-      <div id="im8-app-header" style={{ background: W, position: "sticky", top: viewAsRole ? 36 : 0, zIndex: 100, borderBottom: "1px solid #EDE3D8" }}>
+      <div id="luma-app-header" style={{ background: W, position: "sticky", top: viewAsRole ? 36 : 0, zIndex: 100, borderBottom: "1px solid #DDD8CE" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 24px 10px" }}>
-          <div>
-            <div style={{ fontFamily: F.sans, fontWeight: 700, fontSize: 22, color: BURG, letterSpacing: 4 }}>I M 8</div>
-            <div style={{ fontFamily: F.sans, fontSize: 10, color: BURG, opacity: 0.5, letterSpacing: 2.5, textTransform: "uppercase", fontWeight: 600 }}>CX Hub</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/favicon.svg" alt="" width={22} height={22} style={{ display: "block" }} />
+            <div>
+              <div style={{ fontFamily: F.sans, fontWeight: 700, fontSize: 16, color: BURG, letterSpacing: 3 }}>LUMA CX</div>
+              <div style={{ fontFamily: F.sans, fontSize: 8, color: GOLD, opacity: 0.9, letterSpacing: 2.5, textTransform: "uppercase", fontWeight: 700 }}>CX Hub</div>
+            </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             {/* "View as" preview selector — Manager/Admin/Owner only.
@@ -2108,7 +2108,7 @@ export default function App({ userId, role, displayName }) {
           {TABS.filter(t => {
             // Hidden until those features are ready — flip individual entries
             // to false to surface them again.
-            const HIDDEN = { "Ask IM8": false, "Playbook": false, "Training": true };
+            const HIDDEN = { "Ask Luma": false, "Playbook": false, "Training": true };
             if (HIDDEN[t]) return false;
             // Ops sees a focused view: only Home + Logs
             if (effectiveRole === "Ops") return t === "Home" || t === "Logs";
@@ -2138,7 +2138,7 @@ export default function App({ userId, role, displayName }) {
       {tab === "Playbook"   && <PlaybookTab   role={effectiveRole} />}
       {tab === "Affiliates" && <AffiliatesTab role={effectiveRole} />}
       {tab === "Team"       && <TeamTab       role={effectiveRole} />}
-      {tab === "Ask IM8"  && <AskTab      chatMsgs={chatMsgs} chatInput={chatInput} setChatInput={setChatInput} chatLoading={chatLoading} sendChat={sendChat} chatEndRef={chatEndRef} />}
+      {tab === "Ask Luma"  && <AskTab      chatMsgs={chatMsgs} chatInput={chatInput} setChatInput={setChatInput} chatLoading={chatLoading} sendChat={sendChat} chatEndRef={chatEndRef} />}
       {tab === "Training" && <TrainingTab
         bcProgress={bcProgress} saveBcProgress={saveBcProgress} bcView={bcView} setBcView={setBcView}
         bcDay={bcDay} setBcDay={setBcDay} bcLesson={bcLesson} setBcLesson={setBcLesson}
@@ -2189,98 +2189,67 @@ export default function App({ userId, role, displayName }) {
 // ─── HOME TAB ────────────────────────────────────────────────────────────────
 // ─── WELCOME / HOME DATA ──────────────────────────────────────────────────────
 
+// Demo team — replace with client's team members for each deployment
 const TEAM = [
-  { name: "Aina Shasha",                           bMonth: 10, bDay: 16, joinDate: new Date(2024, 8, 30),  location: "Malaysia",  title: "Senior Customer Success Executive" },
-  { name: "Chee Keong Tay",                        bMonth: 12, bDay: 16, joinDate: new Date(2026, 3, 13),  location: "Malaysia",  title: "Customer Success Executive" },
-  { name: "Cherie Jones",                          bMonth: 3,  bDay: 15, joinDate: new Date(2025, 11, 29), location: "Hong Kong", title: "Head of CX" },
-  { name: "Adrian CHEUNG",                         bMonth: 9,  bDay: 4,  joinDate: new Date(2021, 9, 25),  location: "Hong Kong", title: "Customer Success Lead" },
-  { name: "Nur Faeisya",                           bMonth: 8,  bDay: 8,  joinDate: new Date(2025, 11, 15), location: "Malaysia",  title: "Customer Success Executive" },
-  { name: "Nurin Aqilah Azlan",                    bMonth: 5,  bDay: 18, joinDate: new Date(2025, 10, 22), location: "Malaysia",  title: "Customer Success Executive" },
-  { name: "Siti Nur Syafiqa Mazlan",               bMonth: 6,  bDay: 28, joinDate: new Date(2025, 1, 17),  location: "Malaysia",  title: "Customer Success Executive" },
-  { name: "Nurin Nusratina Sukri",                 bMonth: 8,  bDay: 16, joinDate: new Date(2026, 0, 12),  location: "Malaysia",  title: "Customer Success Executive" },
-  { name: "Shya Devi",                             bMonth: 6,  bDay: 1,  joinDate: new Date(2024, 9, 28),  location: "Malaysia",  title: "Customer Success Executive" },
-  { name: "Ben Liew",                              bMonth: 5,  bDay: 2,  joinDate: new Date(2024, 2, 4),   location: "Malaysia",  title: "Senior Customer Success Executive" },
-  { name: "Michelle JIANG",                        bMonth: 9,  bDay: 1,  joinDate: new Date(2021, 7, 30),  location: "Hong Kong", title: "Customer Experience Manager" },
-  { name: "Quennie Caasi Evangelista",             bMonth: 12, bDay: 5,  joinDate: new Date(2025, 9, 20),  location: "Hong Kong", title: "Customer Success Executive" },
-  { name: "Angelica Francisco Basa",               bMonth: 10, bDay: 19, joinDate: new Date(2025, 11, 1),  location: "Hong Kong", title: "Customer Success Executive" },
-  { name: "Ma. Graciela Orendain Rosales",         bMonth: 2,  bDay: 15, joinDate: new Date(2025, 11, 22), location: "Hong Kong", title: "Customer Success Executive" },
-  { name: "Pauline Mae Apuli De la Cruz-Pickrell", bMonth: 6,  bDay: 19, joinDate: new Date(2025, 11, 22), location: "Hong Kong", title: "Customer Success Executive" },
-  { name: "Nina Angelli Calyn Ranoa Navarro",      bMonth: 11, bDay: 5,  joinDate: new Date(2026, 0, 12),  location: "Hong Kong", title: "Customer Success Executive" },
+  { name: "Alex Rivera",   bMonth: 3,  bDay: 15, joinDate: new Date(2024, 2, 15),  location: "Remote",    title: "Head of CX" },
+  { name: "Sam Park",      bMonth: 7,  bDay: 22, joinDate: new Date(2023, 8, 1),   location: "Remote",    title: "CX Lead" },
+  { name: "Jordan Lee",    bMonth: 11, bDay: 5,  joinDate: new Date(2024, 5, 10),  location: "Remote",    title: "Senior CX Agent" },
+  { name: "Morgan Chen",   bMonth: 5,  bDay: 18, joinDate: new Date(2025, 0, 20),  location: "Remote",    title: "CX Agent" },
+  { name: "Taylor Nguyen", bMonth: 9,  bDay: 30, joinDate: new Date(2025, 3, 7),   location: "Remote",    title: "CX Agent" },
+  { name: "Casey Kim",     bMonth: 1,  bDay: 12, joinDate: new Date(2025, 8, 15),  location: "Remote",    title: "CX Agent" },
 ];
 
 const QUOTES = [
-  { text: "Mamba mentality is about focusing on the process and trusting the hard work.", source: "Kobe Bryant" },
-  { text: "Great things come from hard work and perseverance. No excuses.", source: "Kobe Bryant" },
-  { text: "Once you know what failure feels like, determination chases success.", source: "Kobe Bryant" },
-  { text: "There are no shortcuts in life. If you do the work, you get rewarded.", source: "Kobe Bryant" },
-  { text: "If you're afraid to fail, then you're probably going to fail.", source: "Kobe Bryant" },
-  { text: "Some people want it to happen, some wish it would happen, others make it happen.", source: "Michael Jordan" },
-  { text: "I can accept failure. Everyone fails at something. But I can't accept not trying.", source: "Michael Jordan" },
-  { text: "I've failed over and over and over again in my life. And that is why I succeed.", source: "Michael Jordan" },
-  { text: "You have to believe in yourself when no one else does.", source: "Serena Williams" },
-  { text: "A champion is defined not by their wins, but by how they recover when they fall.", source: "Serena Williams" },
-  { text: "Some people say I have attitude — maybe I do, but I think you have to.", source: "Venus Williams" },
-  { text: "Float like a butterfly, sting like a bee.", source: "Muhammad Ali" },
-  { text: "Don't count the days. Make the days count.", source: "Muhammad Ali" },
-  { text: "It isn't the mountains ahead to climb that wear you out; it's the pebble in your shoe.", source: "Muhammad Ali" },
-  { text: "Champions are made from something they have deep inside them — a desire, a dream, a vision.", source: "Muhammad Ali" },
-  { text: "Nothing is given. Everything is earned.", source: "LeBron James" },
-  { text: "Success is not an accident. Success is actually a choice.", source: "Stephen Curry" },
-  { text: "If you don't believe in yourself, why is anyone else going to believe in you?", source: "Tom Brady" },
-  { text: "You miss 100% of the shots you don't take.", source: "Wayne Gretzky" },
-  { text: "It's hard to beat a person who never gives up.", source: "Babe Ruth" },
-  { text: "There is no way around hard work. Embrace it.", source: "Roger Federer" },
-  { text: "The harder the battle, the sweeter the victory.", source: "Pelé" },
-  { text: "Winners never quit and quitters never win.", source: "Vince Lombardi" },
-  { text: "It's not whether you get knocked down, it's whether you get up.", source: "Vince Lombardi" },
-  { text: "Don't let what you cannot do interfere with what you can do.", source: "John Wooden" },
-  { text: "Here's how I'm going to beat you. I'm going to outwork you.", source: "Pat Summitt" },
-  { text: "Failure happens all the time. What makes you better is how you react to it.", source: "Mia Hamm" },
-  { text: "Champions keep playing until they get it right.", source: "Billie Jean King" },
-  { text: "Excellence is the gradual result of always striving to do better.", source: "Pat Riley" },
-  { text: "There may be people that have more talent than you, but there's no excuse for anyone to work harder than you do.", source: "Derek Jeter" },
+  { text: "The customer's perception is your reality.", source: "Kate Zabriskie" },
+  { text: "Customer service shouldn't just be a department, it should be the entire company.", source: "Tony Hsieh" },
+  { text: "Your most unhappy customers are your greatest source of learning.", source: "Bill Gates" },
+  { text: "We see our customers as invited guests to a party, and we are the hosts.", source: "Jeff Bezos" },
+  { text: "The goal as a company is to have customer service that is not just the best but legendary.", source: "Sam Walton" },
+  { text: "Revolve your world around the customer and more customers will revolve around you.", source: "Heather Williams" },
+  { text: "It takes months to find a customer — seconds to lose one.", source: "Vince Lombardi" },
+  { text: "Make every interaction count, even the small ones.", source: "Shep Hyken" },
+  { text: "There is only one boss. The customer.", source: "Sam Walton" },
+  { text: "A customer talking about their experience with you is worth ten times that which you write or say about yourself.", source: "David J. Greer" },
+  { text: "Do what you do so well that they will want to see it again and bring their friends.", source: "Walt Disney" },
+  { text: "The single most important thing is to make people happy.", source: "Derek Sivers" },
+  { text: "Customers don't expect you to be perfect. They do expect you to fix things when they go wrong.", source: "Donald Porter" },
+  { text: "Quality is remembered long after the price is forgotten.", source: "Gucci family slogan" },
+  { text: "The secret is to work less as individuals and more as a team.", source: "Vince Lombardi" },
+  { text: "Loyal customers, they don't just come back, they don't simply recommend you, they insist that their friends do business with you.", source: "Chip Bell" },
+  { text: "People will forget what you said, people will forget what you did, but people will never forget how you made them feel.", source: "Maya Angelou" },
+  { text: "The purpose of a business is to create a customer who creates customers.", source: "Shiv Singh" },
+  { text: "Excellence is not a destination; it is a continuous journey that never ends.", source: "Brian Tracy" },
+  { text: "Be genuinely interested in everyone you meet and everyone you meet will be genuinely interested in you.", source: "Rasheed Ogunlaru" },
+  { text: "A brand is no longer what we tell the consumer it is — it is what consumers tell each other it is.", source: "Scott Cook" },
 ];
 
-// Day-agnostic greetings — used Tuesday through Thursday and as the
-// fallback on any day where the day-specific pool is exhausted.
 const GREETING_LINES = [
   "Let's make today count.",
   "Inbox waiting. Let's go.",
-  "Big day, big energy.",
   "Ready when you are.",
-  "Time to make tickets disappear.",
   "One reply at a time.",
   "Let's keep the streak going.",
-  "Coffee in hand?",
-  "Champion mindset, champion day.",
+  "Your team is ready. Are you?",
+  "Every ticket is a chance to build loyalty.",
+  "Make every interaction count.",
 ];
 
-// Monday-only greetings — weekend-reference lines that would read weirdly
-// any other day. (Previously "Hope your weekend was top-tier" was in the
-// general pool and landed on random weekdays via day-of-year rotation.)
 const GREETING_LINES_MONDAY = [
-  "Hope your weekend was top-tier.",
   "Fresh week, fresh wins.",
-  "New week, let's go.",
+  "New week. Let's own it.",
+  "Hope you had a great weekend.",
 ];
 
-// Friday-only greetings — TGIF / weekend-incoming energy.
 const GREETING_LINES_FRIDAY = [
-  "Thank God it's Friday.",
-  "The weekend is in sight.",
-  "Friyay — last push.",
-  "Almost weekend o'clock.",
-  "TGIF — let's make it count.",
-  "One more day 'til freedom.",
+  "Strong finish to a strong week.",
+  "Almost there — finish well.",
+  "Last push before the weekend.",
+  "End the week on a high.",
 ];
 
 const ANNOUNCEMENTS = [
-  { title: "Loop Returns is now LIVE", date: "2026-05-06" },
-  {
-    title: "IM8 × Inter Miami CF partnership announced",
-    date: "2026-05-07",
-    url: "https://www.intermiamicf.com/news/prenetics-im8-named-exclusive-health-supplements-partner-of-inter-miami-cf-in-multi-year-partnership",
-  },
+  { title: "Luma CX Hub is live — welcome to the team", date: "2026-05-23" },
+  { title: "Ask Luma is now powered by Claude — try it now", date: "2026-05-23" },
 ];
 
 function pickByDay(list, today) {
@@ -2356,18 +2325,18 @@ function firstNameOf(fullName) {
   return parts[0];
 }
 
-const BLUSH = "#F8E5E2";
-const PEACH = "#F5E1D6";
-const SOFT_BORDER = "#EDE3D8";
-const INK = "#3A2F2C";
+const BLUSH = "#F0EBE0";
+const PEACH = "#EDE5D8";
+const SOFT_BORDER = "#DDD8CE";
+const INK = "#0A0A09";
 
-// Elite / dark palette — used by the Home page
-const DARK_BG = "#0A0706";
-const DARK_CARD = "#16110F";
-const DARK_CARD_HI = "#1F1815";
-const DARK_BORDER = "#2A201C";
-const CREAM_TXT = "#F5F0EB";
-const WARM_GRAY = "#A89A8E";
+// Dark palette — used by home page announcement banner
+const DARK_BG = "#0A0A09";
+const DARK_CARD = "#161614";
+const DARK_CARD_HI = "#1F1F1D";
+const DARK_BORDER = "#2A2A28";
+const CREAM_TXT = "#F4F0E8";
+const WARM_GRAY = "#B0AAA2";
 
 function HomeTab({ displayName, setTab, role }) {
   const [stats, setStats] = useState(null);
@@ -2411,14 +2380,14 @@ function HomeTab({ displayName, setTab, role }) {
     <div style={{ background: CREAM, minHeight: "100vh", color: INK }}>
       {/* Marquee announcements banner */}
       <style>{`
-        @keyframes im8-marquee {
+        @keyframes luma-marquee {
           0% { transform: translateX(0); }
           100% { transform: translateX(-50%); }
         }
-        .im8-marquee-track:hover { animation-play-state: paused; }
+        .luma-marquee-track:hover { animation-play-state: paused; }
       `}</style>
       <div style={{ background: BURG, overflow: "hidden", padding: "12px 0", borderBottom: "1px solid " + DARK_BORDER }}>
-        <div className="im8-marquee-track" style={{ display: "inline-flex", whiteSpace: "nowrap", animation: "im8-marquee 50s linear infinite" }}>
+        <div className="luma-marquee-track" style={{ display: "inline-flex", whiteSpace: "nowrap", animation: "luma-marquee 50s linear infinite" }}>
           {[...ANNOUNCEMENTS, ...ANNOUNCEMENTS, ...ANNOUNCEMENTS].map((a, i) => {
             const status = announcementStatus(a.date, today);
             const tagText = status === "live" ? "Live" : status === "today" ? "Today" : "Upcoming";
@@ -2445,7 +2414,7 @@ function HomeTab({ displayName, setTab, role }) {
       <div style={{ padding: "96px 24px 64px", maxWidth: 1100, margin: "0 auto" }}>
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 32, flexWrap: "wrap" }}>
           <div style={{ flex: "1 1 auto", minWidth: 0 }}>
-            <div style={{ ...eyebrow, marginBottom: 20 }}>IM8 — CX Hub</div>
+            <div style={{ ...eyebrow, marginBottom: 20 }}>Luma CX — CX Hub</div>
             <div style={{ fontFamily: F.serif, fontSize: 64, color: BURG, fontWeight: 600, lineHeight: 1.05, marginBottom: 18, letterSpacing: -1.5 }}>
               {prefix}, {firstName}.
             </div>
@@ -2454,44 +2423,39 @@ function HomeTab({ displayName, setTab, role }) {
             </div>
           </div>
 
-          {/* Dino — Claude-artifact ticket responder, externally hosted.
-              Cherie May 21 — moved here from the bottom "External tools"
-              section so it's a hero-level launcher. Card-style so it
-              reads as a tool, not a tab. */}
-          <a
-            href="https://claude.ai/artifacts/latest/a9a08483-ecf6-4f29-b7c4-d2130ff858f0"
-            target="_blank"
-            rel="noopener noreferrer"
+          {/* Ask Luma quick-launch card */}
+          <div
+            onClick={() => setTab("Ask Luma")}
             style={{
               flex: "0 0 auto",
               display: "inline-flex", alignItems: "center", gap: 14,
-              background: W, border: "1.5px solid " + GOLD,
-              color: BURG,
+              background: BURG, border: "1.5px solid " + BURG,
+              color: CREAM,
               padding: "16px 22px",
               borderRadius: 14,
-              textDecoration: "none",
-              boxShadow: "0 4px 14px rgba(200,151,58,0.18)",
+              boxShadow: "0 4px 14px rgba(10,10,9,0.18)",
               transition: "all 0.2s",
+              cursor: "pointer",
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = "translateY(-2px)";
-              e.currentTarget.style.boxShadow = "0 8px 22px rgba(200,151,58,0.32)";
+              e.currentTarget.style.boxShadow = "0 8px 22px rgba(10,10,9,0.28)";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.boxShadow = "0 4px 14px rgba(200,151,58,0.18)";
+              e.currentTarget.style.boxShadow = "0 4px 14px rgba(10,10,9,0.18)";
             }}
           >
-            <span style={{ fontSize: 32, lineHeight: 1 }}>🦕</span>
+            <span style={{ fontSize: 26, lineHeight: 1 }}>✦</span>
             <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
-              <span style={{ fontFamily: F.serif, fontSize: 22, fontWeight: 700, letterSpacing: 1, lineHeight: 1, color: BURG }}>
-                DINO
+              <span style={{ fontFamily: F.serif, fontSize: 20, fontWeight: 700, letterSpacing: 0.5, lineHeight: 1, color: CREAM }}>
+                Ask Luma
               </span>
               <span style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, letterSpacing: 2, textTransform: "uppercase", fontWeight: 700 }}>
-                IM8 Responder ↗
+                AI Assistant →
               </span>
             </span>
-          </a>
+          </div>
         </div>
       </div>
 
@@ -2536,27 +2500,29 @@ function HomeTab({ displayName, setTab, role }) {
           </div>
         </div>
 
-        {/* Our impact — editorial split with full-bleed image */}
-        <div style={{ background: W, marginBottom: 56, position: "relative", overflow: "hidden", border: "1px solid " + SOFT_BORDER, borderRadius: 18 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 360px", gap: 0, alignItems: "stretch" }}>
-            <div style={{ padding: "56px 56px", borderLeft: "2px solid " + GOLD }}>
-              <div style={{ ...eyebrow, marginBottom: 24 }}>Our impact — IM8 × Vitamin Angels</div>
-              <div style={{ fontFamily: F.serif, fontSize: 36, fontWeight: 600, color: BURG, marginBottom: 24, lineHeight: 1.15, letterSpacing: -0.8 }}>
-                Fuel your body.<br />Fuel the world.
-              </div>
-              <div style={{ fontFamily: F.sans, fontSize: 14, color: INK, opacity: 0.75, lineHeight: 1.7, maxWidth: 540, marginBottom: 24 }}>
-                Through our Vitamin Angels partnership, IM8 is pledged to reach <strong style={{ color: BURG, opacity: 1, fontWeight: 700 }}>400,000 lives</strong> — pregnant women, infants, and children under five — across <strong style={{ color: BURG, opacity: 1, fontWeight: 700 }}>65+ countries</strong> in Year One. Prenatal vitamins, Vitamin A, deworming treatments. Every customer you help is part of this.
-              </div>
-              <a href="https://im8health.com/pages/vitamin-angels" target="_blank" rel="noopener noreferrer" style={{ fontFamily: F.sans, fontSize: 11, color: BURG, fontWeight: 700, textDecoration: "none", letterSpacing: 3, textTransform: "uppercase", borderBottom: "1px solid " + GOLD, paddingBottom: 4 }}>
-                Learn more →
-              </a>
+        {/* Mission card — Luma CX */}
+        <div style={{ background: BURG, marginBottom: 56, position: "relative", overflow: "hidden", borderRadius: 18 }}>
+          <div style={{ padding: "56px 56px", borderLeft: "2px solid " + GOLD }}>
+            <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, textTransform: "uppercase", letterSpacing: 4, fontWeight: 600, marginBottom: 20 }}>Our mission</div>
+            <div style={{ fontFamily: F.serif, fontSize: 42, fontWeight: 600, color: CREAM, marginBottom: 24, lineHeight: 1.1, letterSpacing: -1 }}>
+              We build it.<br />You own it.<br />No lock-in, ever.
             </div>
-            <div style={{ position: "relative", minHeight: 360 }}>
-              <img
-                src="https://im8health.com/cdn/shop/files/IN2023FEB-ROH-4789-R101_3_1.jpg?width=800"
-                alt="IM8 × Vitamin Angels"
-                style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-              />
+            <div style={{ fontFamily: F.sans, fontSize: 15, color: CREAM, opacity: 0.7, lineHeight: 1.7, maxWidth: 620, marginBottom: 32 }}>
+              Luma CX exists to give brands a CX operating layer that actually belongs to them. No vendor dependency. No black box. Every playbook, every workflow, every insight — yours to take anywhere.
+            </div>
+            <div style={{ display: "flex", gap: 48 }}>
+              <div>
+                <div style={{ fontFamily: F.serif, fontSize: 36, fontWeight: 700, color: GOLD, lineHeight: 1 }}>100%</div>
+                <div style={{ fontFamily: F.sans, fontSize: 10, color: CREAM, opacity: 0.6, letterSpacing: 3, textTransform: "uppercase", fontWeight: 600, marginTop: 6 }}>Client-owned</div>
+              </div>
+              <div>
+                <div style={{ fontFamily: F.serif, fontSize: 36, fontWeight: 700, color: GOLD, lineHeight: 1 }}>0</div>
+                <div style={{ fontFamily: F.sans, fontSize: 10, color: CREAM, opacity: 0.6, letterSpacing: 3, textTransform: "uppercase", fontWeight: 600, marginTop: 6 }}>Lock-in</div>
+              </div>
+              <div>
+                <div style={{ fontFamily: F.serif, fontSize: 36, fontWeight: 700, color: GOLD, lineHeight: 1 }}>∞</div>
+                <div style={{ fontFamily: F.sans, fontSize: 10, color: CREAM, opacity: 0.6, letterSpacing: 3, textTransform: "uppercase", fontWeight: 600, marginTop: 6 }}>Flexibility</div>
+              </div>
             </div>
           </div>
         </div>
@@ -2575,7 +2541,7 @@ function HomeTab({ displayName, setTab, role }) {
                     <div>
                       <div style={{ fontFamily: F.serif, fontSize: 18, color: BURG, fontWeight: 600 }}>{e.person.name}</div>
                       <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, letterSpacing: 2.5, textTransform: "uppercase", fontWeight: 600, marginTop: 6 }}>
-                        {e.type === "birthday" ? "Birthday" : `${e.years} year${e.years === 1 ? "" : "s"} at IM8`} · {e.person.location}
+                        {e.type === "birthday" ? "Birthday" : `${e.years} year${e.years === 1 ? "" : "s"} at Luma CX`} · {e.person.location}
                       </div>
                     </div>
                   </div>
@@ -2666,7 +2632,7 @@ function TrainingTab(props) {
     <div style={{ background: CREAM, minHeight: "100vh" }}>
       {/* Header */}
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "56px 24px 24px" }}>
-        <div style={eyebrowS}>IM8 — Training</div>
+        <div style={eyebrowS}>Luma CX — Training</div>
         <div style={{ fontFamily: F.serif, fontSize: 40, color: BURG, fontWeight: 600, lineHeight: 1.05, marginBottom: 24, letterSpacing: -1 }}>
           {sub}
         </div>
@@ -2903,7 +2869,7 @@ function RecordsTab({ role }) {
   return (
     <div style={{ background: CREAM, minHeight: "100vh" }}>
       <div style={{ maxWidth: "100%", padding: "40px 24px 16px" }}>
-        <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, letterSpacing: 4, textTransform: "uppercase", fontWeight: 700, marginBottom: 8 }}>IM8 — Records</div>
+        <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, letterSpacing: 4, textTransform: "uppercase", fontWeight: 700, marginBottom: 8 }}>Luma CX — Records</div>
         <div style={{ fontFamily: F.serif, fontSize: 36, color: BURG, fontWeight: 600, lineHeight: 1.05, marginBottom: 8 }}>{sub}</div>
         <div style={{ fontFamily: F.serif, fontStyle: "italic", fontSize: 14, color: INK, opacity: 0.6, marginBottom: 18, maxWidth: 760 }}>
           {RECORDS_TAGLINES[sub] ?? "Every log entry in one editable view."}
@@ -3240,8 +3206,8 @@ function ReportsTab({ role }) {
   return <WeeklySummaryView />;
 }
 
-const STAKEHOLDERS_KEY = "im8_report_stakeholders_v1";
-const REPORT_RANGE_KEY = "im8_report_range_v1";
+const STAKEHOLDERS_KEY = "luma_report_stakeholders_v1";
+const REPORT_RANGE_KEY = "luma_report_range_v1";
 
 function readSavedRange() {
   if (typeof window === "undefined") return null;
@@ -3452,7 +3418,7 @@ function WeeklySummaryView() {
         {/* Header */}
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16, marginBottom: 24 }}>
           <div>
-            <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, letterSpacing: 4, textTransform: "uppercase", fontWeight: 700, marginBottom: 8 }}>IM8 — CX Hub</div>
+            <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, letterSpacing: 4, textTransform: "uppercase", fontWeight: 700, marginBottom: 8 }}>Luma CX Hub</div>
             <div style={{ fontFamily: F.serif, fontSize: 40, color: BURG, fontWeight: 600, lineHeight: 1.05, letterSpacing: -0.5 }}>Weekly Summary</div>
             <div style={{ fontFamily: F.serif, fontStyle: "italic", fontSize: 18, color: INK, opacity: 0.65, marginTop: 6 }}>{reportData.weekLabel}</div>
           </div>
@@ -4128,7 +4094,7 @@ function buildPlainTextEmail(d) {
 
   lines.push(`Hi team,`);
   lines.push(``);
-  lines.push(`IM8 weekly summary — ${d.weekLabel}.`);
+  lines.push(`Luma CX weekly summary — ${d.weekLabel}.`);
   lines.push(``);
 
   // KEY METRICS
@@ -4255,7 +4221,7 @@ function buildPlainTextEmail(d) {
     d.notes.split(/\r?\n/).forEach((ln) => lines.push(ln));
     lines.push(``);
   }
-  lines.push(`— Sent from IM8 CS Hub`);
+  lines.push(`— Sent from Luma CX Hub`);
   return lines.join("\n");
 }
 
@@ -4270,7 +4236,7 @@ function buildHtmlEmail(d) {
   const fmtPct = (v) => v == null || !Number.isFinite(Number(v)) ? "—" : `${(Number(v) * 100).toFixed(2)}%`;
   out.push(`<div style="${wrapStyle}">`);
   out.push(`<p>Hi team,</p>`);
-  out.push(`<p style="font-style:italic;color:#5a4f4a;">IM8 weekly summary — <strong>${d.weekLabel}</strong>.</p>`);
+  out.push(`<p style="font-style:italic;color:#5a4f4a;">Luma CX weekly summary — <strong>${d.weekLabel}</strong>.</p>`);
 
   // Key metrics tile grid. Filter out tiles with no real value ("—") so
   // empty cells don't show as awkward gaps in the email — Cherie flagged
@@ -4431,7 +4397,7 @@ function buildHtmlEmail(d) {
       .replace(/'/g, "&#39;");
     out.push(`<div style="font-size:14px;line-height:1.6;white-space:pre-wrap;background:#FAF6F1;border-left:3px solid #C8973A;padding:12px 16px;border-radius:6px;">${escaped}</div>`);
   }
-  out.push(`<p style="margin-top:32px;font-size:11px;color:#A89A8E;letter-spacing:0.5px;">— Sent from IM8 CS Hub</p>`);
+  out.push(`<p style="margin-top:32px;font-size:11px;color:#A89A8E;letter-spacing:0.5px;">— Sent from Luma CX Hub</p>`);
   out.push(`</div>`);
   return out.join("");
 }
@@ -4441,7 +4407,7 @@ function SendToStakeholdersModal({ report, fromDate, toDate, onClose }) {
     if (typeof window === "undefined") return "";
     return localStorage.getItem(STAKEHOLDERS_KEY) ?? "";
   });
-  const [subject, setSubject] = useState(`IM8 CX Weekly Summary — ${fmtWeekLabel(fromDate, toDate)}`);
+  const [subject, setSubject] = useState(`Luma CX Weekly Summary — ${fmtWeekLabel(fromDate, toDate)}`);
   // Plain-text fallback for the clipboard's text/plain mime type. We
   // generate it fresh from the current report so it always matches the
   // HTML preview shown above. Not editable in the UI any more — the
@@ -4870,7 +4836,7 @@ function LogsTab({ role }) {
   return (
     <div style={{ background: CREAM, minHeight: "100vh" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "56px 24px 24px" }}>
-        <div style={eyebrowS}>IM8 — {isOpsRole ? "Ops" : "Logs"}</div>
+        <div style={eyebrowS}>Luma CX — {isOpsRole ? "Ops" : "Logs"}</div>
         <div style={{ fontFamily: F.serif, fontSize: 48, color: BURG, fontWeight: 600, lineHeight: 1.05, marginBottom: 14, letterSpacing: -1 }}>
           {sub}
         </div>
@@ -6073,7 +6039,7 @@ function OrderRequestLogPanel({ role }) {
 
   async function submit() {
     setFormError(null);
-    if (!im8OrderRef.trim()) { setFormError("IM8 order ref required"); return; }
+    if (!im8OrderRef.trim()) { setFormError("Order ref required"); return; }
     if (!ticketId.trim()) { setFormError("Gorgias ticket # required"); return; }
     if (!recipientName.trim()) { setFormError("Recipient name required"); return; }
     if (!itemsDescription.trim()) { setFormError("Items description required"); return; }
@@ -6140,7 +6106,7 @@ function OrderRequestLogPanel({ role }) {
             </select>
           </div>
           <div>
-            <label style={labelStyle}>IM8 order ref (auto-fills recipient)</label>
+            <label style={labelStyle}>Order ref (auto-fills recipient)</label>
             <div style={{ display: "flex", gap: 8 }}>
               <input value={im8OrderRef} onChange={(e) => setIm8OrderRef(e.target.value)} placeholder="IM8-815747" style={{ ...inputBase, flex: 1 }} />
               <button onClick={lookupOrder} disabled={!im8OrderRef.trim() || lookupLoading} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700, padding: "0 18px", letterSpacing: 1.5, textTransform: "uppercase", cursor: im8OrderRef.trim() && !lookupLoading ? "pointer" : "not-allowed", borderRadius: 8, opacity: im8OrderRef.trim() && !lookupLoading ? 1 : 0.5 }}>{lookupLoading ? "..." : "Lookup"}</button>
@@ -6749,7 +6715,7 @@ function PlaybookTab({ role }) {
   return (
     <div style={{ background: CREAM, minHeight: "100vh" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "56px 24px 24px" }}>
-        <div style={eyebrowS}>IM8 — Your Playbook · the brand on tap</div>
+        <div style={eyebrowS}>Luma CX — Playbook · the brand on tap</div>
         <div style={{ fontFamily: F.serif, fontSize: 48, color: BURG, fontWeight: 600, lineHeight: 1.05, marginBottom: 8, letterSpacing: -1 }}>
           {sub}
         </div>
@@ -7427,7 +7393,7 @@ function TeamTab({ role }) {
   return (
     <div style={{ background: CREAM, minHeight: "100vh" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "56px 24px 96px" }}>
-        <div style={eyebrowS}>IM8 — Team Management</div>
+        <div style={eyebrowS}>Luma CX — Team Management</div>
         <div style={{ fontFamily: F.serif, fontSize: 48, color: BURG, fontWeight: 600, lineHeight: 1.05, marginBottom: 14, letterSpacing: -1 }}>
           Team
         </div>
@@ -7817,7 +7783,7 @@ function PlaybookMacros({ role }) {
                         )}
                       </div>
                       <div style={{ fontFamily: F.serif, fontSize: 17, color: BURG, fontWeight: 600, lineHeight: 1.3 }}>{m.question}</div>
-                      <div style={{ fontFamily: F.sans, fontSize: 11, color: INK, opacity: 0.5, marginTop: 4, letterSpacing: 0.5 }}>IM8: {m.slug}</div>
+                      <div style={{ fontFamily: F.sans, fontSize: 11, color: INK, opacity: 0.5, marginTop: 4, letterSpacing: 0.5 }}>Luma CX: {m.slug}</div>
                     </div>
                     <span style={{ fontFamily: F.sans, fontSize: 18, color: BURG, opacity: 0.5, transform: open ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}>›</span>
                   </button>
@@ -8357,7 +8323,7 @@ function AffiliatesTab({ role }) {
   return (
     <div style={{ background: CREAM, minHeight: "100vh" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "56px 24px 24px" }}>
-        <div style={eyebrowS}>IM8 — Affiliates Playbook · CS team handover</div>
+        <div style={eyebrowS}>Luma CX — Affiliates Playbook · CS team handover</div>
         <div style={{ fontFamily: F.serif, fontSize: 48, color: BURG, fontWeight: 600, lineHeight: 1.05, marginBottom: 8, letterSpacing: -1 }}>
           {sub}
         </div>
@@ -9627,7 +9593,7 @@ function AskTab({ chatMsgs, chatInput, setChatInput, chatLoading, sendChat, chat
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 104px)", maxWidth: 700, margin: "0 auto" }}>
       <div style={{ background: W, padding: "14px 20px", borderBottom: "1px solid #e0d9d0" }}>
-        <div style={{ fontFamily: F.serif, fontSize: 18, fontWeight: 600, color: BURG }}>Ask IM8</div>
+        <div style={{ fontFamily: F.serif, fontSize: 18, fontWeight: 600, color: BURG }}>Ask Luma</div>
         <div style={{ fontFamily: F.sans, fontSize: 12, color: "#999" }}>Your playbook on tap</div>
       </div>
 
@@ -10115,7 +10081,7 @@ function BootcampTab({ bcProgress, saveBcProgress, bcView, setBcView, bcDay, set
     if (block.t === "warn") return <div key={idx} style={{ background: "#fff3cd", border: "1px solid #e6a817", borderLeft: "4px solid #e6a817", borderRadius: 6, padding: "12px 14px", marginBottom: 12 }}><div style={{ fontFamily: F.sans, fontSize: 13, color: "#5c3d00", lineHeight: 1.6 }}>{block.v}</div></div>;
     if (block.t === "list") return <ul key={idx} style={{ margin: "0 0 12px 0", paddingLeft: 20 }}>{block.items.map((it, j) => <li key={j} style={{ fontFamily: F.sans, fontSize: 14, color: "#333", lineHeight: 1.7, marginBottom: 4 }}>{it}</li>)}</ul>;
     if (block.t === "kv")  return <div key={idx} style={{ marginBottom: 14 }}>{block.pairs.map(([k, v], j) => <div key={j} style={{ display: "flex", gap: 10, padding: "8px 0", borderBottom: "1px solid #f0ebe5" }}><div style={{ fontFamily: F.sans, fontSize: 13, fontWeight: 700, color: BURG, minWidth: 130, flexShrink: 0 }}>{k}</div><div style={{ fontFamily: F.sans, fontSize: 13, color: "#333", lineHeight: 1.5, flex: 1 }}>{v}</div></div>)}</div>;
-    if (block.t === "ex")  return <div key={idx} style={{ background: CREAM, border: "1px solid #ddd", borderRadius: 8, overflow: "hidden", marginBottom: 12 }}><div style={{ padding: "10px 14px", background: "#f0e8e0", borderBottom: "1px solid #ddd" }}><span style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: 1 }}>Customer</span><div style={{ fontFamily: F.sans, fontSize: 13, color: "#333", marginTop: 4, lineHeight: 1.5 }}>{block.c}</div></div><div style={{ padding: "10px 14px" }}><span style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, color: RED, textTransform: "uppercase", letterSpacing: 1 }}>IM8 Response</span><div style={{ fontFamily: F.sans, fontSize: 13, color: BURG, marginTop: 4, lineHeight: 1.5 }}>{block.a}</div></div></div>;
+    if (block.t === "ex")  return <div key={idx} style={{ background: CREAM, border: "1px solid #ddd", borderRadius: 8, overflow: "hidden", marginBottom: 12 }}><div style={{ padding: "10px 14px", background: "#f0e8e0", borderBottom: "1px solid #ddd" }}><span style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: 1 }}>Customer</span><div style={{ fontFamily: F.sans, fontSize: 13, color: "#333", marginTop: 4, lineHeight: 1.5 }}>{block.c}</div></div><div style={{ padding: "10px 14px" }}><span style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, color: RED, textTransform: "uppercase", letterSpacing: 1 }}>Luma CX Response</span><div style={{ fontFamily: F.sans, fontSize: 13, color: BURG, marginTop: 4, lineHeight: 1.5 }}>{block.a}</div></div></div>;
     if (block.t === "spot")      return <SpotBlock key={idx} {...block} />;
     if (block.t === "scorecard") return <ScorecardBlock key={idx} {...block} />;
     if (block.t === "flowchart") return <ResultsTreeBlock key={idx} />;
@@ -10734,7 +10700,7 @@ function InsightsTab({ role }) {
               bulk lookup that's too slow to run inline) — pulled until we
               have a pre-warmed lookup. */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 24 }}>
-            <KpiTile label="IM8 tickets" value={data.volume?.toLocaleString() ?? "—"} hint={data.totalAcrossBrands ? `${data.totalAcrossBrands.toLocaleString()} across all brands` : null} />
+            <KpiTile label="Tickets" value={data.volume?.toLocaleString() ?? "—"} hint={data.totalAcrossBrands ? `${data.totalAcrossBrands.toLocaleString()} across all brands` : null} />
             <KpiTile label="CSAT" value={data.csat?.average != null ? data.csat.average.toFixed(2) : "—"} hint={data.csat?.count ? `${data.csat.count} responses` : "no responses"} />
             <KpiTile label="Closed" value={(data.byStatus?.closed ?? 0).toLocaleString()} hint={fmtPct(data.byStatus?.closed ?? 0, data.volume)} />
             <KpiTile label="Open" value={(data.byStatus?.open ?? 0).toLocaleString()} hint={fmtPct(data.byStatus?.open ?? 0, data.volume)} />
