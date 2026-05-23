@@ -3742,10 +3742,10 @@ function TrustpilotReportSection() {
 
 function RefundsSummaryBlock({ loop, shop }) {
   const ROWS = [
-    { key: "Monthly",   label: "Monthly subs (≈30-day)" },
-    { key: "Quarterly", label: "Quarterly subs (≈90-day)" },
-    { key: "Refills",   label: "Other refills" },
-    { key: "OTP",       label: "One-time" },
+    { key: "Monthly",    label: "Hair Edit (monthly)" },
+    { key: "Bimonthly",  label: "Skip-month / bi-monthly" },
+    { key: "Refills",    label: "Renewal orders" },
+    { key: "OTP",        label: "One-time purchases" },
   ];
   const m = loop?.matrix ?? {};
   const directCount = shop?.refunded != null && loop?.count != null
@@ -4188,7 +4188,7 @@ function buildPlainTextEmail(d) {
     lines.push(`  · ${d.refunds.count ?? 0} customer-initiated (${formatMoney(d.refunds.total)})`);
     if (directCount != null) lines.push(`  · ${directCount} direct in Shopify (${formatMoney(directAmount)})`);
     const m = d.refunds.matrix ?? {};
-    for (const k of ["Monthly","Quarterly","Refills","OTP"]) {
+    for (const k of ["Monthly","Bimonthly","Refills","OTP"]) {
       const c = m[k];
       if (c?.count) lines.push(`  · ${k}: ${c.count} cases / ${formatMoney(c.amount)}`);
     }
@@ -4345,7 +4345,7 @@ function buildHtmlEmail(d) {
     out.push(`<table style="border-collapse:collapse;width:100%;margin-top:8px;">`);
     out.push(`<tr style="background:#F5F0EB;"><td style="${td};color:#999;">Category</td><td style="${tdR};color:#999;">Cases</td><td style="${tdR};color:#999;">Total $</td></tr>`);
     const m = d.refunds.matrix ?? {};
-    const ROWS = [["Monthly","Monthly subs"],["Quarterly","Quarterly subs"],["Refills","Other refills"],["OTP","One-time"]];
+    const ROWS = [["Monthly","Hair Edit (monthly)"],["Bimonthly","Skip-month / bi-monthly"],["Refills","Renewal orders"],["OTP","One-time purchases"]];
     ROWS.forEach(([k, label]) => {
       const c = m[k] ?? { count: 0, amount: 0 };
       out.push(`<tr><td style="${td};color:#50000B;font-weight:600;">${label}</td><td style="${tdR}">${c.count}</td><td style="${tdR};color:#50000B;font-weight:700;">${formatMoney(c.amount)}</td></tr>`);
