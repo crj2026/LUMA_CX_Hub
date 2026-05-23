@@ -4325,7 +4325,7 @@ function buildHtmlEmail(d) {
     }
     out.push(`</table>`);
     if ((d.refunds.topReasons ?? []).length) {
-      out.push(`<div style="${tag};margin-top:16px;">Top 3 refund reasons (from Loop)</div>`);
+      out.push(`<div style="${tag};margin-top:16px;">Top 3 refund reasons</div>`);
       out.push(`<ul style="margin:6px 0;padding-left:22px;">`);
       d.refunds.topReasons.forEach((rr) => out.push(`<li>${rr.reason} — <strong>${rr.count}</strong></li>`));
       out.push(`</ul>`);
@@ -10851,8 +10851,8 @@ function InsightsTab({ role }) {
       )}
 
       {/* Combined exit signals — one place to see what's making customers
-          ask for their money back OR cancel. Pulls reasons from Loop
-          (refunds, with $) + Skio cancel-flow (cancellations). */}
+          ask for their money back OR cancel. Combines return reasons
+          (with $) + Skio cancellation reasons. */}
       {(loop || skioReasons) && (
         <RefundCancelReasonsPanel
           loop={loop}
@@ -10914,10 +10914,10 @@ function InsightsTab({ role }) {
 
 function LoopRefundsCard({ loop, shop, loading, error }) {
   const ROWS = [
-    { key: "Monthly",   label: "Monthly subs (≈30-day)" },
-    { key: "Quarterly", label: "Quarterly subs (≈90-day)" },
-    { key: "Refills",   label: "Other refills" },
-    { key: "OTP",       label: "One-time" },
+    { key: "Monthly",   label: "Hair Edit subscribers (monthly)" },
+    { key: "Quarterly", label: "Bi-monthly / adjusted cadence" },
+    { key: "Refills",   label: "Renewal orders" },
+    { key: "OTP",       label: "One-time purchases" },
   ];
   const m = loop?.matrix ?? {};
   const directCount = shop?.refunded != null && loop?.count != null
@@ -10959,12 +10959,12 @@ function LoopRefundsCard({ loop, shop, loading, error }) {
         </div>
         {loop?.cutoff && (
           <div style={{ fontFamily: F.sans, fontSize: 11, color: INK, opacity: 0.5 }}>
-            Excludes pre-{new Date(loop.cutoff).toLocaleDateString("en-US", { month: "short", day: "numeric" })} stale Loop data
+            Excludes pre-{new Date(loop.cutoff).toLocaleDateString("en-US", { month: "short", day: "numeric" })} stale returns data
           </div>
         )}
       </div>
       {error && (
-        <div style={{ background: "#fee", border: "1px solid " + RED, color: RED, padding: 8, borderRadius: 6, fontFamily: F.sans, fontSize: 12 }}>Loop: {error}</div>
+        <div style={{ background: "#fee", border: "1px solid " + RED, color: RED, padding: 8, borderRadius: 6, fontFamily: F.sans, fontSize: 12 }}>Returns: {error}</div>
       )}
       {!loading && !error && loop && (
         <div style={{ overflowX: "auto" }}>
@@ -11012,15 +11012,13 @@ function LoopRefundsCard({ loop, shop, loading, error }) {
   );
 }
 
-// IM8 refund/cancel reason categories. Order matters — first match wins,
-// so more-specific patterns (e.g. "wrong flavor") must come before broader
-// ones ("taste"). The "plain cancel" bucket is intentionally last so
-// only reasons with no other signal land there.
+// LUMÉ refund/cancel reason categories. Order matters — first match wins.
+// Covers the main reasons customers contact CX about their serum subscription.
 const REASON_CATEGORIES = [
   {
-    key: "wrong-flavor",
-    label: "Wrong flavor / variant shipped",
-    match: (s) => /wrong (flavou?r|variant|product|order|item|one)|received the wrong|got the wrong|incorrect (flavou?r|variant|product)|sent the wrong|not what i ordered/i.test(s),
+    key: "wrong-serums",
+    label: "Wrong serums / doesn't suit hair type",
+    match: (s) => /wrong (serum|product|box|one)|received the wrong|got the wrong|incorrect (serum|product)|sent the wrong|not what i ordered|not right for my hair|doesn'?t suit|not suited/i.test(s),
   },
   {
     key: "shipping",
@@ -11028,29 +11026,19 @@ const REASON_CATEGORIES = [
     match: (s) => /shipp|delivery|deliver|tracking|haven'?t (received|got)|not received|never (received|arrived|got)|arrived late|stuck in transit|lost in (transit|mail)|missing (package|order)/i.test(s),
   },
   {
-    key: "side-effects",
-    label: "Side effects / digestive",
-    match: (s) => /stomach|nausea|sick|headache|side effect|reaction|allerg|upset|diarr|cramp|bloat|gut |gi (issue|problem)|made me feel/i.test(s),
-  },
-  {
-    key: "taste",
-    label: "Taste / flavor preference",
-    match: (s) => /taste|flavou?r(?! swap)|gross|awful|medicinal|nasty|bitter|don'?t like the (taste|flavou?r)|don'?t enjoy/i.test(s),
-  },
-  {
-    key: "subscription-confusion",
-    label: "Subscription confusion / unauthorized",
-    match: (s) => /didn'?t (mean|want|know|realize|intend|authori[sz]e)|surprise|unaware|unauthori[sz]ed|accidental|by mistake|signed up by|never (agreed|signed)|charged without/i.test(s),
+    key: "adverse-reaction",
+    label: "Adverse reaction / skin concern",
+    match: (s) => /reaction|allerg|rash|itch|burn|sting|irritat|red|sensitive|hives|swelling|side effect|scalp (pain|burn)|made me (sick|unwell)/i.test(s),
   },
   {
     key: "have-enough",
-    label: "Have enough / pausing",
-    match: (s) => /have (enough|too much)|already have|stockpile|backup|not using|pause|skip|taking a break|too many|overstocked|not finished/i.test(s),
+    label: "Not using fast enough / have excess",
+    match: (s) => /have (enough|too much)|already have|not using|not finishing|building up|stockpile|pause|skip|taking a break|too many|overstocked|not finished|accumulating/i.test(s),
   },
   {
     key: "no-results",
-    label: "Doesn't work / no benefit seen",
-    match: (s) => /not working|doesn'?t work|no (results|benefit|effect|change|improvement)|isn'?t helping|didn'?t (work|help|notice)|not seeing/i.test(s),
+    label: "No results seen yet",
+    match: (s) => /not working|doesn'?t work|no (results|improvement|change|difference)|isn'?t helping|didn'?t (work|help|notice|see)|not seeing|can'?t see/i.test(s),
   },
   {
     key: "price",
@@ -11058,14 +11046,19 @@ const REASON_CATEGORIES = [
     match: (s) => /expensive|price|cost|afford|cheaper|too much money|budget|financial|(can'?t|cannot) afford/i.test(s),
   },
   {
-    key: "health",
-    label: "Health concern / doctor's advice",
-    match: (s) => /pregnan|nursing|doctor|physician|medical|condition|diagnos|advised by|hospital|treatment/i.test(s),
+    key: "subscription-confusion",
+    label: "Subscription confusion / unauthorized",
+    match: (s) => /didn'?t (mean|want|know|realize|intend|authori[sz]e)|surprise|unaware|unauthori[sz]ed|accidental|by mistake|signed up by|never (agreed|signed)|charged without/i.test(s),
   },
   {
     key: "quality",
     label: "Damaged / quality issue",
-    match: (s) => /damaged|broken|leak|spoiled|expired|seal|tamper|defect|melt|opened|crushed/i.test(s),
+    match: (s) => /damaged|broken|leak|pump|bottle|packaging|seal|tamper|defect|opened|crushed/i.test(s),
+  },
+  {
+    key: "personal",
+    label: "Personal / life change",
+    match: (s) => /moving|personal|life change|situation|abroad|overseas|break|pause/i.test(s),
   },
   {
     key: "plain-cancel",
@@ -11084,7 +11077,7 @@ function bucketReason(reason) {
 
 // Combined refund+cancel reasons panel. Pulls Loop's refund reasons (with
 // per-reason $) and Skio's cancel-flow reasons, buckets free text into
-// canonical IM8 categories, and shows one row per category sorted by $
+// canonical LUMÉ categories, and shows one row per category sorted by $
 // impact. The % of gross sales column is the actual lever for the
 // $-based refund rate — so this panel doubles as a roadmap to which
 // fix moves the headline number most.
@@ -11137,7 +11130,7 @@ function RefundCancelReasonsPanel({ loop, skioReasons, shop }) {
         Refund & cancellation reasons
       </div>
       <div style={{ fontFamily: F.sans, fontSize: 11, color: "#aaa", marginBottom: 10 }}>
-        Combined exit signals — Loop returns + Skio cancellations. Sorted by $ impact (the lever for the headline refund rate).
+        Combined exit signals — customer returns + Skio cancellations. Sorted by $ impact (the lever for the headline refund rate).
       </div>
       <div style={{ background: "#FFF", border: "1px solid " + SOFT_BORDER, borderRadius: 10, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: F.sans, fontSize: 13 }}>
