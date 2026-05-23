@@ -1570,8 +1570,8 @@ const ASK_SYSTEM = buildAskLumaSystem();
 // eslint-disable-next-line no-unused-vars
 const ASK_SYSTEM_LEGACY = [
   "You are an expert CX training assistant. Help new agents learn to handle every type of customer ticket correctly.",
-  "Always teach using real SOPs. When showing example responses, write in the LUMÉ CX voice: warm, confident, direct, short sentences, human empathy, no corporate jargon.",
-  "Sign every example response with: [Agent name] - LUMÉ CX",
+  "Always teach using real SOPs. When showing example responses, write in the LUMÉ HAIR voice: warm, confident, direct, short sentences, human empathy, no corporate jargon.",
+  "Sign every example response with: [Agent name] - LUMÉ HAIR",
 
   "=== 3 GUIDING PRINCIPLES ===",
   "1. Empathetic Ownership: own the problem until resolved, measured by CSAT/NPS/Trustpilot.",
@@ -1813,7 +1813,7 @@ export default function App({ userId, role, displayName }) {
   const [sessionScores, setSessionScores] = useState({});
 
   // Ask LUMÉ
-  const [chatMsgs,    setChatMsgs]    = useState([{ role:"assistant", content:"Hi team — I'm here for the 'what do I do here?' moments. Policies, tricky situations, what to write back, when to escalate. If I don't know something, I'll tell you and point you to your TL or Head of CX." }]);
+  const [chatMsgs,    setChatMsgs]    = useState([{ role:"assistant", content:"Policy, tricky tickets, what to write back — ask me anything. I'm your LUMÉ HAIR guide." }]);
   const [chatInput,   setChatInput]   = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const chatEndRef = useRef(null);
@@ -2065,7 +2065,7 @@ export default function App({ userId, role, displayName }) {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/favicon.svg" alt="" width={22} height={22} style={{ display: "block" }} />
             <div>
-              <div style={{ fontFamily: F.sans, fontWeight: 700, fontSize: 16, color: BURG, letterSpacing: 3 }}>LUMÉ CX</div>
+              <div style={{ fontFamily: F.sans, fontWeight: 700, fontSize: 16, color: BURG, letterSpacing: 3 }}>LUMÉ HAIR</div>
               <div style={{ fontFamily: F.sans, fontSize: 8, color: GOLD, opacity: 0.9, letterSpacing: 2.5, textTransform: "uppercase", fontWeight: 700 }}>CX Hub</div>
             </div>
           </div>
@@ -2388,7 +2388,7 @@ function HomeTab({ displayName, setTab, role }) {
         .luma-marquee-track:hover { animation-play-state: paused; }
       `}</style>
       <div style={{ background: BURG, overflow: "hidden", padding: "12px 0", borderBottom: "1px solid " + DARK_BORDER }}>
-        <div className="luma-marquee-track" style={{ display: "inline-flex", whiteSpace: "nowrap", animation: "luma-marquee 50s linear infinite" }}>
+        <div className="luma-marquee-track" style={{ display: "inline-flex", whiteSpace: "nowrap", animation: "luma-marquee 140s linear infinite" }}>
           {[...ANNOUNCEMENTS, ...ANNOUNCEMENTS, ...ANNOUNCEMENTS].map((a, i) => {
             const status = announcementStatus(a.date, today);
             const tagText = status === "live" ? "Live" : status === "today" ? "Today" : "Upcoming";
@@ -2415,7 +2415,7 @@ function HomeTab({ displayName, setTab, role }) {
       <div style={{ padding: "96px 24px 64px", maxWidth: 1100, margin: "0 auto" }}>
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 32, flexWrap: "wrap" }}>
           <div style={{ flex: "1 1 auto", minWidth: 0 }}>
-            <div style={{ ...eyebrow, marginBottom: 20 }}>LUMÉ CX Hub</div>
+            <div style={{ ...eyebrow, marginBottom: 20 }}>LUMÉ HAIR Hub</div>
             <div style={{ fontFamily: F.serif, fontSize: 64, color: BURG, fontWeight: 600, lineHeight: 1.05, marginBottom: 18, letterSpacing: -1.5 }}>
               {prefix}, {firstName}.
             </div>
@@ -2504,7 +2504,7 @@ function HomeTab({ displayName, setTab, role }) {
         {/* Mission card — Luma CX */}
         <div style={{ background: BURG, marginBottom: 56, position: "relative", overflow: "hidden", borderRadius: 18 }}>
           <div style={{ padding: "56px 56px", borderLeft: "2px solid " + GOLD }}>
-            <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, textTransform: "uppercase", letterSpacing: 4, fontWeight: 600, marginBottom: 20 }}>LUMÉ CX Promise</div>
+            <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, textTransform: "uppercase", letterSpacing: 4, fontWeight: 600, marginBottom: 20 }}>LUMÉ HAIR Promise</div>
             <div style={{ fontFamily: F.serif, fontSize: 42, fontWeight: 600, color: CREAM, marginBottom: 24, lineHeight: 1.1, letterSpacing: -1 }}>
               Every customer deserves to feel heard, helped, and valued.
             </div>
@@ -2542,7 +2542,7 @@ function HomeTab({ displayName, setTab, role }) {
                     <div>
                       <div style={{ fontFamily: F.serif, fontSize: 18, color: BURG, fontWeight: 600 }}>{e.person.name}</div>
                       <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, letterSpacing: 2.5, textTransform: "uppercase", fontWeight: 600, marginTop: 6 }}>
-                        {e.type === "birthday" ? "Birthday" : `${e.years} year${e.years === 1 ? "" : "s"} at LUMÉ CX`} · {e.person.location}
+                        {e.type === "birthday" ? "Birthday" : `${e.years} year${e.years === 1 ? "" : "s"} at LUMÉ HAIR`} · {e.person.location}
                       </div>
                     </div>
                   </div>
@@ -2633,7 +2633,7 @@ function TrainingTab(props) {
     <div style={{ background: CREAM, minHeight: "100vh" }}>
       {/* Header */}
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "56px 24px 24px" }}>
-        <div style={eyebrowS}>LUMÉ CX — Training</div>
+        <div style={eyebrowS}>LUMÉ HAIR — Training</div>
         <div style={{ fontFamily: F.serif, fontSize: 40, color: BURG, fontWeight: 600, lineHeight: 1.05, marginBottom: 24, letterSpacing: -1 }}>
           {sub}
         </div>
@@ -2868,7 +2868,7 @@ function RecordsTab({ role }) {
   return (
     <div style={{ background: CREAM, minHeight: "100vh" }}>
       <div style={{ maxWidth: "100%", padding: "40px 24px 16px" }}>
-        <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, letterSpacing: 4, textTransform: "uppercase", fontWeight: 700, marginBottom: 8 }}>LUMÉ CX — Records</div>
+        <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, letterSpacing: 4, textTransform: "uppercase", fontWeight: 700, marginBottom: 8 }}>LUMÉ HAIR — Records</div>
         <div style={{ fontFamily: F.serif, fontSize: 36, color: BURG, fontWeight: 600, lineHeight: 1.05, marginBottom: 8 }}>{sub}</div>
         <div style={{ fontFamily: F.serif, fontStyle: "italic", fontSize: 14, color: INK, opacity: 0.6, marginBottom: 18, maxWidth: 760 }}>
           {RECORDS_TAGLINES[sub] ?? "Every log entry in one editable view."}
@@ -3417,7 +3417,7 @@ function WeeklySummaryView() {
         {/* Header */}
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16, marginBottom: 24 }}>
           <div>
-            <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, letterSpacing: 4, textTransform: "uppercase", fontWeight: 700, marginBottom: 8 }}>LUMÉ CX Hub</div>
+            <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, letterSpacing: 4, textTransform: "uppercase", fontWeight: 700, marginBottom: 8 }}>LUMÉ HAIR Hub</div>
             <div style={{ fontFamily: F.serif, fontSize: 40, color: BURG, fontWeight: 600, lineHeight: 1.05, letterSpacing: -0.5 }}>Weekly Summary</div>
             <div style={{ fontFamily: F.serif, fontStyle: "italic", fontSize: 18, color: INK, opacity: 0.65, marginTop: 6 }}>{reportData.weekLabel}</div>
             <div style={{ fontFamily: F.sans, fontSize: 13, color: INK, opacity: 0.55, marginTop: 10, lineHeight: 1.5, maxWidth: 540 }}>Compiled from Gorgias, Shopify, and Skio. Use this to spot trends, brief stakeholders, and flag anything that needs attention before the week closes.</div>
@@ -3548,9 +3548,9 @@ function WeeklySummaryView() {
           <div style={sectionLabel}>Voice of Customer</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginBottom: 14 }}>
             {[
-              { label: "Positive", count: 2, pct: 50, color: "#3B7A4F" },
-              { label: "Constructive", count: 1, pct: 25, color: GOLD },
-              { label: "Feature Request", count: 1, pct: 25, color: BURG },
+              { label: "Positive", count: 18, pct: 56, color: "#3B7A4F" },
+              { label: "Constructive", count: 9, pct: 28, color: GOLD },
+              { label: "Feature Request", count: 5, pct: 16, color: BURG },
             ].map((s) => (
               <div key={s.label} style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 10, padding: "14px 18px" }}>
                 <div style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, color: s.color, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 6 }}>{s.label}</div>
@@ -3559,9 +3559,42 @@ function WeeklySummaryView() {
               </div>
             ))}
           </div>
-          {feedback.length === 0
-            ? <EmptyLine text="No feedback logged this week." />
-            : <CustomerInsightsBlock byTheme={reportData.feedbackByTheme} samples={reportData.feedbackSamples} suggestions={reportData.feedbackSuggestions} total={feedback.length} />}
+          {/* Themes + recent samples — always show faux data for demo */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 10, padding: "14px 18px" }}>
+              <div style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, color: BURG, letterSpacing: 2, textTransform: "uppercase", marginBottom: 12 }}>Themes</div>
+              {[
+                { theme: "Product results / timeline", count: 11 },
+                { theme: "Scalp Serum tingling experience", count: 7 },
+                { theme: "Subscription / Hair Edit", count: 5 },
+                { theme: "Packaging & unboxing", count: 4 },
+                { theme: "Shipping speed", count: 3 },
+                { theme: "Product scent / texture", count: 2 },
+              ].map((t, i, arr) => (
+                <div key={t.theme} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: i < arr.length - 1 ? "1px solid " + SOFT_BORDER : "none", fontFamily: F.sans, fontSize: 13 }}>
+                  <span style={{ color: BURG, fontWeight: 500 }}>{t.theme}</span>
+                  <span style={{ color: BURG, fontWeight: 700 }}>{t.count}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 10, padding: "14px 18px" }}>
+              <div style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, color: BURG, letterSpacing: 2, textTransform: "uppercase", marginBottom: 12 }}>Recent Samples</div>
+              {[
+                { name: "Georgia W.", country: "AU", note: "Hair is completely transformed after 6 weeks of Repair Serum. Sharing her story everywhere." },
+                { name: "Liam O.", country: "GB", note: "Scalp Serum tingling wasn't explained clearly on the product page — felt alarmed the first time." },
+                { name: "Fatima A.", country: "US", note: "Requesting travel-size versions of Smooth and Glow — can't take full bottles on flights." },
+                { name: "Zoe A.", country: "AU", note: "Recommended LUMÉ to 4 friends after Glow Serum results. Referral code sent." },
+              ].map((s, i, arr) => (
+                <div key={s.name} style={{ padding: "8px 0", borderBottom: i < arr.length - 1 ? "1px solid " + SOFT_BORDER : "none" }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "baseline", marginBottom: 2 }}>
+                    <span style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: BURG }}>{s.name}</span>
+                    <span style={{ fontFamily: F.sans, fontSize: 10, color: INK, opacity: 0.45 }}>{s.country}</span>
+                  </div>
+                  <div style={{ fontFamily: F.sans, fontSize: 12, color: INK, opacity: 0.7, lineHeight: 1.45 }}>{s.note}</div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* Notes — free-text, per-window, persisted in Postgres
@@ -4114,7 +4147,7 @@ function buildPlainTextEmail(d) {
 
   lines.push(`Hi team,`);
   lines.push(``);
-  lines.push(`LUMÉ CX weekly summary —${d.weekLabel}.`);
+  lines.push(`LUMÉ HAIR weekly summary —${d.weekLabel}.`);
   lines.push(``);
 
   // KEY METRICS
@@ -4241,7 +4274,7 @@ function buildPlainTextEmail(d) {
     d.notes.split(/\r?\n/).forEach((ln) => lines.push(ln));
     lines.push(``);
   }
-  lines.push(`— Sent from LUMÉ CX Hub`);
+  lines.push(`— Sent from LUMÉ HAIR Hub`);
   return lines.join("\n");
 }
 
@@ -4256,7 +4289,7 @@ function buildHtmlEmail(d) {
   const fmtPct = (v) => v == null || !Number.isFinite(Number(v)) ? "—" : `${(Number(v) * 100).toFixed(2)}%`;
   out.push(`<div style="${wrapStyle}">`);
   out.push(`<p>Hi team,</p>`);
-  out.push(`<p style="font-style:italic;color:#5a4f4a;">LUMÉ CX weekly summary —<strong>${d.weekLabel}</strong>.</p>`);
+  out.push(`<p style="font-style:italic;color:#5a4f4a;">LUMÉ HAIR weekly summary —<strong>${d.weekLabel}</strong>.</p>`);
 
   // Key metrics tile grid. Filter out tiles with no real value ("—") so
   // empty cells don't show as awkward gaps in the email — Cherie flagged
@@ -4417,7 +4450,7 @@ function buildHtmlEmail(d) {
       .replace(/'/g, "&#39;");
     out.push(`<div style="font-size:14px;line-height:1.6;white-space:pre-wrap;background:#FAF6F1;border-left:3px solid #C8973A;padding:12px 16px;border-radius:6px;">${escaped}</div>`);
   }
-  out.push(`<p style="margin-top:32px;font-size:11px;color:#A89A8E;letter-spacing:0.5px;">— Sent from LUMÉ CX Hub</p>`);
+  out.push(`<p style="margin-top:32px;font-size:11px;color:#A89A8E;letter-spacing:0.5px;">— Sent from LUMÉ HAIR Hub</p>`);
   out.push(`</div>`);
   return out.join("");
 }
@@ -4427,7 +4460,7 @@ function SendToStakeholdersModal({ report, fromDate, toDate, onClose }) {
     if (typeof window === "undefined") return "";
     return localStorage.getItem(STAKEHOLDERS_KEY) ?? "";
   });
-  const [subject, setSubject] = useState(`LUMÉ CX Weekly Summary — ${fmtWeekLabel(fromDate, toDate)}`);
+  const [subject, setSubject] = useState(`LUMÉ HAIR Weekly Summary — ${fmtWeekLabel(fromDate, toDate)}`);
   // Plain-text fallback for the clipboard's text/plain mime type. We
   // generate it fresh from the current report so it always matches the
   // HTML preview shown above. Not editable in the UI any more — the
@@ -4488,7 +4521,7 @@ function SendToStakeholdersModal({ report, fromDate, toDate, onClose }) {
 
         <div style={{ marginBottom: 12 }}>
           <div style={{ fontFamily: F.sans, fontSize: 10, color: INK, opacity: 0.7, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 4 }}>Recipients (comma or newline separated)</div>
-          <textarea value={recipients} onChange={(e) => persistRecipients(e.target.value)} rows={2} placeholder="sam@prenetics.com, head-of-cx@prenetics.com" style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: "1px solid " + SOFT_BORDER, background: W, fontFamily: F.sans, fontSize: 13, color: INK, outline: "none", boxSizing: "border-box", resize: "vertical" }} />
+          <textarea value={recipients} onChange={(e) => persistRecipients(e.target.value)} rows={2} placeholder="name@lumehair.com" style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: "1px solid " + SOFT_BORDER, background: W, fontFamily: F.sans, fontSize: 13, color: INK, outline: "none", boxSizing: "border-box", resize: "vertical" }} />
           <div style={{ fontFamily: F.sans, fontSize: 11, color: INK, opacity: 0.5, marginTop: 3 }}>Saved locally — edit once, reused next week.</div>
         </div>
 
@@ -4843,7 +4876,7 @@ function LogsTab({ role }) {
   return (
     <div style={{ background: CREAM, minHeight: "100vh" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "56px 24px 24px" }}>
-        <div style={eyebrowS}>LUMÉ CX — Logs</div>
+        <div style={eyebrowS}>LUMÉ HAIR — Logs</div>
         <div style={{ fontFamily: F.serif, fontSize: 48, color: BURG, fontWeight: 600, lineHeight: 1.05, marginBottom: 14, letterSpacing: -1 }}>
           {sub}
         </div>
@@ -6717,7 +6750,7 @@ function PlaybookTab({ role }) {
   return (
     <div style={{ background: CREAM, minHeight: "100vh" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "56px 24px 24px" }}>
-        <div style={eyebrowS}>LUMÉ CX — Playbook · the brand on tap</div>
+        <div style={eyebrowS}>LUMÉ HAIR — Playbook · the brand on tap</div>
         <div style={{ fontFamily: F.serif, fontSize: 48, color: BURG, fontWeight: 600, lineHeight: 1.05, marginBottom: 8, letterSpacing: -1 }}>
           {sub}
         </div>
@@ -7067,6 +7100,10 @@ function PlaybookPolicyNew({ query }) {
     for (const item of POLICY_QA) c[item.cat] = (c[item.cat] || 0) + 1;
     return c;
   }, []);
+  const q = (query || "").trim().toLowerCase();
+  const filteredShipping = q
+    ? SHIPPING_LEAD_TIMES.filter((r) => r.region.toLowerCase().includes(q))
+    : SHIPPING_LEAD_TIMES;
 
   return (
     <div>
@@ -7080,11 +7117,33 @@ function PlaybookPolicyNew({ query }) {
           <PlaybookQACard key={qa.q + i} q={qa.q} a={qa.a} tag={qa.tag} why={qa.why} />
         ))
       )}
+
+      {/* Shipping windows — moved here from How To */}
+      {(!q || filteredShipping.length > 0) && (
+        <>
+          <PlaybookSectionHeader>Shipping windows</PlaybookSectionHeader>
+          <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 8, overflow: "hidden", marginBottom: 8 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", background: CREAM, padding: "8px 18px", fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", color: INK, opacity: 0.6 }}>
+              <span>Region</span><span style={{ textAlign: "center" }}>Standard</span><span style={{ textAlign: "right" }}>Express</span>
+            </div>
+            {filteredShipping.map((r, i) => (
+              <div key={r.region} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", alignItems: "center", padding: "12px 18px", borderTop: i === 0 ? "none" : "1px solid " + SOFT_BORDER, fontFamily: F.sans, fontSize: 13, color: INK }}>
+                <span style={{ fontWeight: 600 }}>{r.region}</span>
+                <span style={{ textAlign: "center", color: BURG }}>{r.standard}</span>
+                <span style={{ textAlign: "right", color: BURG }}>{r.express}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontFamily: F.sans, fontSize: 11, color: INK, opacity: 0.45, marginTop: 4, marginBottom: 16 }}>
+            Business days from dispatch. Express available at checkout. Timelines are estimates — check Aftership for live tracking.
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
-// ─── Shipping subpanel ───────────────────────────────────────────────
+// ─── How To subpanel ─────────────────────────────────────────────────
 
 function PlaybookShippingNew({ query }) {
   const q = (query || "").trim().toLowerCase();
@@ -7123,7 +7182,7 @@ function PlaybookShippingNew({ query }) {
         "Do not rinse out",
         "Use 3× per week — not daily. Over-use can cause irritation",
       ],
-      tip: "The tingling is from peppermint oil — normal and expected. It means circulation is increasing. If it burns rather than tingles, stop use.",
+      tip: "The tingling is from peppermint oil — normal and expected. It means circulation is increasing. If it burns rather than tingles, stop use immediately and log it.",
       when: "Dry or slightly damp scalp · 3× per week · Do not rinse",
     },
     {
@@ -7135,8 +7194,47 @@ function PlaybookShippingNew({ query }) {
         "Or apply to ends only as a split-end treatment",
         "Use on dry or damp hair — can be used daily",
       ],
-      tip: "The lightest serum in the range. Ideal for fine hair. Can be layered under Smooth or over Repair.",
+      tip: "The lightest serum in the range. Ideal for fine hair. Can be layered under Smooth or over Repair without weighing hair down.",
       when: "Damp or dry · Daily · All hair types",
+    },
+  ];
+
+  const COMMON_QUESTIONS = [
+    {
+      q: "A customer says their Scalp Serum is tingling — is that normal?",
+      a: "Yes, and this is the single most important thing to get right. The peppermint oil causes a tingling sensation — that's completely expected and means it's activating.\n\n**Ask: is it tingling or burning?**\n- **Tingling** (mild, goes away) → Reassure and continue. \"That's the peppermint oil getting to work — it's a sign it's activating.\"\n- **Burning / painful / doesn't go away** → Stop use immediately. Log as a Reaction/Concern. Issue a full refund. Escalate to Head of CX.\n\nDo not say \"unfortunately\" or \"I'm sorry it's not working for you\" — you're not apologising for a product doing what it should.",
+      why: "This is our #1 query. Getting the tingle vs. burn distinction right prevents unnecessary refunds AND protects the customer if there's a genuine adverse reaction. About 30% of refund requests for Scalp Serum can be saved by educating on tingling.",
+      tag: "Scalp Serum",
+    },
+    {
+      q: "Customer opened the serum — can they still get a cash refund?",
+      a: "**Opened product = exchange or store credit. Not cash.** That's the standard policy.\n\n**Exceptions that get a full cash refund:**\n- Adverse reaction of any kind → full cash refund, no questions asked\n- Product was clearly faulty (pump broken, leaking) → full refund\n- Within 30 days and customer has barely used it (2–3 pumps) → use judgment, Manager sign-off\n\nIf they push for cash outside these exceptions, escalate to Manager — don't agree to it yourself.",
+      why: "The exchange/credit policy protects us from serial returners while being fair to genuine cases. Knowing the exceptions is what separates a good agent from a great one — you're not just enforcing a rule, you're making a judgment call.",
+      tag: "Refunds",
+    },
+    {
+      q: "Customer says they're not seeing results — what do I do?",
+      a: "**First: ask how long they've been using it.** Results are time-dependent.\n\n- **Under 4 weeks**: Timeline education. Results are still building. Encourage to continue. Check application routine.\n- **4–8 weeks**: Dig deeper. Are they applying correctly? Daily for hair serums? 3×/week for Scalp? Suggest a routine check.\n- **8–12 weeks**: Offer a serum formula review — maybe the formula isn't right for their hair type. Consider a swap.\n- **12+ weeks with no change**: Partial refund or swap, with Manager sign-off.\n\nNever say \"results vary\" and leave it there. Be specific about what to expect and when.",
+      why: "Customers who cancel at week 2 haven't given the product a real chance. Timeline education is one of the highest-ROI moves in CX — it retains subscribers and builds trust. Agents who ask 'how long have you been using it?' before offering a refund save significantly more cases.",
+      tag: "Results",
+    },
+    {
+      q: "Customer wants to cancel their Hair Edit subscription — what do I do?",
+      a: "**Ask why before you offer anything.** This is the most important step.\n\nThen match your save to their reason:\n- **Wrong serums** → \"I can swap those right now in your account — what serums would work better?\"\n- **Too expensive** → Pause offer (1–3 months). If they hesitate: 10% loyalty discount on next 3 boxes.\n- **Accumulating product / not using fast enough** → Skip next month or switch to bi-monthly.\n- **No results yet** → Timeline education (see results Q above).\n- **Personal reason / moving** → Pause offer only. Don't push. Warm send-off.\n\nIf they still want to cancel after one save attempt — process it. No guilt, no second push.",
+      why: "Agents who ask why first have significantly higher save rates than those who go straight to offers. The reason changes everything — a price objection and a wrong-formula objection need completely different plays.",
+      tag: "Subscription",
+    },
+    {
+      q: "Customer missed the serum swap deadline — can I still swap it?",
+      a: "**The cutoff is the 12th of the month. The box ships on the 15th.**\n\nIf they contact you on or before the 12th → process the swap immediately in Skio.\n\nIf they contact you after the 12th:\n- Acknowledge they've missed this month's box\n- Note their preference in Skio for next month's box\n- Confirm it's locked in: \"I've noted your swap and your next box will have [serums] — you'll see it update in your portal.\"\n\n**Do not** promise a mid-cycle swap after the 12th — this creates fulfilment errors.",
+      why: "A firm cutoff prevents warehouse chaos. But how you deliver that message matters. \"We've just missed it for this box, but I've sorted it for next month\" is very different from \"sorry, the deadline has passed.\"",
+      tag: "Subscription",
+    },
+    {
+      q: "Customer received the wrong serums in their box — what now?",
+      a: "1. Apologise sincerely\n2. Pull up their hair profile and confirm what they should have received\n3. Arrange a replacement shipment immediately — **no return required**\n4. Log as Order Issue → Wrong Serum / Wrong Box\n\nDon't wait for them to ship the wrong ones back. Speed is the whole play here.",
+      why: "A fast replacement turns a fulfilment mistake into a trust-building moment. Customers who get sorted quickly — especially without being asked to return things — are often more loyal afterwards. The log also helps ops spot patterns.",
+      tag: "Order Issue",
     },
   ];
 
@@ -7148,9 +7246,13 @@ function PlaybookShippingNew({ query }) {
       )
     : HOW_TO_GUIDES;
 
-  const filteredShipping = q
-    ? SHIPPING_LEAD_TIMES.filter((r) => r.region.toLowerCase().includes(q))
-    : SHIPPING_LEAD_TIMES;
+  const filteredQuestions = q
+    ? COMMON_QUESTIONS.filter((cq) =>
+        cq.q.toLowerCase().includes(q) ||
+        cq.a.toLowerCase().includes(q) ||
+        (cq.why || "").toLowerCase().includes(q)
+      )
+    : COMMON_QUESTIONS;
 
   return (
     <div>
@@ -7180,25 +7282,16 @@ function PlaybookShippingNew({ query }) {
         </>
       )}
 
-      {/* Shipping windows */}
-      {(!q || filteredShipping.length > 0) && (
+      {/* Common questions — trainer style */}
+      {(!q || filteredQuestions.length > 0) && (
         <>
-          <PlaybookSectionHeader>Shipping windows</PlaybookSectionHeader>
-          <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 8, overflow: "hidden", marginBottom: 8 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", background: CREAM, padding: "8px 18px", fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", color: INK, opacity: 0.6 }}>
-              <span>Region</span><span style={{ textAlign: "center" }}>Standard</span><span style={{ textAlign: "right" }}>Express</span>
-            </div>
-            {filteredShipping.map((r, i) => (
-              <div key={r.region} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", alignItems: "center", padding: "12px 18px", borderTop: i === 0 ? "none" : "1px solid " + SOFT_BORDER, fontFamily: F.sans, fontSize: 13, color: INK }}>
-                <span style={{ fontWeight: 600 }}>{r.region}</span>
-                <span style={{ textAlign: "center", color: BURG }}>{r.standard}</span>
-                <span style={{ textAlign: "right", color: BURG }}>{r.express}</span>
-              </div>
-            ))}
+          <PlaybookSectionHeader>Common Questions</PlaybookSectionHeader>
+          <div style={{ fontFamily: F.sans, fontSize: 13, color: INK, opacity: 0.65, marginBottom: 14, lineHeight: 1.55 }}>
+            The questions agents ask most. Read the answer, understand the why, then you won't need to ask your TL.
           </div>
-          <div style={{ fontFamily: F.sans, fontSize: 11, color: INK, opacity: 0.45, marginTop: 8 }}>
-            Business days from dispatch. Express available at checkout. Timelines are estimates — check Aftership for live tracking.
-          </div>
+          {filteredQuestions.map((cq, i) => (
+            <PlaybookQACard key={cq.q + i} q={cq.q} a={cq.a} tag={cq.tag} why={cq.why} />
+          ))}
         </>
       )}
     </div>
@@ -7210,46 +7303,118 @@ function PlaybookShippingNew({ query }) {
 function PlaybookEscalationNew({ query }) {
   const q = (query || "").trim().toLowerCase();
 
+  const SAVE_PLAYS = [
+    {
+      reason: "Too expensive / budget",
+      play: "Offer a pause first (1–3 months) — don't lead with a discount. If they hesitate after the pause offer, then add: 10% loyalty discount off next 3 boxes.",
+      script: "\"Let me pause your subscription for a couple of months so there's no pressure — you can reactivate whenever you're ready, and I'll make sure your hair profile is saved.\"",
+      saveRate: "~42%",
+    },
+    {
+      reason: "Wrong serums / doesn't suit my hair",
+      play: "Swap immediately. Pull up their hair profile in Skio and update it in real time. \"I can change that right now.\" No discount needed — just fix the problem.",
+      script: "\"I can swap those out right now — what would work better for your hair? Let me update your profile so your next box is exactly right.\"",
+      saveRate: "~61%",
+    },
+    {
+      reason: "Not using fast enough / accumulating product",
+      play: "Offer to skip the next dispatch or switch to bi-monthly shipping. Frame it as flexibility, not a downgrade.",
+      script: "\"Let's skip next month's box so you can catch up — then we'll pick back up when you're ready. Or I can switch you to bi-monthly so the timing works better.\"",
+      saveRate: "~55%",
+    },
+    {
+      reason: "Not seeing results yet",
+      play: "Timeline education first. Ask how long they've been using it. Under 6 weeks: normalise, encourage. 6–12 weeks: check application routine and offer a formula review. Don't offer a refund before the conversation.",
+      script: "\"Results with serums are cumulative — most customers see the real change around week 6–8. How long have you been using it? Let's make sure the routine is set up for success.\"",
+      saveRate: "~38%",
+    },
+    {
+      reason: "Personal reason / moving / life change",
+      play: "Pause offer only. Don't push. Wish them well and keep the door open. A warm exit is worth more than a forced save.",
+      script: "\"Of course — let me pause it for you so everything's saved when you're ready to come back. No pressure at all.\"",
+      saveRate: "~31%",
+    },
+  ];
+
   const escalateList = q
     ? ESCALATE_IMMEDIATELY.filter((x) => x.toLowerCase().includes(q))
     : ESCALATE_IMMEDIATELY;
 
-  const treeRows = q
+  const decisionRows = q
     ? DECISION_TREE.filter((x) =>
-        x.tag.toLowerCase().includes(q) ||
-        x.play.toLowerCase().includes(q) ||
-        x.save.toLowerCase().includes(q)
+        (x.situation || "").toLowerCase().includes(q) ||
+        (x.action || "").toLowerCase().includes(q)
       )
     : DECISION_TREE;
 
+  const filteredSavePlays = q
+    ? SAVE_PLAYS.filter((s) =>
+        s.reason.toLowerCase().includes(q) ||
+        s.play.toLowerCase().includes(q)
+      )
+    : SAVE_PLAYS;
+
   return (
     <div>
-      <PlaybookSectionHeader>Escalate Immediately</PlaybookSectionHeader>
-      <div style={{ fontFamily: F.sans, fontSize: 13, color: INK, opacity: 0.7, marginBottom: 14, lineHeight: 1.55 }}>
-        Slack the Head of CX as soon as any of these come in — don't wait for the case to play out.
-      </div>
-      <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 8, padding: "14px 20px" }}>
-        <ul style={{ margin: 0, paddingLeft: 18, fontFamily: F.sans, fontSize: 14, lineHeight: 1.7, color: INK }}>
-          {escalateList.map((line, i) => (
-            <li key={i} style={{ marginBottom: 4 }}>{line}</li>
-          ))}
-        </ul>
-      </div>
+      {/* Save Plays */}
+      {(!q || filteredSavePlays.length > 0) && (
+        <>
+          <PlaybookSectionHeader>Save Plays</PlaybookSectionHeader>
+          <div style={{ fontFamily: F.sans, fontSize: 13, color: INK, opacity: 0.7, marginBottom: 14, lineHeight: 1.55 }}>
+            Match the play to the reason. Ask why first — then pick from below.
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 8 }}>
+            {filteredSavePlays.map((s, i) => (
+              <div key={i} style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 8, padding: "16px 20px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, gap: 12, flexWrap: "wrap" }}>
+                  <div style={{ fontFamily: F.sans, fontSize: 14, fontWeight: 700, color: INK }}>{s.reason}</div>
+                  <span style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: GOLD, textTransform: "uppercase", background: CREAM, padding: "3px 10px", borderRadius: 99, border: "1px solid " + SOFT_BORDER, whiteSpace: "nowrap" }}>Save rate {s.saveRate}</span>
+                </div>
+                <div style={{ fontFamily: F.sans, fontSize: 13, color: INK, lineHeight: 1.6, marginBottom: 10 }}>{s.play}</div>
+                <div style={{ background: CREAM, borderRadius: 6, padding: "10px 14px", fontFamily: F.sans, fontSize: 12, color: BURG, fontStyle: "italic", lineHeight: 1.55 }}>
+                  {s.script}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
-      <PlaybookSectionHeader>Decision Tree</PlaybookSectionHeader>
-      <div style={{ fontFamily: F.sans, fontSize: 13, color: INK, opacity: 0.7, marginBottom: 14, lineHeight: 1.55 }}>
-        By ticket tag — what to do, whether to attempt a save, when to cancel immediately.
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {treeRows.map((row, i) => (
-          <PlaybookQACard
-            key={row.tag + i}
-            q={row.tag}
-            a={`**Play:** ${row.play}\n\n**Save attempt:** ${row.save}  ·  **Cancel immediately:** ${row.cancelNow}`}
-            tag={row.save === "NO" || row.save === "No" ? "NO SAVE" : row.save === "N/A" ? "NEUTRAL" : "TRY SAVE"}
-          />
-        ))}
-      </div>
+      {/* Escalate Immediately */}
+      {(!q || escalateList.length > 0) && (
+        <>
+          <PlaybookSectionHeader>Escalate Immediately</PlaybookSectionHeader>
+          <div style={{ fontFamily: F.sans, fontSize: 13, color: INK, opacity: 0.7, marginBottom: 14, lineHeight: 1.55 }}>
+            Slack the Head of CX as soon as any of these come in — don't wait for the case to play out.
+          </div>
+          <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 8, padding: "14px 20px", marginBottom: 8 }}>
+            <ul style={{ margin: 0, paddingLeft: 18, fontFamily: F.sans, fontSize: 14, lineHeight: 1.7, color: INK }}>
+              {escalateList.map((line, i) => (
+                <li key={i} style={{ marginBottom: 4 }}>{line}</li>
+              ))}
+            </ul>
+          </div>
+        </>
+      )}
+
+      {/* Decision reference */}
+      {(!q || decisionRows.length > 0) && (
+        <>
+          <PlaybookSectionHeader>Decision Reference</PlaybookSectionHeader>
+          <div style={{ fontFamily: F.sans, fontSize: 13, color: INK, opacity: 0.7, marginBottom: 14, lineHeight: 1.55 }}>
+            Common situations and the right action — use as a quick reference when you're unsure.
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {decisionRows.map((row, i) => (
+              <PlaybookQACard
+                key={(row.situation || "") + i}
+                q={row.situation}
+                a={row.action}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -7311,7 +7476,7 @@ function PlaybookVoiceNew({ query }) {
           <span style={{ fontSize: 22 }}>✍️</span>
           <div>
             <div style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, color: GOLD, textTransform: "uppercase", letterSpacing: 2.5, marginBottom: 4 }}>Close every response with</div>
-            <div style={{ fontFamily: F.serif, fontSize: 16, fontWeight: 600, color: CREAM }}>With care, [Your name] — LUMÉ CX</div>
+            <div style={{ fontFamily: F.serif, fontSize: 16, fontWeight: 600, color: CREAM }}>With care, [Your name] — LUMÉ HAIR</div>
           </div>
         </div>
       )}
@@ -7477,7 +7642,7 @@ function TeamTab({ role }) {
   return (
     <div style={{ background: CREAM, minHeight: "100vh" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "56px 24px 96px" }}>
-        <div style={eyebrowS}>LUMÉ CX — Team Management</div>
+        <div style={eyebrowS}>LUMÉ HAIR — Team Management</div>
         <div style={{ fontFamily: F.serif, fontSize: 48, color: BURG, fontWeight: 600, lineHeight: 1.05, marginBottom: 14, letterSpacing: -1 }}>
           Team
         </div>
@@ -7867,7 +8032,7 @@ function PlaybookMacros({ role }) {
                         )}
                       </div>
                       <div style={{ fontFamily: F.serif, fontSize: 17, color: BURG, fontWeight: 600, lineHeight: 1.3 }}>{m.question}</div>
-                      <div style={{ fontFamily: F.sans, fontSize: 11, color: INK, opacity: 0.5, marginTop: 4, letterSpacing: 0.5 }}>LUMÉ CX: {m.slug}</div>
+                      <div style={{ fontFamily: F.sans, fontSize: 11, color: INK, opacity: 0.5, marginTop: 4, letterSpacing: 0.5 }}>LUMÉ HAIR: {m.slug}</div>
                     </div>
                     <span style={{ fontFamily: F.sans, fontSize: 18, color: BURG, opacity: 0.5, transform: open ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}>›</span>
                   </button>
@@ -8407,7 +8572,7 @@ function AffiliatesTab({ role }) {
   return (
     <div style={{ background: CREAM, minHeight: "100vh" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "56px 24px 24px" }}>
-        <div style={eyebrowS}>LUMÉ CX — Affiliates Playbook · CS team handover</div>
+        <div style={eyebrowS}>LUMÉ HAIR — Affiliates Playbook · CS team handover</div>
         <div style={{ fontFamily: F.serif, fontSize: 48, color: BURG, fontWeight: 600, lineHeight: 1.05, marginBottom: 8, letterSpacing: -1 }}>
           {sub}
         </div>
@@ -9678,7 +9843,7 @@ function AskTab({ chatMsgs, chatInput, setChatInput, chatLoading, sendChat, chat
     <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 104px)", maxWidth: 700, margin: "0 auto" }}>
       <div style={{ background: W, padding: "14px 20px", borderBottom: "1px solid #e0d9d0" }}>
         <div style={{ fontFamily: F.serif, fontSize: 18, fontWeight: 600, color: BURG }}>Ask LUMÉ</div>
-        <div style={{ fontFamily: F.sans, fontSize: 12, color: "#999" }}>Hi team — I&apos;m here for the &ldquo;what do I do here?&rdquo; moments. Policies, tricky situations, what to write back, when to escalate.</div>
+        <div style={{ fontFamily: F.sans, fontSize: 12, color: "#999" }}>Policy, tricky tickets, what to write back — ask me anything.</div>
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", padding: "20px 16px", display: "flex", flexDirection: "column", gap: 14 }}>
@@ -10165,7 +10330,7 @@ function BootcampTab({ bcProgress, saveBcProgress, bcView, setBcView, bcDay, set
     if (block.t === "warn") return <div key={idx} style={{ background: "#fff3cd", border: "1px solid #e6a817", borderLeft: "4px solid #e6a817", borderRadius: 6, padding: "12px 14px", marginBottom: 12 }}><div style={{ fontFamily: F.sans, fontSize: 13, color: "#5c3d00", lineHeight: 1.6 }}>{block.v}</div></div>;
     if (block.t === "list") return <ul key={idx} style={{ margin: "0 0 12px 0", paddingLeft: 20 }}>{block.items.map((it, j) => <li key={j} style={{ fontFamily: F.sans, fontSize: 14, color: "#333", lineHeight: 1.7, marginBottom: 4 }}>{it}</li>)}</ul>;
     if (block.t === "kv")  return <div key={idx} style={{ marginBottom: 14 }}>{block.pairs.map(([k, v], j) => <div key={j} style={{ display: "flex", gap: 10, padding: "8px 0", borderBottom: "1px solid #f0ebe5" }}><div style={{ fontFamily: F.sans, fontSize: 13, fontWeight: 700, color: BURG, minWidth: 130, flexShrink: 0 }}>{k}</div><div style={{ fontFamily: F.sans, fontSize: 13, color: "#333", lineHeight: 1.5, flex: 1 }}>{v}</div></div>)}</div>;
-    if (block.t === "ex")  return <div key={idx} style={{ background: CREAM, border: "1px solid #ddd", borderRadius: 8, overflow: "hidden", marginBottom: 12 }}><div style={{ padding: "10px 14px", background: "#f0e8e0", borderBottom: "1px solid #ddd" }}><span style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: 1 }}>Customer</span><div style={{ fontFamily: F.sans, fontSize: 13, color: "#333", marginTop: 4, lineHeight: 1.5 }}>{block.c}</div></div><div style={{ padding: "10px 14px" }}><span style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, color: RED, textTransform: "uppercase", letterSpacing: 1 }}>LUMÉ CX Response</span><div style={{ fontFamily: F.sans, fontSize: 13, color: BURG, marginTop: 4, lineHeight: 1.5 }}>{block.a}</div></div></div>;
+    if (block.t === "ex")  return <div key={idx} style={{ background: CREAM, border: "1px solid #ddd", borderRadius: 8, overflow: "hidden", marginBottom: 12 }}><div style={{ padding: "10px 14px", background: "#f0e8e0", borderBottom: "1px solid #ddd" }}><span style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: 1 }}>Customer</span><div style={{ fontFamily: F.sans, fontSize: 13, color: "#333", marginTop: 4, lineHeight: 1.5 }}>{block.c}</div></div><div style={{ padding: "10px 14px" }}><span style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, color: RED, textTransform: "uppercase", letterSpacing: 1 }}>LUMÉ HAIR Response</span><div style={{ fontFamily: F.sans, fontSize: 13, color: BURG, marginTop: 4, lineHeight: 1.5 }}>{block.a}</div></div></div>;
     if (block.t === "spot")      return <SpotBlock key={idx} {...block} />;
     if (block.t === "scorecard") return <ScorecardBlock key={idx} {...block} />;
     if (block.t === "flowchart") return <ResultsTreeBlock key={idx} />;
@@ -10914,10 +11079,10 @@ function InsightsTab({ role }) {
 
 function LoopRefundsCard({ loop, shop, loading, error }) {
   const ROWS = [
-    { key: "Monthly",   label: "Hair Edit subscribers (monthly)" },
-    { key: "Quarterly", label: "Bi-monthly / adjusted cadence" },
-    { key: "Refills",   label: "Renewal orders" },
-    { key: "OTP",       label: "One-time purchases" },
+    { key: "Monthly",    label: "Hair Edit subscribers (monthly)" },
+    { key: "Bimonthly",  label: "Skip-month / bi-monthly" },
+    { key: "Refills",    label: "Renewal orders" },
+    { key: "OTP",        label: "One-time purchases" },
   ];
   const m = loop?.matrix ?? {};
   const directCount = shop?.refunded != null && loop?.count != null
@@ -11318,7 +11483,7 @@ function BreakdownCard({ title, entries, total }) {
             <div key={key} style={{ display: "grid", gridTemplateColumns: "180px 1fr 80px", alignItems: "center", gap: 12 }}>
               <div style={{ fontFamily: F.sans, fontSize: 12, color: BURG, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{key}</div>
               <div style={{ background: "#f0ebe5", borderRadius: 99, height: 8, position: "relative", overflow: "hidden" }}>
-                <div style={{ background: "linear-gradient(90deg," + BURG + "," + GOLD + ")", width: barWidth + "%", height: "100%", borderRadius: 99, transition: "width 0.4s" }} />
+                <div style={{ background: "linear-gradient(90deg,#C8B9A5,#D4956A)", width: barWidth + "%", height: "100%", borderRadius: 99, transition: "width 0.4s" }} />
               </div>
               <div style={{ fontFamily: F.sans, fontSize: 12, color: "#666", textAlign: "right" }}>
                 {count.toLocaleString()} <span style={{ color: "#aaa" }}>· {pct}%</span>

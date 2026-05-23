@@ -15,8 +15,8 @@ export async function GET(req) {
 
     // Breakdown by subscription type (used by LoopRefundsCard table)
     matrix: {
-      Monthly:   { count: 32, amount: 2560 },   // Hair Edit subscribers
-      Quarterly: { count: 12, amount: 960  },   // Bi-monthly / skip cadence
+      Monthly:   { count: 32, amount: 2560 },   // Hair Edit subscribers (monthly)
+      Bimonthly: { count: 12, amount: 960  },   // Skip-month / bi-monthly
       Refills:   { count: 10, amount: 800  },   // Renewal orders
       OTP:       { count: 6,  amount: 480  },   // One-time purchases
     },
