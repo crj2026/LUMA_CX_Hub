@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /Users/cherie -maxdepth 4 -name \"CLONE*\" -o -name \"HANDOVER*\" 2>/dev/null | head -20)",
+      "Bash(git clone *)",
+      "Bash(rm -rf .git)",
+      "Bash(git init *)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
+    ]
+  }
+}

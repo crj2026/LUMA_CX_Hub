@@ -1,0 +1,408 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Announcement {
+  id          String   @id @default(cuid())
+  title       String
+  body        String
+  pinned      Boolean  @default(false)
+  postedById  String
+  postedByName String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([pinned, createdAt])
+}
+
+model Tip {
+  id        String   @id @default(cuid())
+  body      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([active])
+}
+
+model Kudo {
+  id            String   @id @default(cuid())
+  fromUserId    String
+  fromUserName  String
+  toUserId      String?
+  toUserName    String
+  body          String
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model TeamEvent {
+  id        String   @id @default(cuid())
+  userId    String?
+  userName  String
+  type      String
+  monthDay  String
+  year      Int?
+  createdAt DateTime @default(now())
+
+  @@index([monthDay])
+}
+
+// ─── Knowledge Base ──────────────────────────────────────────────
+
+model Macro {
+  id              String   @id @default(cuid())
+  slug            String   @unique
+  category        String
+  tag             String?
+  intent          String?
+  question        String
+  body            String
+  whenToUse       String?
+  notes           String?
+  escalationRule  String?
+  sourceDoc       String?
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([category])
+  @@index([tag])
+  @@index([active])
+}
+
+model Article {
+  id         String   @id @default(cuid())
+  slug       String   @unique
+  title      String
+  category   String
+  type       String
+  summary    String?
+  body       String
+  tags       String[]
+  ownerId    String?
+  ownerName  String?
+  sourceDoc  String?
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([category])
+  @@index([active])
+}
+
+model Decision {
+  id                String   @id @default(cuid())
+  segment           String
+  tag               String
+  customerBehaviour String[]
+  escalate          String?
+  replacement       String?
+  refund            String?
+  saveAttempt       Boolean  @default(false)
+  recommendedPlay   String?
+  cancelImmediately Boolean  @default(false)
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([segment, tag])
+  @@index([segment])
+}
+
+model Policy {
+  id                  String   @id @default(cuid())
+  name                String   @unique
+  statement           String
+  scope               String?
+  procedure           String?
+  nonNegotiableRules  String[]
+  relatedArticleIds   String[]
+  active              Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([active])
+}
+
+// ─── Logs (replaces team spreadsheets) ───────────────────────────
+
+model IssueLog {
+  id              String   @id @default(cuid())
+  orderId         String
+  ticketId        String?
+  customerName    String?
+  customerEmail   String?
+  country         String?
+  warehouse       String?
+  category        String
+  severity        String   @default("normal")
+  itemsAffected   String[]
+  description     String
+  photoUrls       String[]
+  videoUrl        String?
+  resolution      String   @default("pending")
+  resolutionNotes String?
+  agent           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([category])
+  @@index([resolution])
+  @@index([createdAt])
+}
+
+model Cancellation {
+  id              String   @id @default(cuid())
+  orderId         String
+  ticketId        String?
+  customerName    String?
+  customerEmail   String?
+  country         String?
+  cancellationType String
+  scope           String   @default("subscription")
+  notes           String?
+  agent           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([cancellationType])
+  @@index([scope])
+  @@index([createdAt])
+}
+
+model Feedback {
+  id              String   @id @default(cuid())
+  orderId         String?
+  ticketId        String?
+  customerName    String?
+  customerEmail   String?
+  country         String?
+  theme           String
+  relatedTeam     String?
+  details         String
+  suggestion      String?
+  agent           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([theme])
+  @@index([relatedTeam])
+  @@index([createdAt])
+}
+
+model Replacement {
+  id              String   @id @default(cuid())
+  orderId         String
+  ticketId        String?
+  customerName    String?
+  customerEmail   String?
+  country         String?
+  warehouse       String?
+  // Legacy `type` — kept for old rows. Form no longer asks for it.
+  type            String   @default("replacement")
+  // Legacy single-string `reason` — kept for backwards-compat with old
+  // rows. New form writes to `reasonMains` + `reasonSubs` arrays and
+  // also fills this with the first selected main for fallback display.
+  reason          String
+  // New (May 2026, Aina's feedback): two-tier multi-select.
+  reasonMains     String[] @default([])
+  reasonSubs      String[] @default([])
+  // New: items affected — replaces the old `itemsToShip` field which
+  // duplicated the sub-reason. Kept itemsToShip nullable for the old rows.
+  itemsAffected   String[] @default([])
+  originalOrder   String?
+  itemsToShip     String[]
+  details         String?
+  courier         String?
+  // Legacy `status` (renamed to "Solution" in UI). Still stored here.
+  status          String   @default("pending")
+  // Free-text solution — what the agent did (new order ID, ops manual replacement, etc).
+  solution        String?
+  agent           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([reason])
+  @@index([status])
+  @@index([warehouse])
+  @@index([createdAt])
+}
+
+model OrderRequest {
+  id                    String   @id @default(cuid())
+  region                String
+  requestedBy           String?
+  agent                 String?
+  ticketId              String?
+  im8OrderRef           String
+  referenceNumber       String?
+  d365SalesOrderNumber  String?
+  d365SKUs              String[]
+  dispatchWarehouse     String?
+  shipCarrier           String?
+  awb                   String?
+  shipDate              DateTime?
+  sent                  Boolean  @default(false)
+  recipientName         String
+  shipToAddress1        String?
+  shipToAddress2        String?
+  shipToCity            String?
+  shipToState           String?
+  shipToZip             String?
+  shipToCountry         String?
+  shipToPhone           String?
+  shipToEmail           String?
+  itemsDescription      String
+  status                String   @default("pending")
+  notes                 String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([region])
+  @@index([sent])
+  @@index([status])
+  @@index([im8OrderRef])
+  @@index([createdAt])
+}
+
+model AdverseReaction {
+  id                    String   @id @default(cuid())
+  orderId               String
+  ticketId              String?
+  // Customer
+  customerName          String?
+  customerEmail         String?
+  customerPhone         String?
+  country               String?
+  // Patient (often the customer, sometimes a family member)
+  patientSameAsCustomer Boolean  @default(true)
+  patientName           String?
+  patientAge            String?
+  // Complaint capture
+  complaintMethod       String   @default("email")
+  complaintDescription  String
+  productsAffected      String[]
+  lotNumbers            String[]
+  symptoms              String[]
+  severity              String   @default("low")
+  // Escalation
+  isSerious             Boolean  @default(false)
+  escalatedTo           String?
+  fdaMedwatchFiled      Boolean  @default(false)
+  mrddNumber            String?
+  // Returns
+  returnRequested       Boolean  @default(false)
+  rmaNumber             String?
+  // Follow-up
+  followUpAt            DateTime?
+  followUpMethod        String?
+  followUpNotes         String?
+  // QC review
+  qcReviewer            String?
+  qcReviewedAt          DateTime?
+  qcNotes               String?
+  status                String   @default("open")
+  agent                 String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([severity])
+  @@index([isSerious])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ─── Persistent app-level cache ──────────────────────────────────
+// Backs the cached() helper in lib/cache.js. Survives Railway redeploys
+// and container restarts so users don't pay the 5-10min cold-load tax
+// after every push.
+model CacheEntry {
+  key       String   @id
+  value     Json
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
+// ─── Affiliate macro copy tally ──────────────────────────────────
+// Per-click event log for the Affiliates tab's Copy buttons. One row
+// per click captures which macro was copied, whether it was the macro
+// NAME (in-Gorgias workflow) or the BODY (paste-directly workflow),
+// the in-Gorgias status at the time, and which user clicked.
+//
+// Aggregated by /api/affiliates/copy/stats to surface which "not in
+// Gorgias yet" macros are getting copied most — i.e., the priority
+// list for what to add to Gorgias next.
+model AffiliateCopyEvent {
+  id         String   @id @default(cuid())
+  macroName  String
+  copyType   String   // "name" (in-Gorgias) or "body" (paste-direct)
+  inGorgias  Boolean  @default(false)
+  userId     String?  // Clerk user id; nullable for future anon paths
+  createdAt  DateTime @default(now())
+
+  @@index([macroName])
+  @@index([createdAt])
+  @@index([inGorgias, createdAt])
+}
+
+// ─── Cancel — No Refund log ──────────────────────────────────────
+// New log type per Aina (May 15). Tracks orders we cancelled where
+// the customer didn't receive a cash refund — e.g., we sent a
+// replacement order instead, or store credit, or any other resolution
+// that didn't put money back on the original card.
+//
+// All four fields mandatory:
+//   cancelledOrderId   — the IM8 order that was cancelled
+//   ticketId           — the Gorgias ticket where this was resolved
+//   replacementOrderId — the IM8 order shipped in place of the refund
+//   reasonNotRefunded  — free text: why we didn't issue a cash refund
+model CancelNoRefund {
+  id                 String   @id @default(cuid())
+  cancelledOrderId   String
+  ticketId           String
+  replacementOrderId String
+  reasonNotRefunded  String
+  notes              String?  // optional free text, room to expand later
+  agent              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([cancelledOrderId])
+  @@index([ticketId])
+  @@index([replacementOrderId])
+  @@index([createdAt])
+}
+
+// ─── Weekly report notes ─────────────────────────────────────────
+// Free-text notes attached to a specific report window (weekFrom,
+// weekTo). One note per window — upsert pattern. Surfaces in the
+// "Notes" section at the end of the report and gets included in the
+// stakeholder-send email.
+//
+// weekFrom / weekTo are stored as plain YYYY-MM-DD strings so the
+// key matches what the UI generates from the date picker (no
+// timezone drift between Postgres dates and JS strings).
+model ReportNote {
+  id           String   @id @default(cuid())
+  weekFrom     String   // YYYY-MM-DD
+  weekTo       String   // YYYY-MM-DD
+  body         String
+  editedById   String?
+  editedByName String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([weekFrom, weekTo])
+}
