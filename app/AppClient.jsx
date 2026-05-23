@@ -2191,12 +2191,12 @@ export default function App({ userId, role, displayName }) {
 
 // Demo team — replace with client's team members for each deployment
 const TEAM = [
-  { name: "Alex Rivera",   bMonth: 3,  bDay: 15, joinDate: new Date(2024, 2, 15),  location: "Remote",    title: "Head of CX" },
-  { name: "Sam Park",      bMonth: 7,  bDay: 22, joinDate: new Date(2023, 8, 1),   location: "Remote",    title: "CX Lead" },
-  { name: "Jordan Lee",    bMonth: 11, bDay: 5,  joinDate: new Date(2024, 5, 10),  location: "Remote",    title: "Senior CX Agent" },
-  { name: "Morgan Chen",   bMonth: 5,  bDay: 18, joinDate: new Date(2025, 0, 20),  location: "Remote",    title: "CX Agent" },
-  { name: "Taylor Nguyen", bMonth: 9,  bDay: 30, joinDate: new Date(2025, 3, 7),   location: "Remote",    title: "CX Agent" },
-  { name: "Casey Kim",     bMonth: 1,  bDay: 12, joinDate: new Date(2025, 8, 15),  location: "Remote",    title: "CX Agent" },
+  { name: "Maya Chen",     bMonth: 4,  bDay: 12, joinDate: new Date(2023, 0, 15),  location: "Sydney",    title: "CX Manager" },
+  { name: "Jordan Park",   bMonth: 8,  bDay: 3,  joinDate: new Date(2023, 5, 1),   location: "Sydney",    title: "Senior CX Specialist" },
+  { name: "Priya Sharma",  bMonth: 2,  bDay: 27, joinDate: new Date(2024, 1, 10),  location: "Remote",    title: "CX Specialist" },
+  { name: "Aisha Williams",bMonth: 6,  bDay: 19, joinDate: new Date(2024, 6, 15),  location: "Remote",    title: "CX Specialist" },
+  { name: "Tom Nguyen",    bMonth: 11, bDay: 8,  joinDate: new Date(2025, 0, 20),  location: "Melbourne", title: "CX Specialist" },
+  { name: "Sam Lee",       bMonth: 3,  bDay: 22, joinDate: new Date(2023, 8, 1),   location: "Sydney",    title: "Operations Coordinator" },
 ];
 
 const QUOTES = [
@@ -2248,8 +2248,10 @@ const GREETING_LINES_FRIDAY = [
 ];
 
 const ANNOUNCEMENTS = [
-  { title: "Luma CX Hub is live — welcome to the team", date: "2026-05-23" },
-  { title: "Ask Luma is now powered by Claude — try it now", date: "2026-05-23" },
+  { title: "Scalp Serum tingling volume up this week — use SOP 01 for all queries", date: "2026-05-23" },
+  { title: "Hair Edit swap deadline is the 12th — flag any requests coming in after", date: "2026-05-22" },
+  { title: "Failed payments up 18% — proactive outreach campaign launching Monday", date: "2026-05-22" },
+  { title: "Save rate hit 43% this week — great work team 🎉", date: "2026-05-21" },
 ];
 
 function pickByDay(list, today) {
@@ -2503,25 +2505,25 @@ function HomeTab({ displayName, setTab, role }) {
         {/* Mission card — Luma CX */}
         <div style={{ background: BURG, marginBottom: 56, position: "relative", overflow: "hidden", borderRadius: 18 }}>
           <div style={{ padding: "56px 56px", borderLeft: "2px solid " + GOLD }}>
-            <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, textTransform: "uppercase", letterSpacing: 4, fontWeight: 600, marginBottom: 20 }}>Our mission</div>
+            <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, textTransform: "uppercase", letterSpacing: 4, fontWeight: 600, marginBottom: 20 }}>LUMÉ CX Promise</div>
             <div style={{ fontFamily: F.serif, fontSize: 42, fontWeight: 600, color: CREAM, marginBottom: 24, lineHeight: 1.1, letterSpacing: -1 }}>
-              We build it.<br />You own it.<br />No lock-in, ever.
+              Every customer deserves to feel heard, helped, and valued.
             </div>
             <div style={{ fontFamily: F.sans, fontSize: 15, color: CREAM, opacity: 0.7, lineHeight: 1.7, maxWidth: 620, marginBottom: 32 }}>
-              Luma CX exists to give brands a CX operating layer that actually belongs to them. No vendor dependency. No black box. Every playbook, every workflow, every insight — yours to take anywhere.
+              That's not a policy — it's who we are. Every serum we sell, every ticket we close, every save we make is in service of that promise.
             </div>
             <div style={{ display: "flex", gap: 48 }}>
               <div>
-                <div style={{ fontFamily: F.serif, fontSize: 36, fontWeight: 700, color: GOLD, lineHeight: 1 }}>100%</div>
-                <div style={{ fontFamily: F.sans, fontSize: 10, color: CREAM, opacity: 0.6, letterSpacing: 3, textTransform: "uppercase", fontWeight: 600, marginTop: 6 }}>Client-owned</div>
+                <div style={{ fontFamily: F.serif, fontSize: 36, fontWeight: 700, color: GOLD, lineHeight: 1 }}>4.6</div>
+                <div style={{ fontFamily: F.sans, fontSize: 10, color: CREAM, opacity: 0.6, letterSpacing: 3, textTransform: "uppercase", fontWeight: 600, marginTop: 6 }}>CSAT</div>
               </div>
               <div>
-                <div style={{ fontFamily: F.serif, fontSize: 36, fontWeight: 700, color: GOLD, lineHeight: 1 }}>0</div>
-                <div style={{ fontFamily: F.sans, fontSize: 10, color: CREAM, opacity: 0.6, letterSpacing: 3, textTransform: "uppercase", fontWeight: 600, marginTop: 6 }}>Lock-in</div>
+                <div style={{ fontFamily: F.serif, fontSize: 36, fontWeight: 700, color: GOLD, lineHeight: 1 }}>34m</div>
+                <div style={{ fontFamily: F.sans, fontSize: 10, color: CREAM, opacity: 0.6, letterSpacing: 3, textTransform: "uppercase", fontWeight: 600, marginTop: 6 }}>Avg Resolution</div>
               </div>
               <div>
-                <div style={{ fontFamily: F.serif, fontSize: 36, fontWeight: 700, color: GOLD, lineHeight: 1 }}>∞</div>
-                <div style={{ fontFamily: F.sans, fontSize: 10, color: CREAM, opacity: 0.6, letterSpacing: 3, textTransform: "uppercase", fontWeight: 600, marginTop: 6 }}>Flexibility</div>
+                <div style={{ fontFamily: F.serif, fontSize: 36, fontWeight: 700, color: GOLD, lineHeight: 1 }}>43%</div>
+                <div style={{ fontFamily: F.sans, fontSize: 10, color: CREAM, opacity: 0.6, letterSpacing: 3, textTransform: "uppercase", fontWeight: 600, marginTop: 6 }}>Save Rate</div>
               </div>
             </div>
           </div>

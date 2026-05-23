@@ -3,8 +3,8 @@ import { auth } from "@clerk/nextjs/server";
 export const runtime = "nodejs";
 
 const SEED_ROWS = [
-  { id: "demo-ar-001", createdAt: new Date("2026-05-22T10:20:00Z").toISOString(), orderId: "#DTC-10453", customerName: "Kendall Brooks", country: "US", symptoms: "Mild nausea after first two days of use", severity: "mild", productBatch: "BT-2604-A", escalated: true, escalatedTo: "Head of CX", notes: "Customer advised to take with food. Monitoring. No further symptoms after day 3.", agent: "demo" },
-  { id: "demo-ar-002", createdAt: new Date("2026-05-20T13:45:00Z").toISOString(), orderId: "#DTC-10399", customerName: "Reese Yamamoto", country: "AU", symptoms: "Mild stomach discomfort during first week", severity: "mild", productBatch: "BT-2604-B", escalated: false, escalatedTo: null, notes: "Resolved after adjusting intake timing. Customer continuing subscription.", agent: "demo" },
+  { id: "demo-ar-001", createdAt: new Date("2026-05-22T10:20:00Z").toISOString(), orderId: "#LME-10453", customerName: "Tara Hennessy", country: "AU", symptoms: "Scalp redness and mild burning sensation after first use of Scalp Serum. Not the normal tingling — customer described it as painful.", severity: "moderate", productBatch: "LS-2605-A", escalated: true, escalatedTo: "Maya Chen", notes: "Advised to stop use immediately. Patch test on inner wrist confirmed sensitivity to peppermint oil. Full refund issued. Customer consulted GP — no further issues. Batch LS-2605-A flagged for quality review.", agent: "demo" },
+  { id: "demo-ar-002", createdAt: new Date("2026-05-20T13:45:00Z").toISOString(), orderId: "#LME-10399", customerName: "Ben Cartwright", country: "US", symptoms: "Mild itching on scalp during first week of Scalp Serum use. Resolved after reducing application to 2x per week.", severity: "mild", productBatch: "LS-2604-B", escalated: false, escalatedTo: null, notes: "Customer was applying daily instead of 3x per week as directed. Adjusted frequency — itching resolved within 3 days. Continuing subscription.", agent: "demo" },
 ];
 
 export async function GET(req) {
