@@ -7087,48 +7087,120 @@ function PlaybookPolicyNew({ query }) {
 // ─── Shipping subpanel ───────────────────────────────────────────────
 
 function PlaybookShippingNew({ query }) {
-  // Pull from ask-im8-knowledge.js (source of truth) and sort by lead time.
-  const rows = useMemo(() => {
-    const entries = Object.entries(SHIPPING_LEAD_TIMES).map(([country, days]) => ({ country, days }));
-    entries.sort((a, b) => a.days - b.days);
-    return entries;
-  }, []);
-
   const q = (query || "").trim().toLowerCase();
-  const filtered = q
-    ? rows.filter((r) => r.country.toLowerCase().includes(q))
-    : rows;
+
+  const HOW_TO_GUIDES = [
+    {
+      name: "Smooth Serum",
+      emoji: "✨",
+      steps: [
+        "Apply 2–3 pumps to palms and rub together",
+        "Work through mid-lengths to ends on damp or dry hair",
+        "Do not apply to roots (weighs down fine hair)",
+        "Style as usual — works with or without heat",
+      ],
+      tip: "For maximum frizz control, apply on damp hair before blowdrying.",
+      when: "Damp or dry · Daily · Heat styling days",
+    },
+    {
+      name: "Repair Serum",
+      emoji: "🔧",
+      steps: [
+        "Start with freshly washed, towel-dried damp hair",
+        "Apply 3–4 pumps, focusing on the most damaged sections and ends",
+        "Leave in — do not rinse",
+        "Style as usual. Use consistently for 6+ weeks for bond repair",
+      ],
+      tip: "Bond repair is cumulative. If a customer says it's not working at 2 weeks, that's normal — encourage them to continue.",
+      when: "Damp hair only · Daily · Best for damaged/colour-treated",
+    },
+    {
+      name: "Scalp Serum",
+      emoji: "🌿",
+      steps: [
+        "Part hair into sections and apply directly to the scalp using the dropper",
+        "Massage in with fingertips for 1–2 minutes",
+        "Do not rinse out",
+        "Use 3× per week — not daily. Over-use can cause irritation",
+      ],
+      tip: "The tingling is from peppermint oil — normal and expected. It means circulation is increasing. If it burns rather than tingles, stop use.",
+      when: "Dry or slightly damp scalp · 3× per week · Do not rinse",
+    },
+    {
+      name: "Glow Serum",
+      emoji: "💫",
+      steps: [
+        "Dispense 1–2 pumps into palm",
+        "Apply all over — roots to ends — for full-hair glow",
+        "Or apply to ends only as a split-end treatment",
+        "Use on dry or damp hair — can be used daily",
+      ],
+      tip: "The lightest serum in the range. Ideal for fine hair. Can be layered under Smooth or over Repair.",
+      when: "Damp or dry · Daily · All hair types",
+    },
+  ];
+
+  const filteredGuides = q
+    ? HOW_TO_GUIDES.filter((g) =>
+        g.name.toLowerCase().includes(q) ||
+        g.steps.some((s) => s.toLowerCase().includes(q)) ||
+        g.tip.toLowerCase().includes(q)
+      )
+    : HOW_TO_GUIDES;
+
+  const filteredShipping = q
+    ? SHIPPING_LEAD_TIMES.filter((r) => r.region.toLowerCase().includes(q))
+    : SHIPPING_LEAD_TIMES;
 
   return (
     <div>
-      <div style={{
-        background: W,
-        border: "1px solid " + SOFT_BORDER,
-        borderRadius: 8,
-        overflow: "hidden",
-      }}>
-        {filtered.length === 0 && (
-          <div style={{ padding: 24, textAlign: "center", fontFamily: F.sans, fontSize: 13, color: INK, opacity: 0.6 }}>
-            No countries match.
+      {/* Application guides */}
+      {(!q || filteredGuides.length > 0) && (
+        <>
+          <PlaybookSectionHeader>Application guides</PlaybookSectionHeader>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 14, marginBottom: 24 }}>
+            {filteredGuides.map((g) => (
+              <div key={g.name} style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 10, padding: "18px 20px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                  <span style={{ fontSize: 22 }}>{g.emoji}</span>
+                  <div>
+                    <div style={{ fontFamily: F.serif, fontSize: 17, fontWeight: 600, color: BURG }}>{g.name}</div>
+                    <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 700 }}>{g.when}</div>
+                  </div>
+                </div>
+                <ol style={{ margin: 0, paddingLeft: 18, fontFamily: F.sans, fontSize: 13, color: INK, lineHeight: 1.7 }}>
+                  {g.steps.map((s, i) => <li key={i} style={{ marginBottom: 4 }}>{s}</li>)}
+                </ol>
+                <div style={{ marginTop: 12, background: CREAM, borderRadius: 6, padding: "8px 12px", fontFamily: F.sans, fontSize: 12, color: INK, opacity: 0.8, lineHeight: 1.5 }}>
+                  💡 {g.tip}
+                </div>
+              </div>
+            ))}
           </div>
-        )}
-        {filtered.map((r, i) => (
-          <div key={r.country} style={{
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            padding: "12px 18px",
-            borderTop: i === 0 ? "none" : "1px solid " + SOFT_BORDER,
-            fontFamily: F.sans, fontSize: 14, color: INK,
-          }}>
-            <span style={{ fontWeight: 500 }}>{r.country}</span>
-            <span style={{ fontFamily: F.serif, fontSize: 16, color: BURG, fontWeight: 600 }}>
-              {r.days} <span style={{ fontSize: 11, fontFamily: F.sans, fontWeight: 500, opacity: 0.6, letterSpacing: 1, textTransform: "uppercase", marginLeft: 4 }}>days</span>
-            </span>
+        </>
+      )}
+
+      {/* Shipping windows */}
+      {(!q || filteredShipping.length > 0) && (
+        <>
+          <PlaybookSectionHeader>Shipping windows</PlaybookSectionHeader>
+          <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 8, overflow: "hidden", marginBottom: 8 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", background: CREAM, padding: "8px 18px", fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", color: INK, opacity: 0.6 }}>
+              <span>Region</span><span style={{ textAlign: "center" }}>Standard</span><span style={{ textAlign: "right" }}>Express</span>
+            </div>
+            {filteredShipping.map((r, i) => (
+              <div key={r.region} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", alignItems: "center", padding: "12px 18px", borderTop: i === 0 ? "none" : "1px solid " + SOFT_BORDER, fontFamily: F.sans, fontSize: 13, color: INK }}>
+                <span style={{ fontWeight: 600 }}>{r.region}</span>
+                <span style={{ textAlign: "center", color: BURG }}>{r.standard}</span>
+                <span style={{ textAlign: "right", color: BURG }}>{r.express}</span>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
-      <div style={{ fontFamily: F.sans, fontSize: 12, color: INK, opacity: 0.5, marginTop: 14, textAlign: "center" }}>
-        Calendar days from dispatch. Source: CS Master SOP.
-      </div>
+          <div style={{ fontFamily: F.sans, fontSize: 11, color: INK, opacity: 0.45, marginTop: 8 }}>
+            Business days from dispatch. Express available at checkout. Timelines are estimates — check Aftership for live tracking.
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -7224,14 +7296,24 @@ function PlaybookVoiceNew({ query }) {
             background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 8, padding: "14px 18px",
           }}>
             <div style={{ fontFamily: F.sans, fontSize: 13, color: INK, opacity: 0.6, fontStyle: "italic", lineHeight: 1.5 }}>
-              "{p.bad}"
+              &ldquo;{p.bad}&rdquo;
             </div>
             <div style={{ fontFamily: F.serif, fontSize: 18, color: GOLD, fontWeight: 600 }}>→</div>
             <div style={{ fontFamily: F.sans, fontSize: 13, color: INK, lineHeight: 1.5 }}>
-              "{p.good}"
+              &ldquo;{p.good}&rdquo;
             </div>
           </div>
         ))
+      )}
+
+      {!q && (
+        <div style={{ background: BURG, borderRadius: 10, padding: "18px 24px", display: "flex", gap: 14, alignItems: "center", marginTop: 8 }}>
+          <span style={{ fontSize: 22 }}>✍️</span>
+          <div>
+            <div style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, color: GOLD, textTransform: "uppercase", letterSpacing: 2.5, marginBottom: 4 }}>Close every response with</div>
+            <div style={{ fontFamily: F.serif, fontSize: 16, fontWeight: 600, color: CREAM }}>With care, [Your name] — LUMÉ CX</div>
+          </div>
+        </div>
       )}
     </div>
   );
