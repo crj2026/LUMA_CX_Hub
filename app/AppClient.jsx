@@ -34,7 +34,7 @@ const HERO_GRAD   = "#F4F0E8";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const LB_KEY = "luma_cx_lb_v1";
-const TABS = ["Home","Insights","Reports","Logs","Records","Ask Luma","Playbook","Affiliates","Training","Team"];
+const TABS = ["Home","Insights","Reports","Logs","Records","Ask LUMÉ","Playbook","Affiliates","Training","Team"];
 // Roles list mirrored from lib/auth.js — kept inline so the client bundle
 // doesn't have to pull in the server-only helpers from that module.
 const TEAM_ROLES = ["New Starter", "Agent", "Ops", "Lead Agent", "Manager", "Admin", "Owner"];
@@ -1570,8 +1570,8 @@ const ASK_SYSTEM = buildAskLumaSystem();
 // eslint-disable-next-line no-unused-vars
 const ASK_SYSTEM_LEGACY = [
   "You are an expert CX training assistant. Help new agents learn to handle every type of customer ticket correctly.",
-  "Always teach using real SOPs. When showing example responses, write in the Luma CX voice: warm, confident, direct, short sentences, human empathy, no corporate jargon.",
-  "Sign every example response with: [Agent name] - Luma CX",
+  "Always teach using real SOPs. When showing example responses, write in the LUMÉ CX voice: warm, confident, direct, short sentences, human empathy, no corporate jargon.",
+  "Sign every example response with: [Agent name] - LUMÉ CX",
 
   "=== 3 GUIDING PRINCIPLES ===",
   "1. Empathetic Ownership: own the problem until resolved, measured by CSAT/NPS/Trustpilot.",
@@ -1792,7 +1792,7 @@ export default function App({ userId, role, displayName }) {
     const hash = window.location.hash.replace(/^#/, "").trim();
     if (!hash) return;
     const tabPart = hash.split(":")[0];
-    const valid = ["Home", "Insights", "Reports", "Logs", "Records", "Playbook", "Affiliates", "Ask Luma", "Training", "Quiz", "Progress"];
+    const valid = ["Home", "Insights", "Reports", "Logs", "Records", "Playbook", "Affiliates", "Ask LUMÉ", "Training", "Quiz", "Progress"];
     const matched = valid.find((v) => v.toLowerCase() === tabPart.toLowerCase());
     if (matched) setTab(matched);
   }, []);
@@ -1812,7 +1812,7 @@ export default function App({ userId, role, displayName }) {
   const [completed,     setCompleted]     = useState([]);
   const [sessionScores, setSessionScores] = useState({});
 
-  // Ask IM8
+  // Ask LUMÉ
   const [chatMsgs,    setChatMsgs]    = useState([{ role:"assistant", content:"Hi team — I'm here for the 'what do I do here?' moments. Policies, tricky situations, what to write back, when to escalate. If I don't know something, I'll tell you and point you to your TL or Head of CX." }]);
   const [chatInput,   setChatInput]   = useState("");
   const [chatLoading, setChatLoading] = useState(false);
@@ -1929,7 +1929,7 @@ export default function App({ userId, role, displayName }) {
     setAnswers([]);
   }
 
-  // ── Ask IM8 Logic ─────────────────────────────────────────────────────────
+  // ── Ask LUMÉ Logic ────────────────────────────────────────────────────────
   async function sendChat() {
     if (!chatInput.trim() || chatLoading) return;
     const userMsg = { role:"user", content: chatInput.trim() };
@@ -2065,7 +2065,7 @@ export default function App({ userId, role, displayName }) {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/favicon.svg" alt="" width={22} height={22} style={{ display: "block" }} />
             <div>
-              <div style={{ fontFamily: F.sans, fontWeight: 700, fontSize: 16, color: BURG, letterSpacing: 3 }}>LUMA CX</div>
+              <div style={{ fontFamily: F.sans, fontWeight: 700, fontSize: 16, color: BURG, letterSpacing: 3 }}>LUMÉ CX</div>
               <div style={{ fontFamily: F.sans, fontSize: 8, color: GOLD, opacity: 0.9, letterSpacing: 2.5, textTransform: "uppercase", fontWeight: 700 }}>CX Hub</div>
             </div>
           </div>
@@ -2108,7 +2108,7 @@ export default function App({ userId, role, displayName }) {
           {TABS.filter(t => {
             // Hidden until those features are ready — flip individual entries
             // to false to surface them again.
-            const HIDDEN = { "Ask Luma": false, "Playbook": false, "Training": true };
+            const HIDDEN = { "Ask LUMÉ": false, "Playbook": false, "Training": true, "Affiliates": true };
             if (HIDDEN[t]) return false;
             // Ops sees a focused view: only Home + Logs
             if (effectiveRole === "Ops") return t === "Home" || t === "Logs";
@@ -2124,7 +2124,7 @@ export default function App({ userId, role, displayName }) {
             if (t === "Team") return effectiveRole && ["Admin","Owner"].includes(effectiveRole);
             return true;
           }).map(t => (
-            <button key={t} onClick={() => setTab(t)} style={{ background: "transparent", border: "none", borderBottom: tab === t ? "2px solid " + BURG : "2px solid transparent", color: tab === t ? BURG : "rgba(80,0,11,0.45)", fontFamily: F.sans, fontSize: 12, fontWeight: tab === t ? 700 : 500, padding: "12px 16px", cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.15s", letterSpacing: 1 }}>{t}</button>
+            <button key={t} onClick={() => setTab(t)} style={{ background: "transparent", border: "none", borderBottom: tab === t ? "2px solid " + BURG : "2px solid transparent", color: tab === t ? BURG : "rgba(10,10,9,0.38)", fontFamily: F.sans, fontSize: 12, fontWeight: tab === t ? 700 : 500, padding: "12px 16px", cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.15s", letterSpacing: 1 }}>{t}</button>
           ))}
         </div>
       </div>
@@ -2136,9 +2136,8 @@ export default function App({ userId, role, displayName }) {
       {tab === "Reports"  && <ReportsTab role={effectiveRole} />}
       {tab === "Records"  && <RecordsTab role={effectiveRole} />}
       {tab === "Playbook"   && <PlaybookTab   role={effectiveRole} />}
-      {tab === "Affiliates" && <AffiliatesTab role={effectiveRole} />}
       {tab === "Team"       && <TeamTab       role={effectiveRole} />}
-      {tab === "Ask Luma"  && <AskTab      chatMsgs={chatMsgs} chatInput={chatInput} setChatInput={setChatInput} chatLoading={chatLoading} sendChat={sendChat} chatEndRef={chatEndRef} />}
+      {tab === "Ask LUMÉ"  && <AskTab      chatMsgs={chatMsgs} chatInput={chatInput} setChatInput={setChatInput} chatLoading={chatLoading} sendChat={sendChat} chatEndRef={chatEndRef} />}
       {tab === "Training" && <TrainingTab
         bcProgress={bcProgress} saveBcProgress={saveBcProgress} bcView={bcView} setBcView={setBcView}
         bcDay={bcDay} setBcDay={setBcDay} bcLesson={bcLesson} setBcLesson={setBcLesson}
@@ -2402,7 +2401,7 @@ function HomeTab({ displayName, setTab, role }) {
                 ) : (
                   <span style={{ color: CREAM, fontWeight: 500 }}>{a.title}</span>
                 )}
-                <span style={{ color: GOLD, opacity: 0.6, fontSize: 11, letterSpacing: 1 }}>{formatDateShort(new Date(a.date))}</span>
+                <span style={{ color: "#C8BCAA", fontSize: 11, letterSpacing: 1 }}>{formatDateShort(new Date(a.date))}</span>
                 <span style={{ color: GOLD, opacity: 0.5 }}>•</span>
               </div>
             );
@@ -2416,7 +2415,7 @@ function HomeTab({ displayName, setTab, role }) {
       <div style={{ padding: "96px 24px 64px", maxWidth: 1100, margin: "0 auto" }}>
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 32, flexWrap: "wrap" }}>
           <div style={{ flex: "1 1 auto", minWidth: 0 }}>
-            <div style={{ ...eyebrow, marginBottom: 20 }}>Luma CX — CX Hub</div>
+            <div style={{ ...eyebrow, marginBottom: 20 }}>LUMÉ CX Hub</div>
             <div style={{ fontFamily: F.serif, fontSize: 64, color: BURG, fontWeight: 600, lineHeight: 1.05, marginBottom: 18, letterSpacing: -1.5 }}>
               {prefix}, {firstName}.
             </div>
@@ -2427,7 +2426,7 @@ function HomeTab({ displayName, setTab, role }) {
 
           {/* Ask Luma quick-launch card */}
           <div
-            onClick={() => setTab("Ask Luma")}
+            onClick={() => setTab("Ask LUMÉ")}
             style={{
               flex: "0 0 auto",
               display: "inline-flex", alignItems: "center", gap: 14,
@@ -2451,7 +2450,7 @@ function HomeTab({ displayName, setTab, role }) {
             <span style={{ fontSize: 26, lineHeight: 1 }}>✦</span>
             <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
               <span style={{ fontFamily: F.serif, fontSize: 20, fontWeight: 700, letterSpacing: 0.5, lineHeight: 1, color: CREAM }}>
-                Ask Luma
+                Ask LUMÉ
               </span>
               <span style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, letterSpacing: 2, textTransform: "uppercase", fontWeight: 700 }}>
                 AI Assistant →
@@ -2543,7 +2542,7 @@ function HomeTab({ displayName, setTab, role }) {
                     <div>
                       <div style={{ fontFamily: F.serif, fontSize: 18, color: BURG, fontWeight: 600 }}>{e.person.name}</div>
                       <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, letterSpacing: 2.5, textTransform: "uppercase", fontWeight: 600, marginTop: 6 }}>
-                        {e.type === "birthday" ? "Birthday" : `${e.years} year${e.years === 1 ? "" : "s"} at Luma CX`} · {e.person.location}
+                        {e.type === "birthday" ? "Birthday" : `${e.years} year${e.years === 1 ? "" : "s"} at LUMÉ CX`} · {e.person.location}
                       </div>
                     </div>
                   </div>
@@ -2634,7 +2633,7 @@ function TrainingTab(props) {
     <div style={{ background: CREAM, minHeight: "100vh" }}>
       {/* Header */}
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "56px 24px 24px" }}>
-        <div style={eyebrowS}>Luma CX — Training</div>
+        <div style={eyebrowS}>LUMÉ CX — Training</div>
         <div style={{ fontFamily: F.serif, fontSize: 40, color: BURG, fontWeight: 600, lineHeight: 1.05, marginBottom: 24, letterSpacing: -1 }}>
           {sub}
         </div>
@@ -2702,14 +2701,14 @@ function TrainingTab(props) {
 
 // "Cancellations" hidden May 13 — Skio is the source of truth (per Aina).
 // Model + API + config preserved as orphans in case we revive it.
-const RECORDS_SUBTABS = ["Issues", "Replacements", "Adverse Reactions", "Feedback", "Ops Requests"];
+const RECORDS_SUBTABS = ["Order Issue", "Replacements", "Reaction/Concern", "Feedback"];
 
 // RECORDS_CONFIG is built lazily inside RecordsTab so it can reference
 // the dropdown constants declared in the Logs section (ISSUE_CATEGORIES,
 // OPS_REGIONS, etc.). At module load time those are still in TDZ.
 function buildRecordsConfig() {
   return {
-  Issues: {
+  "Order Issue": {
     listUrl: "/api/logs/issues",
     patchUrl: (id) => `/api/logs/issues/${id}`,
     columns: [
@@ -2782,7 +2781,7 @@ function buildRecordsConfig() {
       { key: "suggestion",    label: "Suggestion",type: "textarea",editable: true,  width: 240 },
     ],
   },
-  "Adverse Reactions": {
+  "Reaction/Concern": {
     listUrl: "/api/logs/adverse-reactions",
     patchUrl: (id) => `/api/logs/adverse-reactions/${id}`,
     columns: [
@@ -2833,7 +2832,7 @@ function buildRecordsConfig() {
 
 function RecordsTab({ role }) {
   const canView = role && ["Manager","Admin","Owner"].includes(role);
-  const [sub, setSub] = useState("Issues");
+  const [sub, setSub] = useState("Order Issue");
   const RECORDS_CONFIG = useMemo(buildRecordsConfig, []);
 
   // Deep-link from email: #records:issues, #records:adverse-reactions etc.
@@ -2861,17 +2860,15 @@ function RecordsTab({ role }) {
   }
   const config = RECORDS_CONFIG[sub];
   const RECORDS_TAGLINES = {
-    "Issues":            "Every issue logged across the team.",
-    "Replacements":      "Every replacement request, intake through delivery.",
-    "Cancellations":     "Every customer-cancellation entry.",
-    "Feedback":          "Every customer feedback note paired with the agent's suggestion.",
-    "Adverse Reactions": "Every adverse reaction on file.",
-    "Ops Requests":      "Every Ops fulfillment request, full lifecycle.",
+    "Order Issue":      "Every order issue logged across the team.",
+    "Replacements":     "Every replacement request, intake through delivery.",
+    "Reaction/Concern": "Every adverse reaction or skin concern on file.",
+    "Feedback":         "Every customer feedback note and feature request.",
   };
   return (
     <div style={{ background: CREAM, minHeight: "100vh" }}>
       <div style={{ maxWidth: "100%", padding: "40px 24px 16px" }}>
-        <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, letterSpacing: 4, textTransform: "uppercase", fontWeight: 700, marginBottom: 8 }}>Luma CX — Records</div>
+        <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, letterSpacing: 4, textTransform: "uppercase", fontWeight: 700, marginBottom: 8 }}>LUMÉ CX — Records</div>
         <div style={{ fontFamily: F.serif, fontSize: 36, color: BURG, fontWeight: 600, lineHeight: 1.05, marginBottom: 8 }}>{sub}</div>
         <div style={{ fontFamily: F.serif, fontStyle: "italic", fontSize: 14, color: INK, opacity: 0.6, marginBottom: 18, maxWidth: 760 }}>
           {RECORDS_TAGLINES[sub] ?? "Every log entry in one editable view."}
@@ -3420,9 +3417,10 @@ function WeeklySummaryView() {
         {/* Header */}
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16, marginBottom: 24 }}>
           <div>
-            <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, letterSpacing: 4, textTransform: "uppercase", fontWeight: 700, marginBottom: 8 }}>Luma CX Hub</div>
+            <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, letterSpacing: 4, textTransform: "uppercase", fontWeight: 700, marginBottom: 8 }}>LUMÉ CX Hub</div>
             <div style={{ fontFamily: F.serif, fontSize: 40, color: BURG, fontWeight: 600, lineHeight: 1.05, letterSpacing: -0.5 }}>Weekly Summary</div>
             <div style={{ fontFamily: F.serif, fontStyle: "italic", fontSize: 18, color: INK, opacity: 0.65, marginTop: 6 }}>{reportData.weekLabel}</div>
+            <div style={{ fontFamily: F.sans, fontSize: 13, color: INK, opacity: 0.55, marginTop: 10, lineHeight: 1.5, maxWidth: 540 }}>Compiled from Gorgias, Shopify, and Skio. Use this to spot trends, brief stakeholders, and flag anything that needs attention before the week closes.</div>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={{ padding: "6px 10px", border: "1px solid " + SOFT_BORDER, borderRadius: 6, fontFamily: F.sans, fontSize: 12 }} />
@@ -3451,14 +3449,6 @@ function WeeklySummaryView() {
           <div style={sectionLabel}>Refunds</div>
           {errors.loop && <ErrorLine text={errors.loop} />}
           {loop && <RefundsSummaryBlock loop={loop} shop={shop} />}
-          {!loop && !errors.loop && <SkeletonLine />}
-        </div>
-
-        {/* Loop Returns — operations */}
-        <div style={sectionGap}>
-          <div style={sectionLabel}>Loop returns — operations</div>
-          {errors.loop && <ErrorLine text={errors.loop} />}
-          {loop && <LoopOperationsBlock loop={loop} />}
           {!loop && !errors.loop && <SkeletonLine />}
         </div>
 
@@ -3519,28 +3509,56 @@ function WeeklySummaryView() {
             )}
         </div>
 
-        {/* Adverse Reactions */}
+        {/* Adverse Reactions / Reaction-Concern */}
         <div style={sectionGap}>
-          <div style={sectionLabel}>Adverse reactions</div>
+          <div style={sectionLabel}>Reaction / Concern</div>
           {reportData.adverseCount === 0 ? (
             <EmptyLine text="No adverse reactions filed this week." />
           ) : (
             <div style={{ background: W, border: "1px solid " + (reportData.adverseSerious > 0 ? RED : SOFT_BORDER), borderLeft: "3px solid " + (reportData.adverseSerious > 0 ? RED : GOLD), borderRadius: 10, padding: "16px 20px", fontFamily: F.sans, fontSize: 14, color: INK }}>
               <strong style={{ color: BURG }}>{reportData.adverseCount}</strong> filed
               {reportData.adverseSerious > 0 && <> · <strong style={{ color: RED }}>{reportData.adverseSerious} serious (SAE)</strong></>}
-              <div style={{ fontFamily: F.sans, fontSize: 12, color: INK, opacity: 0.6, marginTop: 6 }}>See Logs → Adverse Reactions for full records.</div>
+              <div style={{ fontFamily: F.sans, fontSize: 12, color: INK, opacity: 0.6, marginTop: 6 }}>See Logs → Reaction/Concern for full records.</div>
             </div>
           )}
         </div>
 
-        {/* Top 3 Trends section removed May 17 — the trends fetch
-            routinely timed out at 280s and surfaced "Took too long"
-            errors in the report. Component (TrendsBlock) and endpoint
-            (/api/insights/trends) left in place for easy re-enable. */}
-
-        {/* Customer Insights */}
+        {/* Top Trends */}
         <div style={sectionGap}>
-          <div style={sectionLabel}>Customer insights</div>
+          <div style={sectionLabel}>Top Trends</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {[
+              { rank: 1, theme: "Scalp Serum tingling queries", count: 89, note: "Customers are alarmed by the tingling sensation on first use. The product page disclaimer is not prominent enough — recommend adding an inline callout to the PDP." },
+              { rank: 2, theme: "Repair Serum results timeline", count: 67, note: "Customers at weeks 2–4 expecting visible results. Education content needed at the 3-week mark — suggested send: 'Your hair journey — what to expect in week 3'." },
+              { rank: 3, theme: "Hair Edit swap requests", count: 44, note: "Customers wanting to change which serums come in their next box. This is now possible via Skio — agents should offer the swap proactively on save plays." },
+            ].map((t) => (
+              <div key={t.rank} style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 10, padding: "14px 18px", display: "flex", gap: 14, alignItems: "flex-start" }}>
+                <div style={{ fontFamily: F.serif, fontSize: 28, fontWeight: 700, color: GOLD, lineHeight: 1, minWidth: 32 }}>{t.rank}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontFamily: F.sans, fontWeight: 700, fontSize: 14, color: BURG, marginBottom: 4 }}>{t.theme} <span style={{ fontFamily: F.sans, fontSize: 12, color: INK, opacity: 0.45, fontWeight: 500 }}>· {t.count} mentions</span></div>
+                  <div style={{ fontFamily: F.sans, fontSize: 13, color: INK, opacity: 0.7, lineHeight: 1.55 }}>{t.note}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Voice of Customer */}
+        <div style={sectionGap}>
+          <div style={sectionLabel}>Voice of Customer</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginBottom: 14 }}>
+            {[
+              { label: "Positive", count: 2, pct: 50, color: "#3B7A4F" },
+              { label: "Constructive", count: 1, pct: 25, color: GOLD },
+              { label: "Feature Request", count: 1, pct: 25, color: BURG },
+            ].map((s) => (
+              <div key={s.label} style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 10, padding: "14px 18px" }}>
+                <div style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, color: s.color, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 6 }}>{s.label}</div>
+                <div style={{ fontFamily: F.serif, fontSize: 28, fontWeight: 700, color: BURG, lineHeight: 1 }}>{s.count}</div>
+                <div style={{ fontFamily: F.sans, fontSize: 12, color: INK, opacity: 0.5, marginTop: 4 }}>{s.pct}% of logged feedback</div>
+              </div>
+            ))}
+          </div>
           {feedback.length === 0
             ? <EmptyLine text="No feedback logged this week." />
             : <CustomerInsightsBlock byTheme={reportData.feedbackByTheme} samples={reportData.feedbackSamples} suggestions={reportData.feedbackSuggestions} total={feedback.length} />}
@@ -3555,7 +3573,7 @@ function WeeklySummaryView() {
             <textarea
               value={noteDraft}
               onChange={(e) => { setNoteDraft(e.target.value); setNoteJustSaved(false); }}
-              placeholder={"Anything worth flagging this week — e.g.\n• 2 x 1-star Trustpilot reviews about returns policy\n• TikTok shop launched\n• Training on Loop SOP this Friday"}
+              placeholder={"Anything worth flagging this week — e.g.\n• 2 x 1-star Trustpilot reviews about Scalp Serum\n• New batch of Hair Edit boxes arriving Thursday\n• Team catch-up Friday 10am"}
               rows={8}
               style={{
                 width: "100%", boxSizing: "border-box",
@@ -3712,7 +3730,7 @@ function RefundsSummaryBlock({ loop, shop }) {
         {formatMoney(totalAmount)} <span style={{ fontSize: 16, color: INK, opacity: 0.55, fontWeight: 500 }}>· {totalCount.toLocaleString()} refunds</span>
       </div>
       <div style={{ fontFamily: F.sans, fontSize: 12, color: INK, opacity: 0.6, marginBottom: directCount != null && directCount > 0 && directAmount === 0 ? 6 : 16 }}>
-        {loop?.count ?? 0} via Loop ({formatMoney(loop?.total)}){directCount != null ? ` · ${directCount.toLocaleString()} direct in Shopify (${formatMoney(directAmount)})` : ""}
+        {loop?.count ?? 0} customer-initiated ({formatMoney(loop?.total)}){directCount != null ? ` · ${directCount.toLocaleString()} direct in Shopify (${formatMoney(directAmount)})` : ""}
       </div>
       {/* Same $0-direct-cases disclaimer as the Insights tab — see
           LoopRefundsCard for full context. */}
@@ -3990,7 +4008,7 @@ function KeyMetricsBlock({ gorgias, shop, loop, skio, errors }) {
   const refundHintParts = [];
   if (shop?.refundAmount != null) refundHintParts.push(formatMoney(shop.refundAmount));
   if (loop?.count != null && directShopify != null) {
-    refundHintParts.push(`${num(loop.count)} via Loop + ${num(directShopify)} direct`);
+    refundHintParts.push(`${num(loop.count)} customer-initiated + ${num(directShopify)} direct`);
   }
   const refundHint = refundHintParts.length ? refundHintParts.join(" · ") : null;
 
@@ -4003,11 +4021,11 @@ function KeyMetricsBlock({ gorgias, shop, loop, skio, errors }) {
       {tile("Resolution", dur(gorgias?.resolution?.avgSeconds), gorgias?.resolution?.count ? `${gorgias.resolution.count} closed` : null)}
       {tile("Msgs / ticket", gorgias?.mpt?.average != null ? gorgias.mpt.average.toFixed(1) : "—")}
       {tile("Orders", num(shop?.orders))}
-      {tile("Refunds (Loop + direct)", num(totalRefunds), refundHint)}
+      {tile("Refunds", num(totalRefunds), refundHint)}
       {tile(
         "Refund rate ($)",
         pct(shop?.refundRateDollars ?? shop?.refundRate),
-        shop?.refundRate != null ? `${(shop.refundRate * 100).toFixed(2)}% by count · Loop + direct` : null
+        shop?.refundRate != null ? `${(shop.refundRate * 100).toFixed(2)}% by count` : null
       )}
       {tile("Active subs", num(skio?.active), skio?.paused != null ? `${num(skio.paused)} paused` : null)}
       {tile("Cancellations", num(skio?.cancelled), "in range")}
@@ -4096,7 +4114,7 @@ function buildPlainTextEmail(d) {
 
   lines.push(`Hi team,`);
   lines.push(``);
-  lines.push(`Luma CX weekly summary — ${d.weekLabel}.`);
+  lines.push(`LUMÉ CX weekly summary —${d.weekLabel}.`);
   lines.push(``);
 
   // KEY METRICS
@@ -4134,7 +4152,7 @@ function buildPlainTextEmail(d) {
       ? Math.max(0, d.shop.refundAmount - d.refunds.total) : null;
     lines.push(`REFUNDS`);
     lines.push(`Total: ${formatMoney(totalAmount)} (${totalRefunds} cases${d.shop?.refundRate != null ? `, rate ${(d.shop.refundRate * 100).toFixed(2)}%` : ""})`);
-    lines.push(`  · ${d.refunds.count ?? 0} via Loop (${formatMoney(d.refunds.total)})`);
+    lines.push(`  · ${d.refunds.count ?? 0} customer-initiated (${formatMoney(d.refunds.total)})`);
     if (directCount != null) lines.push(`  · ${directCount} direct in Shopify (${formatMoney(directAmount)})`);
     const m = d.refunds.matrix ?? {};
     for (const k of ["Monthly","Quarterly","Refills","OTP"]) {
@@ -4142,7 +4160,7 @@ function buildPlainTextEmail(d) {
       if (c?.count) lines.push(`  · ${k}: ${c.count} cases / ${formatMoney(c.amount)}`);
     }
     if ((d.refunds.topReasons ?? []).length) {
-      lines.push(`Top 3 reasons (from Loop):`);
+      lines.push(`Top 3 reasons:`);
       d.refunds.topReasons.forEach((rr) => lines.push(`  · ${rr.reason} — ${rr.count}`));
     }
     lines.push(``);
@@ -4223,7 +4241,7 @@ function buildPlainTextEmail(d) {
     d.notes.split(/\r?\n/).forEach((ln) => lines.push(ln));
     lines.push(``);
   }
-  lines.push(`— Sent from Luma CX Hub`);
+  lines.push(`— Sent from LUMÉ CX Hub`);
   return lines.join("\n");
 }
 
@@ -4238,7 +4256,7 @@ function buildHtmlEmail(d) {
   const fmtPct = (v) => v == null || !Number.isFinite(Number(v)) ? "—" : `${(Number(v) * 100).toFixed(2)}%`;
   out.push(`<div style="${wrapStyle}">`);
   out.push(`<p>Hi team,</p>`);
-  out.push(`<p style="font-style:italic;color:#5a4f4a;">Luma CX weekly summary — <strong>${d.weekLabel}</strong>.</p>`);
+  out.push(`<p style="font-style:italic;color:#5a4f4a;">LUMÉ CX weekly summary —<strong>${d.weekLabel}</strong>.</p>`);
 
   // Key metrics tile grid. Filter out tiles with no real value ("—") so
   // empty cells don't show as awkward gaps in the email — Cherie flagged
@@ -4290,7 +4308,7 @@ function buildHtmlEmail(d) {
       // Tight h2: 4px top margin (was 24) so the total hugs "Refunds".
       out.push(`<h2 style="font-family:Georgia,serif;color:#50000B;margin:4px 0 6px;font-size:18px;letter-spacing:0.3px;">${formatMoney(totalAmount)} <span style="color:#999;font-weight:400;font-size:13px;">· ${totalRefunds} cases${rateStr}</span></h2>`);
     }
-    out.push(`<p style="margin:0 0 8px;font-size:12px;color:#5a4f4a;">${d.refunds.count ?? 0} via Loop (${formatMoney(d.refunds.total)})${directCount != null ? ` · ${directCount} direct in Shopify (${formatMoney(directAmount)})` : ""}</p>`);
+    out.push(`<p style="margin:0 0 8px;font-size:12px;color:#5a4f4a;">${d.refunds.count ?? 0} customer-initiated (${formatMoney(d.refunds.total)})${directCount != null ? ` · ${directCount} direct in Shopify (${formatMoney(directAmount)})` : ""}</p>`);
     out.push(`<table style="border-collapse:collapse;width:100%;margin-top:8px;">`);
     out.push(`<tr style="background:#F5F0EB;"><td style="${td};color:#999;">Category</td><td style="${tdR};color:#999;">Cases</td><td style="${tdR};color:#999;">Total $</td></tr>`);
     const m = d.refunds.matrix ?? {};
@@ -4399,7 +4417,7 @@ function buildHtmlEmail(d) {
       .replace(/'/g, "&#39;");
     out.push(`<div style="font-size:14px;line-height:1.6;white-space:pre-wrap;background:#FAF6F1;border-left:3px solid #C8973A;padding:12px 16px;border-radius:6px;">${escaped}</div>`);
   }
-  out.push(`<p style="margin-top:32px;font-size:11px;color:#A89A8E;letter-spacing:0.5px;">— Sent from Luma CX Hub</p>`);
+  out.push(`<p style="margin-top:32px;font-size:11px;color:#A89A8E;letter-spacing:0.5px;">— Sent from LUMÉ CX Hub</p>`);
   out.push(`</div>`);
   return out.join("");
 }
@@ -4409,7 +4427,7 @@ function SendToStakeholdersModal({ report, fromDate, toDate, onClose }) {
     if (typeof window === "undefined") return "";
     return localStorage.getItem(STAKEHOLDERS_KEY) ?? "";
   });
-  const [subject, setSubject] = useState(`Luma CX Weekly Summary — ${fmtWeekLabel(fromDate, toDate)}`);
+  const [subject, setSubject] = useState(`LUMÉ CX Weekly Summary — ${fmtWeekLabel(fromDate, toDate)}`);
   // Plain-text fallback for the clipboard's text/plain mime type. We
   // generate it fresh from the current report so it always matches the
   // HTML preview shown above. Not editable in the UI any more — the
@@ -4515,7 +4533,7 @@ function SendToStakeholdersModal({ report, fromDate, toDate, onClose }) {
 // (data is already in Skio, no need to log separately). The model,
 // API route, and CancellationLogPanel component are preserved as
 // orphans in case we ever need to revive the tab.
-const LOGS_SUBTABS = ["Issues", "Replacements", "Cancel — No Refund", "Adverse Reactions", "Feedback", "Ops Requests"];
+const LOGS_SUBTABS = ["Order Issue", "Replacements", "Reaction/Concern", "Feedback"];
 
 // Ops Request "Warehouse" dropdown. Per Aina (May 15) — switched from
 // regional labels (US/UK/HK/ME) to the canonical warehouse names so
@@ -4576,12 +4594,10 @@ const AR_COMMON_SYMPTOMS = [
 const REPLACEMENT_REASONS = [
   // Current taxonomy
   ...REPLACEMENT_MAIN_REASONS.map((m) => ({ value: m.value, label: m.label })),
-  // Legacy values (pre-May-13) — only appear on old rows
+  // Legacy values — only appear on old rows
   { value: "wrong-item",      label: "Wrong item received" },
   { value: "order-change",    label: "Order change" },
   { value: "customer-damage", label: "Accidental customer damage" },
-  { value: "shaker-issue",    label: "Shaker issue" },
-  { value: "faulty-mixer",    label: "Faulty mixer" },
   { value: "other",           label: "Other" },
 ];
 const REPLACEMENT_TYPES = [
@@ -4597,18 +4613,16 @@ const REPLACEMENT_STATUSES = [
 ];
 
 const CANCELLATION_TYPES = [
-  { value: "change-of-mind",     label: "Change of mind" },
-  { value: "too-expensive",      label: "Too expensive" },
-  { value: "didnt-like-taste",   label: "Didn't like taste" },
-  { value: "adverse-reaction",   label: "Adverse reaction" },
-  { value: "no-results",         label: "No noticeable results" },
-  { value: "duplicate-order",    label: "Duplicate / wrong order" },
-  { value: "shipping-cost",      label: "Shipping cost" },
-  { value: "shipping-delay",     label: "Shipping delay" },
-  { value: "address-change",     label: "Address change" },
-  { value: "wrong-product",      label: "Wrong product chosen" },
-  { value: "test-order",         label: "Test order" },
-  { value: "other",              label: "Other" },
+  { value: "too-expensive",         label: "Too expensive / budget" },
+  { value: "wrong-serums",          label: "Wrong serums for hair type" },
+  { value: "not-using-fast-enough", label: "Not using fast enough / too much product" },
+  { value: "no-results-seen",       label: "No results seen" },
+  { value: "switching-brand",       label: "Switching to another brand" },
+  { value: "personal-life-change",  label: "Personal / life change" },
+  { value: "adverse-reaction",      label: "Adverse reaction" },
+  { value: "duplicate-order",       label: "Duplicate order" },
+  { value: "address-change",        label: "Address / moving" },
+  { value: "other",                 label: "Other" },
 ];
 const CANCELLATION_SCOPES = [
   { value: "subscription", label: "Subscription only" },
@@ -4631,18 +4645,14 @@ const FEEDBACK_THEMES = [
 const FEEDBACK_TEAMS = ["Product", "Marketing", "Ops/Logistics", "Tech", "CX", "Other"];
 
 const ISSUE_CATEGORIES = [
-  { value: "missing-item",   label: "Missing item" },
-  { value: "damaged-item",   label: "Damaged item" },
-  { value: "wrong-item",     label: "Wrong item" },
-  { value: "leaked-sachet",  label: "Leaked sachet" },
-  { value: "broken-bottle",  label: "Broken bottle / V2 / V3" },
-  { value: "faulty-mixer",   label: "Faulty mixer" },
-  { value: "tampered-package", label: "Tampered package" },
-  // Added May 13 per Aina's testing — frequently occurring categories
-  { value: "longevity-taste",            label: "Longevity taste" },
-  { value: "not-enough-sachet",          label: "Not enough sachet" },
-  { value: "subscription-payment-failed", label: "Subscription auto-payment failed" },
-  { value: "other",          label: "Other" },
+  { value: "missing-item",     label: "Missing item" },
+  { value: "damaged-item",     label: "Damaged item" },
+  { value: "wrong-item",       label: "Wrong serum / wrong box" },
+  { value: "leaked-bottle",    label: "Leaked bottle" },
+  { value: "broken-pump",      label: "Broken pump mechanism" },
+  { value: "crushed-packaging", label: "Crushed / damaged packaging" },
+  { value: "tampered-package", label: "Tampered packaging" },
+  { value: "other",            label: "Other" },
 ];
 const ISSUE_RESOLUTIONS = [
   { value: "pending",     label: "Pending" },
@@ -4651,7 +4661,7 @@ const ISSUE_RESOLUTIONS = [
   { value: "gift",        label: "Free gift" },
   { value: "no-action",   label: "No action" },
 ];
-const ISSUE_WAREHOUSES = ["Stord US", "Stord EU", "GPS US", "GPS UK", "HK"];
+const ISSUE_WAREHOUSES = ["AU — Sydney", "US — Los Angeles", "UK — London"];
 const ISSUE_SEVERITY = ["low", "normal", "high"];
 
 // Best-guess warehouse from shipping country. Used by LOOKUP to pre-fill
@@ -4820,33 +4830,27 @@ function MultiSelectChips({ options, selected, onChange, placeholder, search = f
 
 function LogsTab({ role }) {
   const isOpsRole = role === "Ops";
-  const visibleSubtabs = isOpsRole ? ["Ops Requests"] : LOGS_SUBTABS;
-  const [sub, setSub] = useState(isOpsRole ? "Ops Requests" : "Issues");
+  const visibleSubtabs = LOGS_SUBTABS;
+  const [sub, setSub] = useState("Order Issue");
   const eyebrowS = { fontFamily: F.sans, fontSize: 10, color: GOLD, textTransform: "uppercase", letterSpacing: 4, fontWeight: 600, marginBottom: 14 };
   const SUBTAB_TAGLINES = {
-    "Issues":            "Log all issues here. Enter the order number — customer details and line items auto-populate from Shopify.",
-    "Replacements":      "Capture replacement requests. Order lookup pre-fills the recipient; pick the reason, status, and items.",
-    "Cancellations":     "Tag the customer's reason and what was cancelled — order, subscription, or both.",
-    "Cancel — No Refund": "Orders we cancelled where the customer didn't get a cash refund (replacement order shipped instead, etc.).",
-    "Feedback":          "Capture suggestions and feedback verbatim. Order ID is optional — IG DMs and chats often have none.",
-    "Adverse Reactions": "Capture verbatim. Don't troubleshoot. Escalate immediately to Head of CX for any reaction.",
-    "Ops Requests":      "Submit a replacement shipment to Ops. Recipient address auto-fills from the original order.",
+    "Order Issue":       "Log damaged, missing, or incorrect items. Enter the LUMÉ order number and note what went wrong.",
+    "Replacements":      "Capture replacement dispatches. Order number auto-fills customer details — pick the reason and items affected.",
+    "Reaction/Concern":  "Any customer reporting an unexpected skin or scalp reaction. Log verbatim and escalate immediately to Head of CX.",
+    "Feedback":          "Positive shoutouts, feature requests, and constructive notes. Order ID optional for social/chat feedback.",
   };
-  const tagline = isOpsRole
-    ? "Pending fulfillment requests from CS. Click an entry to fill in dispatch warehouse, AWB, and mark as sent."
-    : (SUBTAB_TAGLINES[sub] ?? "Log entries here — they feed the weekly report automatically.");
+  const tagline = SUBTAB_TAGLINES[sub] ?? "Log entries here — they feed the weekly report automatically.";
   return (
     <div style={{ background: CREAM, minHeight: "100vh" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "56px 24px 24px" }}>
-        <div style={eyebrowS}>Luma CX — {isOpsRole ? "Ops" : "Logs"}</div>
+        <div style={eyebrowS}>LUMÉ CX — Logs</div>
         <div style={{ fontFamily: F.serif, fontSize: 48, color: BURG, fontWeight: 600, lineHeight: 1.05, marginBottom: 14, letterSpacing: -1 }}>
           {sub}
         </div>
         <div style={{ fontFamily: F.serif, fontStyle: "italic", fontSize: 16, color: INK, opacity: 0.6, marginBottom: 20, maxWidth: 700 }}>
           {tagline}
         </div>
-        {!isOpsRole && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
             {visibleSubtabs.map((s) => {
               const active = s === sub;
               return (
@@ -4860,15 +4864,11 @@ function LogsTab({ role }) {
               );
             })}
           </div>
-        )}
       </div>
-      {sub === "Issues" && <IssueLogPanel role={role} />}
+      {sub === "Order Issue" && <IssueLogPanel role={role} />}
       {sub === "Replacements" && <ReplacementLogPanel role={role} />}
-      {sub === "Cancellations" && <CancellationLogPanel role={role} />}
-      {sub === "Cancel — No Refund" && <CancelNoRefundLogPanel role={role} />}
+      {sub === "Reaction/Concern" && <AdverseReactionLogPanel role={role} />}
       {sub === "Feedback" && <FeedbackLogPanel role={role} />}
-      {sub === "Adverse Reactions" && <AdverseReactionLogPanel role={role} />}
-      {sub === "Ops Requests" && <OrderRequestLogPanel role={role} />}
     </div>
   );
 }
@@ -5091,7 +5091,7 @@ function IssueLogPanel({ role }) {
           <div>
             <label style={labelStyle}>Order ID <span style={{ color: RED, fontWeight: 700 }}>*</span></label>
             <div style={{ display: "flex", gap: 8 }}>
-              <input value={orderId} onChange={(e) => setOrderId(e.target.value)} placeholder="IM8-815747" style={{ ...inputBase, flex: 1 }} />
+              <input value={orderId} onChange={(e) => setOrderId(e.target.value)} placeholder="#LME-10500" style={{ ...inputBase, flex: 1 }} />
               <button onClick={lookupOrder} disabled={!orderId.trim() || lookupLoading} style={{
                 background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700,
                 padding: "0 18px", letterSpacing: 1.5, textTransform: "uppercase", cursor: orderId.trim() && !lookupLoading ? "pointer" : "not-allowed",
@@ -5355,7 +5355,7 @@ function ReplacementLogPanel({ role }) {
           <div>
             <label style={labelStyle}>Order ID <span style={{ color: RED, fontWeight: 700 }}>*</span></label>
             <div style={{ display: "flex", gap: 8 }}>
-              <input value={orderId} onChange={(e) => setOrderId(e.target.value)} placeholder="IM8-815747" style={{ ...inputBase, flex: 1 }} />
+              <input value={orderId} onChange={(e) => setOrderId(e.target.value)} placeholder="#LME-10500" style={{ ...inputBase, flex: 1 }} />
               <button onClick={lookupOrder} disabled={!orderId.trim() || lookupLoading} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700, padding: "0 18px", letterSpacing: 1.5, textTransform: "uppercase", cursor: orderId.trim() && !lookupLoading ? "pointer" : "not-allowed", borderRadius: 8, opacity: orderId.trim() && !lookupLoading ? 1 : 0.5 }}>{lookupLoading ? "..." : "Lookup"}</button>
             </div>
             {lookupError && <div style={{ fontFamily: F.sans, fontSize: 11, color: RED, marginTop: 4 }}>{lookupError}</div>}
@@ -5587,7 +5587,7 @@ function CancellationLogPanel({ role }) {
           <div>
             <label style={labelStyle}>Order ID</label>
             <div style={{ display: "flex", gap: 8 }}>
-              <input value={orderId} onChange={(e) => setOrderId(e.target.value)} placeholder="IM8-815747" style={{ ...inputBase, flex: 1 }} />
+              <input value={orderId} onChange={(e) => setOrderId(e.target.value)} placeholder="#LME-10500" style={{ ...inputBase, flex: 1 }} />
               <button onClick={lookupOrder} disabled={!orderId.trim() || lookupLoading} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700, padding: "0 18px", letterSpacing: 1.5, textTransform: "uppercase", cursor: orderId.trim() && !lookupLoading ? "pointer" : "not-allowed", borderRadius: 8, opacity: orderId.trim() && !lookupLoading ? 1 : 0.5 }}>{lookupLoading ? "..." : "Lookup"}</button>
             </div>
             {lookupError && <div style={{ fontFamily: F.sans, fontSize: 11, color: RED, marginTop: 4 }}>{lookupError}</div>}
@@ -5724,7 +5724,7 @@ function CancelNoRefundLogPanel({ role }) {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Cancelled order # {reqMark}</label>
-            <input value={cancelledOrderId} onChange={(e) => setCancelledOrderId(e.target.value)} placeholder="IM8-815747" style={inputBase} />
+            <input value={cancelledOrderId} onChange={(e) => setCancelledOrderId(e.target.value)} placeholder="#LME-10500" style={inputBase} />
           </div>
           <div>
             <label style={labelStyle}>Gorgias ticket # {reqMark}</label>
@@ -5734,7 +5734,7 @@ function CancelNoRefundLogPanel({ role }) {
 
         <div style={{ marginBottom: 14 }}>
           <label style={labelStyle}>Replacement order # {reqMark}</label>
-          <input value={replacementOrderId} onChange={(e) => setReplacementOrderId(e.target.value)} placeholder="IM8-815760" style={inputBase} />
+          <input value={replacementOrderId} onChange={(e) => setReplacementOrderId(e.target.value)} placeholder="#LME-10501" style={inputBase} />
         </div>
 
         <div style={{ marginBottom: 14 }}>
@@ -5883,7 +5883,7 @@ function FeedbackLogPanel({ role }) {
           <div>
             <label style={labelStyle}>Order ID (optional — IG DM has no order)</label>
             <div style={{ display: "flex", gap: 8 }}>
-              <input value={orderId} onChange={(e) => setOrderId(e.target.value)} placeholder="IM8-815747" style={{ ...inputBase, flex: 1 }} />
+              <input value={orderId} onChange={(e) => setOrderId(e.target.value)} placeholder="#LME-10500" style={{ ...inputBase, flex: 1 }} />
               <button onClick={lookupOrder} disabled={!orderId.trim() || lookupLoading} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700, padding: "0 18px", letterSpacing: 1.5, textTransform: "uppercase", cursor: orderId.trim() && !lookupLoading ? "pointer" : "not-allowed", borderRadius: 8, opacity: orderId.trim() && !lookupLoading ? 1 : 0.5 }}>{lookupLoading ? "..." : "Lookup"}</button>
             </div>
             {lookupError && <div style={{ fontFamily: F.sans, fontSize: 11, color: RED, marginTop: 4 }}>{lookupError}</div>}
@@ -6110,7 +6110,7 @@ function OrderRequestLogPanel({ role }) {
           <div>
             <label style={labelStyle}>Order ref (auto-fills recipient)</label>
             <div style={{ display: "flex", gap: 8 }}>
-              <input value={im8OrderRef} onChange={(e) => setIm8OrderRef(e.target.value)} placeholder="IM8-815747" style={{ ...inputBase, flex: 1 }} />
+              <input value={im8OrderRef} onChange={(e) => setIm8OrderRef(e.target.value)} placeholder="#LME-10500" style={{ ...inputBase, flex: 1 }} />
               <button onClick={lookupOrder} disabled={!im8OrderRef.trim() || lookupLoading} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700, padding: "0 18px", letterSpacing: 1.5, textTransform: "uppercase", cursor: im8OrderRef.trim() && !lookupLoading ? "pointer" : "not-allowed", borderRadius: 8, opacity: im8OrderRef.trim() && !lookupLoading ? 1 : 0.5 }}>{lookupLoading ? "..." : "Lookup"}</button>
             </div>
             {lookupError && <div style={{ fontFamily: F.sans, fontSize: 11, color: RED, marginTop: 4 }}>{lookupError}</div>}
@@ -6123,7 +6123,7 @@ function OrderRequestLogPanel({ role }) {
 
         <div style={{ marginBottom: 14 }}>
           <label style={labelStyle}>Items to ship</label>
-          <textarea value={itemsDescription} onChange={(e) => setItemsDescription(e.target.value)} rows={3} placeholder="1x Mixer&#10;2x Essentials Variety 30-day Refill" style={{ ...inputBase, fontFamily: F.sans, resize: "vertical" }} />
+          <textarea value={itemsDescription} onChange={(e) => setItemsDescription(e.target.value)} rows={3} placeholder="1x Smooth Serum&#10;1x Repair Serum" style={{ ...inputBase, fontFamily: F.sans, resize: "vertical" }} />
         </div>
 
         <div style={{ fontFamily: F.sans, fontSize: 10, color: BURG, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", marginBottom: 8, marginTop: 6 }}>Recipient</div>
@@ -6162,7 +6162,7 @@ function OrderRequestLogPanel({ role }) {
         </div>
         <div style={{ marginBottom: 14 }}>
           <label style={labelStyle}>D365 SKUs (one per line)</label>
-          <textarea value={d365SKUsText} onChange={(e) => setD365SKUsText(e.target.value)} rows={2} placeholder="IM8-FG-000093&#10;IM8-FG-000030" style={{ ...inputBase, fontFamily: F.sans, resize: "vertical" }} />
+          <textarea value={d365SKUsText} onChange={(e) => setD365SKUsText(e.target.value)} rows={2} placeholder="Smooth Serum x1&#10;Repair Serum x1" style={{ ...inputBase, fontFamily: F.sans, resize: "vertical" }} />
         </div>
 
         <div style={{ marginBottom: 14 }}>
@@ -6510,7 +6510,7 @@ function AdverseReactionLogPanel({ role }) {
           <div>
             <label style={labelStyle}>Order ID</label>
             <div style={{ display: "flex", gap: 8 }}>
-              <input value={orderId} onChange={(e) => setOrderId(e.target.value)} placeholder="IM8-815747" style={{ ...inputBase, flex: 1 }} />
+              <input value={orderId} onChange={(e) => setOrderId(e.target.value)} placeholder="#LME-10500" style={{ ...inputBase, flex: 1 }} />
               <button onClick={lookupOrder} disabled={!orderId.trim() || lookupLoading} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700, padding: "0 18px", letterSpacing: 1.5, textTransform: "uppercase", cursor: orderId.trim() && !lookupLoading ? "pointer" : "not-allowed", borderRadius: 8, opacity: orderId.trim() && !lookupLoading ? 1 : 0.5 }}>{lookupLoading ? "..." : "Lookup"}</button>
             </div>
             {lookupError && <div style={{ fontFamily: F.sans, fontSize: 11, color: RED, marginTop: 4 }}>{lookupError}</div>}
@@ -6706,18 +6706,18 @@ function PlaybookTab({ role }) {
   // Subtitle that follows the active subtab — orients the reader without
   // a separate heading per panel.
   const subSubtitle = {
-    Products: "Our 3 products — quick tips to help you become an expert.",
-    Policy: "Tips to help you navigate the trickier moments.",
-    Shipping: "Calendar days from dispatch. Source: CS Master SOP.",
-    Escalation: "When to flag, who to flag, what to send.",
-    Voice: "The IM8 way — warm, clear, direct.",
+    Products: "The full LUMÉ range — know every product so you can answer anything.",
+    "How To": "Application guides, usage FAQs, and shipping windows by region.",
+    Policy: "Refunds, replacements, subscriptions — navigate every tricky situation.",
+    "Tone of Voice": "The LUMÉ way — warm, confident, direct. No jargon, no corporate script.",
+    Escalation: "When to flag, who to flag, what to say when you do.",
     "Non-Negotiables": "The lines we never cross. No grey area.",
   };
 
   return (
     <div style={{ background: CREAM, minHeight: "100vh" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "56px 24px 24px" }}>
-        <div style={eyebrowS}>Luma CX — Playbook · the brand on tap</div>
+        <div style={eyebrowS}>LUMÉ CX — Playbook · the brand on tap</div>
         <div style={{ fontFamily: F.serif, fontSize: 48, color: BURG, fontWeight: 600, lineHeight: 1.05, marginBottom: 8, letterSpacing: -1 }}>
           {sub}
         </div>
@@ -6777,11 +6777,11 @@ function PlaybookTab({ role }) {
       </div>
 
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "8px 24px 96px" }}>
-        {sub === "Products"         && <PlaybookProductsNew    query={query} />}
+        {sub === "Products"          && <PlaybookProductsNew    query={query} />}
+        {sub === "How To"           && <PlaybookShippingNew    query={query} />}
         {sub === "Policy"           && <PlaybookPolicyNew      query={query} />}
-        {sub === "Shipping"         && <PlaybookShippingNew    query={query} />}
+        {sub === "Tone of Voice"    && <PlaybookVoiceNew       query={query} />}
         {sub === "Escalation"       && <PlaybookEscalationNew  query={query} />}
-        {sub === "Voice"            && <PlaybookVoiceNew       query={query} />}
         {sub === "Non-Negotiables"  && <PlaybookNonNegNew      query={query} />}
       </div>
     </div>
@@ -6994,7 +6994,7 @@ function PlaybookProductsNew({ query }) {
 
   return (
     <div>
-      {showProducts && <PricingNote />}
+      {/* PricingNote removed — agents pull live pricing from Shopify/Gorgias */}
 
       {/* Product reference cards */}
       {showProducts && (
@@ -7395,7 +7395,7 @@ function TeamTab({ role }) {
   return (
     <div style={{ background: CREAM, minHeight: "100vh" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "56px 24px 96px" }}>
-        <div style={eyebrowS}>Luma CX — Team Management</div>
+        <div style={eyebrowS}>LUMÉ CX — Team Management</div>
         <div style={{ fontFamily: F.serif, fontSize: 48, color: BURG, fontWeight: 600, lineHeight: 1.05, marginBottom: 14, letterSpacing: -1 }}>
           Team
         </div>
@@ -7785,7 +7785,7 @@ function PlaybookMacros({ role }) {
                         )}
                       </div>
                       <div style={{ fontFamily: F.serif, fontSize: 17, color: BURG, fontWeight: 600, lineHeight: 1.3 }}>{m.question}</div>
-                      <div style={{ fontFamily: F.sans, fontSize: 11, color: INK, opacity: 0.5, marginTop: 4, letterSpacing: 0.5 }}>Luma CX: {m.slug}</div>
+                      <div style={{ fontFamily: F.sans, fontSize: 11, color: INK, opacity: 0.5, marginTop: 4, letterSpacing: 0.5 }}>LUMÉ CX: {m.slug}</div>
                     </div>
                     <span style={{ fontFamily: F.sans, fontSize: 18, color: BURG, opacity: 0.5, transform: open ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}>›</span>
                   </button>
@@ -8325,7 +8325,7 @@ function AffiliatesTab({ role }) {
   return (
     <div style={{ background: CREAM, minHeight: "100vh" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "56px 24px 24px" }}>
-        <div style={eyebrowS}>Luma CX — Affiliates Playbook · CS team handover</div>
+        <div style={eyebrowS}>LUMÉ CX — Affiliates Playbook · CS team handover</div>
         <div style={{ fontFamily: F.serif, fontSize: 48, color: BURG, fontWeight: 600, lineHeight: 1.05, marginBottom: 8, letterSpacing: -1 }}>
           {sub}
         </div>
@@ -9582,7 +9582,7 @@ const TRUSTPILOT_STATS = {
     twoStar: 2,
     oneStar: 6,
   },
-  url: "https://www.trustpilot.com/review/im8health.com",
+  url: "https://www.trustpilot.com/",
   lastUpdated: "2026-05-15",
 };
 
@@ -9595,8 +9595,8 @@ function AskTab({ chatMsgs, chatInput, setChatInput, chatLoading, sendChat, chat
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 104px)", maxWidth: 700, margin: "0 auto" }}>
       <div style={{ background: W, padding: "14px 20px", borderBottom: "1px solid #e0d9d0" }}>
-        <div style={{ fontFamily: F.serif, fontSize: 18, fontWeight: 600, color: BURG }}>Ask Luma</div>
-        <div style={{ fontFamily: F.sans, fontSize: 12, color: "#999" }}>Your playbook on tap</div>
+        <div style={{ fontFamily: F.serif, fontSize: 18, fontWeight: 600, color: BURG }}>Ask LUMÉ</div>
+        <div style={{ fontFamily: F.sans, fontSize: 12, color: "#999" }}>Hi team — I&apos;m here for the &ldquo;what do I do here?&rdquo; moments. Policies, tricky situations, what to write back, when to escalate.</div>
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", padding: "20px 16px", display: "flex", flexDirection: "column", gap: 14 }}>
@@ -9636,7 +9636,7 @@ function AskTab({ chatMsgs, chatInput, setChatInput, chatLoading, sendChat, chat
           value={chatInput}
           onChange={e => setChatInput(e.target.value)}
           onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
-          placeholder="e.g. 'Can I refund this customer outside the 30-day window?' or 'Does IM8 contain stevia?'"
+          placeholder="e.g. 'Can I refund outside the 30-day window?' or 'What do I say when a customer reports a reaction?'"
           style={{ flex: 1, fontFamily: F.sans, fontSize: 14, padding: "10px 14px", border: "1px solid #ddd", borderRadius: 8, outline: "none" }}
         />
         <button onClick={sendChat} disabled={chatLoading || !chatInput.trim()} style={{ background: chatLoading || !chatInput.trim() ? "#ccc" : BURG, color: W, fontFamily: F.sans, fontWeight: 700, fontSize: 13, padding: "10px 20px", border: "none", borderRadius: 8, cursor: chatLoading || !chatInput.trim() ? "default" : "pointer" }}>Send</button>
@@ -10083,7 +10083,7 @@ function BootcampTab({ bcProgress, saveBcProgress, bcView, setBcView, bcDay, set
     if (block.t === "warn") return <div key={idx} style={{ background: "#fff3cd", border: "1px solid #e6a817", borderLeft: "4px solid #e6a817", borderRadius: 6, padding: "12px 14px", marginBottom: 12 }}><div style={{ fontFamily: F.sans, fontSize: 13, color: "#5c3d00", lineHeight: 1.6 }}>{block.v}</div></div>;
     if (block.t === "list") return <ul key={idx} style={{ margin: "0 0 12px 0", paddingLeft: 20 }}>{block.items.map((it, j) => <li key={j} style={{ fontFamily: F.sans, fontSize: 14, color: "#333", lineHeight: 1.7, marginBottom: 4 }}>{it}</li>)}</ul>;
     if (block.t === "kv")  return <div key={idx} style={{ marginBottom: 14 }}>{block.pairs.map(([k, v], j) => <div key={j} style={{ display: "flex", gap: 10, padding: "8px 0", borderBottom: "1px solid #f0ebe5" }}><div style={{ fontFamily: F.sans, fontSize: 13, fontWeight: 700, color: BURG, minWidth: 130, flexShrink: 0 }}>{k}</div><div style={{ fontFamily: F.sans, fontSize: 13, color: "#333", lineHeight: 1.5, flex: 1 }}>{v}</div></div>)}</div>;
-    if (block.t === "ex")  return <div key={idx} style={{ background: CREAM, border: "1px solid #ddd", borderRadius: 8, overflow: "hidden", marginBottom: 12 }}><div style={{ padding: "10px 14px", background: "#f0e8e0", borderBottom: "1px solid #ddd" }}><span style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: 1 }}>Customer</span><div style={{ fontFamily: F.sans, fontSize: 13, color: "#333", marginTop: 4, lineHeight: 1.5 }}>{block.c}</div></div><div style={{ padding: "10px 14px" }}><span style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, color: RED, textTransform: "uppercase", letterSpacing: 1 }}>Luma CX Response</span><div style={{ fontFamily: F.sans, fontSize: 13, color: BURG, marginTop: 4, lineHeight: 1.5 }}>{block.a}</div></div></div>;
+    if (block.t === "ex")  return <div key={idx} style={{ background: CREAM, border: "1px solid #ddd", borderRadius: 8, overflow: "hidden", marginBottom: 12 }}><div style={{ padding: "10px 14px", background: "#f0e8e0", borderBottom: "1px solid #ddd" }}><span style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: 1 }}>Customer</span><div style={{ fontFamily: F.sans, fontSize: 13, color: "#333", marginTop: 4, lineHeight: 1.5 }}>{block.c}</div></div><div style={{ padding: "10px 14px" }}><span style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, color: RED, textTransform: "uppercase", letterSpacing: 1 }}>LUMÉ CX Response</span><div style={{ fontFamily: F.sans, fontSize: 13, color: BURG, marginTop: 4, lineHeight: 1.5 }}>{block.a}</div></div></div>;
     if (block.t === "spot")      return <SpotBlock key={idx} {...block} />;
     if (block.t === "scorecard") return <ScorecardBlock key={idx} {...block} />;
     if (block.t === "flowchart") return <ResultsTreeBlock key={idx} />;
@@ -10652,13 +10652,14 @@ function InsightsTab({ role }) {
   const fmtPct = (n, total) => total ? `${Math.round((n / total) * 100)}%` : "0%";
   const sortEntries = (obj) => Object.entries(obj || {}).sort((a, b) => b[1] - a[1]);
 
-  const presets = ["Today", "Yesterday", "This week", "Last 7", "Last 30", "MTD"];
+  const presets = ["Today", "Yesterday", "WTD", "MTD"];
 
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", padding: "24px 16px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
         <div>
           <div style={{ fontFamily: F.serif, fontSize: 26, fontWeight: 700, color: BURG }}>Insights</div>
+          <div style={{ fontFamily: F.sans, fontSize: 12, color: INK, opacity: 0.55, marginTop: 4, lineHeight: 1.5 }}>Live snapshot of tickets, orders, subscriptions and customer sentiment for the selected period.</div>
           {data?.fromCache && (
             <div style={{ fontFamily: F.sans, fontSize: 11, color: "#aaa", marginTop: 4 }}>cached</div>
           )}
@@ -10769,9 +10770,7 @@ function InsightsTab({ role }) {
 
       {/* Combined exit signals — one place to see what's making customers
           ask for their money back OR cancel. Pulls reasons from Loop
-          (refunds, with $) + Skio cancel-flow (cancellations). Buckets
-          free-text reasons into canonical IM8 categories so wins on a
-          category in either source show up in the same row. */}
+          (refunds, with $) + Skio cancel-flow (cancellations). */}
       {(loop || skioReasons) && (
         <RefundCancelReasonsPanel
           loop={loop}
@@ -10823,8 +10822,8 @@ function InsightsTab({ role }) {
 
       {data && (
         <>
-          <BreakdownCard title="By Channel" entries={sortEntries(data.byChannel)} total={data.volume} />
-          <BreakdownCard title="Top Tags" entries={sortEntries(data.topTags)} total={data.volume} />
+          <BreakdownCard title="Tix by Channel" entries={sortEntries(data.byChannel)} total={data.volume} />
+          <BreakdownCard title="Tix by Tags" entries={sortEntries(data.topTags)} total={data.volume} />
         </>
       )}
     </div>
@@ -10861,7 +10860,7 @@ function LoopRefundsCard({ loop, shop, loading, error }) {
           </div>
           {!loading && (loop?.count != null || directCount != null) && (
             <div style={{ fontFamily: F.sans, fontSize: 11, color: INK, opacity: 0.55, marginTop: 2 }}>
-              {loop?.count ?? 0} via Loop ({formatMoney(loop?.total)}){directCount != null ? ` · ${directCount.toLocaleString()} direct in Shopify (${formatMoney(directAmount)})` : ""}
+              {loop?.count ?? 0} customer-initiated ({formatMoney(loop?.total)}){directCount != null ? ` · ${directCount.toLocaleString()} direct in Shopify (${formatMoney(directAmount)})` : ""}
             </div>
           )}
           {/* When direct cases > 0 but direct $ is $0, the cases aren't
@@ -11244,7 +11243,7 @@ function BreakdownCard({ title, entries, total }) {
             <div key={key} style={{ display: "grid", gridTemplateColumns: "180px 1fr 80px", alignItems: "center", gap: 12 }}>
               <div style={{ fontFamily: F.sans, fontSize: 12, color: BURG, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{key}</div>
               <div style={{ background: "#f0ebe5", borderRadius: 99, height: 8, position: "relative", overflow: "hidden" }}>
-                <div style={{ background: "linear-gradient(90deg," + RED + "," + GOLD + ")", width: barWidth + "%", height: "100%", borderRadius: 99, transition: "width 0.4s" }} />
+                <div style={{ background: "linear-gradient(90deg," + BURG + "," + GOLD + ")", width: barWidth + "%", height: "100%", borderRadius: 99, transition: "width 0.4s" }} />
               </div>
               <div style={{ fontFamily: F.sans, fontSize: 12, color: "#666", textAlign: "right" }}>
                 {count.toLocaleString()} <span style={{ color: "#aaa" }}>· {pct}%</span>
