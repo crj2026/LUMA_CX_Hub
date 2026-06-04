@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 
 export const runtime = "nodejs";
 
-// LUMÉ demo — Returns & Refunds data, shaped to match the Insights
+// [BRAND_NAME] demo — Returns & Refunds data, shaped to match the Insights
 // LoopRefundsCard + RefundCancelReasonsPanel component contracts.
 export async function GET(req) {
   const { userId } = await auth();
@@ -11,23 +11,23 @@ export async function GET(req) {
   return Response.json({
     // Total volume
     count: 60,
-    total: 4800,   // AUD
+    total: 4800,   // [BRAND_CURRENCY]
 
     // Breakdown by subscription type (used by LoopRefundsCard table)
     matrix: {
-      Monthly:   { count: 32, amount: 2560 },   // Hair Edit subscribers (monthly)
-      Bimonthly: { count: 12, amount: 960  },   // Skip-month / bi-monthly
-      Refills:   { count: 10, amount: 800  },   // Renewal orders
+      Monthly:   { count: 32, amount: 2560 },
+      Bimonthly: { count: 12, amount: 960  },
+      Refills:   { count: 10, amount: 800  },
       OTP:       { count: 6,  amount: 480  },   // One-time purchases
     },
 
     // Top return reasons (used by RefundCancelReasonsPanel)
     topReasons: [
-      { reason: "Product not suitable for hair type", count: 23, amount: 1840 },
-      { reason: "Allergic reaction / sensitivity",    count: 14, amount: 1120 },
-      { reason: "No results seen yet",                count: 13, amount: 1040 },
-      { reason: "Received wrong item",                count: 6,  amount: 480  },
-      { reason: "Other",                              count: 4,  amount: 320  },
+      { reason: "[Return reason 1]", count: 23, amount: 1840 },
+      { reason: "[Return reason 2]", count: 14, amount: 1120 },
+      { reason: "[Return reason 3]", count: 13, amount: 1040 },
+      { reason: "[Return reason 4 — e.g. Received wrong item]", count: 6,  amount: 480  },
+      { reason: "Other",             count: 4,  amount: 320  },
     ],
 
     // Operations detail (used by LoopOperationsBlock — archived in this build)

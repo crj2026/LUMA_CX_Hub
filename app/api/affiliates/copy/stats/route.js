@@ -1,6 +1,6 @@
 // Affiliate macro copy stats.
 // GET → aggregated tally of Copy clicks over a configurable window.
-// Manager+ only — the data drives Cherie's decision about which
+// Manager+ only — the data drives the CX lead's decision about which
 // "not in Gorgias yet" macros to add next, so it's a management
 // signal, not agent-facing.
 //

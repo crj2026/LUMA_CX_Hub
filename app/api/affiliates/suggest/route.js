@@ -4,7 +4,7 @@
 //
 // Grounded against AFFILIATES_DATA so the model can ONLY recommend
 // macro names that actually exist in our library. The system prompt
-// also encodes Cherie's policy gates (e.g., reward tiers aren't public
+// also encodes the CX lead's policy gates (e.g., reward tiers aren't public
 // yet — don't proactively mention them).
 //
 // Access: Lead Agent and above (matches the Affiliates tab gate).
@@ -94,7 +94,7 @@ RULES
 6. MACRO-vs-ESCALATION decision (critical):
    - If the email asks about something covered by a macro (payout question, link issue, FTC, content, etc.) AND no escalation is needed → recommend the macro. recommendedMacro = the macro. suggestedResponse = null.
    - If the email asks about something operational that ISN'T covered by any macro (challenge round status, Creator Challenge feedback, disputed amount, anything outside the standard SOP) → DO NOT force-fit a macro. recommendedMacro = null. suggestedResponse = a brief holding reply the agent can paste. escalate.required = true with the right "to".
-   - DO NOT recommend a macro AND escalate at the same time when the macro doesn't actually answer the affiliate's question. That confuses agents (Cherie's feedback May 18). Choose one path: macro OR no-macro+holding-reply+escalation. Never both.
+   - DO NOT recommend a macro AND escalate at the same time when the macro doesn't actually answer the affiliate's question. That confuses agents (the CX lead's feedback May 18). Choose one path: macro OR no-macro+holding-reply+escalation. Never both.
    - If you're tempted to recommend a macro "for context" while also escalating — set recommendedMacro = null instead.
 7. ALWAYS populate the "summary" field — even when escalating. This is the plain-English read of what the affiliate is asking, separate from your reasoning.
 

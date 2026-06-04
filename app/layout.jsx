@@ -17,8 +17,9 @@ const cormorant = Cormorant_Garamond({
 });
 
 export const metadata = {
-  title: "Luma CX Hub",
-  description: "Luma CX — Customer Experience Hub",
+  // [BRAND_NAME] — shown in the browser tab and link previews.
+  title: "[BRAND_NAME] CX Hub",
+  description: "[BRAND_NAME] — Customer Experience Hub",
   icons: { icon: "/favicon.svg" },
 };
 

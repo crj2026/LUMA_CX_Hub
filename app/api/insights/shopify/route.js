@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 
 export const runtime = "nodejs";
 
-// LUMÉ demo — Shopify order data.
+// [BRAND_NAME] demo — Shopify order data.
 // Returns flat field names matching what the Insights and Reports
 // components expect: shop.orders (number), shop.refunded, shop.refundRate,
 // shop.refundRateDollars, shop.cancelRate, shop.cancelled, etc.
@@ -23,11 +23,11 @@ export async function GET(req) {
     revenue:            233454,
     aov:                82,
     topProducts: [
-      { title: "Smooth Serum",                    revenue: 74712,  units: 946 },
-      { title: "Repair Serum",                    revenue: 66130,  units: 778 },
-      { title: "The Hair Edit (Subscription Box)", revenue: 54316, units: 610 },
-      { title: "Scalp Serum",                     revenue: 22757,  units: 256 },
-      { title: "Glow Serum",                      revenue: 15539,  units: 207 },
+      { title: "[Product 1]", revenue: 74712, units: 946 },
+      { title: "[Product 2]", revenue: 66130, units: 778 },
+      { title: "[Product 3]", revenue: 54316, units: 610 },
+      { title: "[Product 4]", revenue: 22757, units: 256 },
+      { title: "[Product 5]", revenue: 15539, units: 207 },
     ],
     fromCache: false,
   });

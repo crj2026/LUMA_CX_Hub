@@ -243,7 +243,7 @@ model OrderRequest {
   requestedBy           String?
   agent                 String?
   ticketId              String?
-  im8OrderRef           String
+  orderRef           String
   referenceNumber       String?
   d365SalesOrderNumber  String?
   d365SKUs              String[]
@@ -270,7 +270,7 @@ model OrderRequest {
   @@index([region])
   @@index([sent])
   @@index([status])
-  @@index([im8OrderRef])
+  @@index([orderRef])
   @@index([createdAt])
 }
 
@@ -364,9 +364,9 @@ model AffiliateCopyEvent {
 // that didn't put money back on the original card.
 //
 // All four fields mandatory:
-//   cancelledOrderId   — the IM8 order that was cancelled
+//   cancelledOrderId   — the order that was cancelled
 //   ticketId           — the Gorgias ticket where this was resolved
-//   replacementOrderId — the IM8 order shipped in place of the refund
+//   replacementOrderId — the order shipped in place of the refund
 //   reasonNotRefunded  — free text: why we didn't issue a cash refund
 model CancelNoRefund {
   id                 String   @id @default(cuid())

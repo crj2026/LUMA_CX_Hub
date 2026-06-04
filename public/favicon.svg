@@ -1,7 +1,10 @@
+<!-- [LOGO_URL] / [FAVICON] — placeholder mark. Replace with the brand's
+     favicon. Colours below use the placeholder palette: [PRIMARY_COLOR]
+     background, [ACCENT_COLOR] foreground. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none">
   <rect width="40" height="40" rx="8" fill="#0A0A09"/>
   <text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle"
-    font-family="Georgia, serif" font-size="20" font-weight="700"
-    fill="#C4A96B">L</text>
+    font-family="Georgia, serif" font-size="14" font-weight="700"
+    fill="#C4A96B">CX</text>
   <rect x="7" y="31" width="26" height="1.5" rx="0.75" fill="#C4A96B"/>
 </svg>

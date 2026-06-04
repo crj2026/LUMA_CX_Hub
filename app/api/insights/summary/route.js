@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 
 export const runtime = "nodejs";
 
-// LUMÉ demo — Gorgias ticket summary data.
+// [BRAND_NAME] demo — Gorgias ticket summary data.
 // byChannel and topTags must be plain { label: number } objects so that
 // sortEntries (Object.entries → sort by value) works correctly in the UI.
 export async function GET(req) {

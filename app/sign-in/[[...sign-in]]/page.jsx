@@ -1,11 +1,12 @@
 import { SignIn } from "@clerk/nextjs";
 
-const CREAM   = "#F4F0E8";
-const GOLD    = "#C4A96B";
-const INK     = "#0A0A09";
-const BORDER  = "#DDD8CE";
-const W       = "#FAF8F3";
-const STONE   = "#6B6760";
+// Brand palette — keep in sync with app/AppClient.jsx and the sign-up page.
+const CREAM   = "#F4F0E8"; // [BACKGROUND_COLOR]
+const GOLD    = "#C4A96B"; // [ACCENT_COLOR]
+const INK     = "#0A0A09"; // [PRIMARY_COLOR]
+const BORDER  = "#DDD8CE"; // [BORDER_COLOR]
+const W       = "#FAF8F3"; // [SURFACE_COLOR]
+const STONE   = "#6B6760"; // [MUTED_TEXT_COLOR]
 
 const clerkAppearance = {
   variables: {
@@ -121,7 +122,7 @@ export default function SignInPage() {
               marginBottom: 6,
             }}
           >
-            LUMA CX
+            [BRAND_NAME]
           </div>
           <div
             style={{
@@ -146,7 +147,7 @@ export default function SignInPage() {
               lineHeight: 1.4,
             }}
           >
-            No gatekeeping. Just action.
+            [BRAND_TAGLINE]
           </div>
         </div>
 

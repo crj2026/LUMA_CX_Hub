@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 
 export const runtime = "nodejs";
 
-// LUMÉ demo — Skio subscription data.
+// [BRAND_NAME] demo — Skio subscription data.
 // Returns flat field names matching what the Insights and Reports
 // components expect: skio.active, skio.paused, skio.churnRate,
 // skio.cancelled, skio.created, skio.netChange, skio.failedPayments, etc.

@@ -1,11 +1,11 @@
--- CreateTable: OrderRequest (replaces 4 region tabs in IM8 Replacement Request_OPS_CS)
+-- CreateTable: OrderRequest
 CREATE TABLE "OrderRequest" (
     "id" TEXT NOT NULL,
     "region" TEXT NOT NULL,
     "requestedBy" TEXT,
     "agent" TEXT,
     "ticketId" TEXT,
-    "im8OrderRef" TEXT NOT NULL,
+    "orderRef" TEXT NOT NULL,
     "referenceNumber" TEXT,
     "d365SalesOrderNumber" TEXT,
     "d365SKUs" TEXT[],
@@ -36,5 +36,5 @@ CREATE TABLE "OrderRequest" (
 CREATE INDEX "OrderRequest_region_idx" ON "OrderRequest"("region");
 CREATE INDEX "OrderRequest_sent_idx" ON "OrderRequest"("sent");
 CREATE INDEX "OrderRequest_status_idx" ON "OrderRequest"("status");
-CREATE INDEX "OrderRequest_im8OrderRef_idx" ON "OrderRequest"("im8OrderRef");
+CREATE INDEX "OrderRequest_orderRef_idx" ON "OrderRequest"("orderRef");
 CREATE INDEX "OrderRequest_createdAt_idx" ON "OrderRequest"("createdAt");

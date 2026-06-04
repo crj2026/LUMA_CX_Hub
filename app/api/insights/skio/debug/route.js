@@ -43,7 +43,7 @@ export async function GET() {
       query { CancelFlowV2Reason(limit: 5) {
         id reason cancelFlowId enabled
       } }`,
-    "v2_reason_for_im8_flow": `
+    "v2_reason_for_brand_flow": `
       query { CancelFlowV2Reason(
         where: { enabled: {_eq: true} },
         limit: 20

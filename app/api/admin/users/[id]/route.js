@@ -5,7 +5,7 @@
 // Access: Admin + Owner only.
 // Permission nuances enforced here:
 //   - Admins can't modify other Admins or the Owner
-//   - Owner-by-email (cherie.jones@prenetics.com) cannot be modified or deleted
+//   - Owner-by-email (OWNER_EMAIL env var) cannot be modified or deleted
 //   - Only Owner can promote someone to Admin
 //   - No one can be assigned the "Owner" role via API (it's email-based)
 
@@ -14,7 +14,8 @@ import { getRole, ROLES } from "../../../../../lib/auth";
 
 export const runtime = "nodejs";
 
-const OWNER_EMAIL = "cherie.jones@prenetics.com";
+// Owner is identified by the OWNER_EMAIL env var. Set OWNER_EMAIL=[owner@brand.com].
+const OWNER_EMAIL = (process.env.OWNER_EMAIL || "").toLowerCase();
 
 async function requireAdmin() {
   const { userId } = await auth();
@@ -65,8 +66,8 @@ export async function PATCH(req, { params }) {
     const currentTargetRole = target.publicMetadata?.role;
     const tEmail = targetEmail(target);
 
-    // Hardcoded Owner protection — Cherie's role is always Owner-by-email
-    // regardless of metadata. Block any attempt to change her metadata role.
+    // Hardcoded Owner protection — the owner's role is always Owner-by-email
+    // regardless of metadata. Block any attempt to change their metadata role.
     if (tEmail === OWNER_EMAIL) {
       return Response.json({ error: "Owner role is protected — cannot be modified" }, { status: 403 });
     }

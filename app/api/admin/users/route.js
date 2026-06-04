@@ -13,7 +13,8 @@ import { getRole, ROLES } from "../../../../lib/auth";
 
 export const runtime = "nodejs";
 
-const OWNER_EMAIL = "cherie.jones@prenetics.com";
+// Owner is identified by the OWNER_EMAIL env var. Set OWNER_EMAIL=[owner@brand.com].
+const OWNER_EMAIL = (process.env.OWNER_EMAIL || "").toLowerCase();
 
 async function requireAdmin() {
   const { userId } = await auth();
@@ -42,7 +43,7 @@ export async function GET() {
   try {
     const clerk = await clerkClient();
 
-    // Pull all users — for an IM8 CS team this is small (<100). If we
+    // Pull all users — for a typical CS team this is small (<100). If we
     // outgrow the limit we'll paginate, but no point complicating V1.
     const usersRes = await clerk.users.getUserList({ limit: 100, orderBy: "-created_at" });
     const users = (usersRes.data ?? usersRes).map((u) => ({
@@ -107,7 +108,7 @@ export async function POST(req) {
 
   try {
     const clerk = await clerkClient();
-    const origin = req.headers.get("origin") || "https://im8-cs-hub-production.up.railway.app";
+    const origin = req.headers.get("origin") || process.env.APP_URL || "[HUB_URL]";
     const inv = await clerk.invitations.createInvitation({
       emailAddress: email,
       publicMetadata: { role },
