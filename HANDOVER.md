@@ -110,18 +110,20 @@ All routes authenticated via Clerk's `auth()` helper.
 
 Valid roles (ascending): `New Starter` → `Agent` → `Ops` → `Lead Agent` → `Manager` → `Admin` → `Owner`
 
-| Tab | Minimum role |
+| Surface | Minimum role |
 |---|---|
-| Home | Any signed-in user |
-| Insights | Agent+ |
-| Logs | Agent+ |
+| Home (warm start-my-day) | Any signed-in user (Agent tier) |
+| Home (Impact / Value Ledger) | Manager+ (automatic) |
+| Insights (incl. Retention Cohorts) | Agent+ |
+| Logs (incl. 3PL Claim) | Agent+ |
 | Playbook | Agent+ |
-| Ask Luma | Agent+ |
-| Reports | Lead Agent+ |
-| Records | Manager+ |
-| Affiliates | Manager+ |
-| Team | Admin+ |
-| Training | Hidden (feature-flagged off) |
+| Training | Everyone (role-aware: New Starter path / reference / review / edit) |
+| Ask LUMÉ | Everyone — slide-over via floating button or Cmd+K (no tab) |
+| Reports (Weekly Summary · Recovery · Voice of Customer) | Lead Agent+ |
+| Reports · Impact (Value Ledger) | Manager+ |
+| Records (incl. Claims) | Manager+ |
+| Affiliates | Hidden (feature-flagged off) |
+| Team (+ Security & access, Owner) | Admin+ |
 
 Set roles in Clerk admin → Users → Public metadata: `{ "role": "Manager" }` etc.
 
@@ -140,8 +142,10 @@ To swap in a real client's branding and data:
 | Policies + Playbook | `lib/playbook-data.js` |
 | Tone of voice | `lib/tone-of-voice.js` |
 | Ask Luma system prompt | `lib/ask-luma-knowledge.js` → `buildAskLumaSystem()` |
-| Insights mock data | `app/api/insights/*/route.js` |
-| Log seed rows | `app/api/logs/*/route.js` → `SEED_ROWS` |
+| Insights mock data | `lib/demo-insights.js` (single source — routes + client) |
+| Log seed rows | `lib/demo-logs.js` (relative-dated seed functions) |
+| Claims / ledger / VoC / retention | `lib/demo-claims.js`, `lib/demo-ledger.js`, `lib/demo-voc.js`, `lib/demo-retention.js` |
+| Chart helpers | `lib/chart-utils.js` (seeded series, sparkline paths) |
 | Real DB (if needed) | Add Prisma, swap mock routes for real queries |
 
 ---
@@ -154,4 +158,4 @@ To swap in a real client's branding and data:
 
 ---
 
-— Last updated 2026-05-23
+— Last updated 2026-07-17 (Update Pack v2: relative-dated seeds, charts, Cmd+K, Ask LUMÉ slide-over, Value Ledger, Modules A–D, mobile pass)

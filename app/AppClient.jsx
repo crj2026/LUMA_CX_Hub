@@ -679,6 +679,24 @@ export default function App({ userId, role, displayName }) {
   // ─────────────────────────────────────────────────────────────────────────
   return (
     <div style={{ fontFamily: F.sans, background: CREAM, minHeight: "100vh" }}>
+      {/* Global polish: visible focus rings for keyboard users, the
+          150ms tab-switch transition, and the 390px responsive rules. */}
+      <style>{`
+        button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, [role=combobox]:focus-visible {
+          outline: 2px solid ${GOLD}; outline-offset: 2px; border-radius: 6px;
+        }
+        @keyframes luma-tab-fade {
+          from { opacity: 0; transform: translateY(6px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .luma-tab-fade { animation: luma-tab-fade 150ms ease-out; }
+        .luma-mobile-only { display: none; }
+        @media (max-width: 640px) {
+          .luma-form-grid { grid-template-columns: 1fr !important; }
+          .luma-hide-mobile { display: none !important; }
+          .luma-mobile-only { display: inline-flex; }
+        }
+      `}</style>
 
       {/* "View as" preview banner — sticky above the header so it's
           impossible to forget you're in preview mode while recording. */}
@@ -746,8 +764,16 @@ export default function App({ userId, role, displayName }) {
                 }}
               />
             )}
+            <button
+              onClick={() => setPaletteOpen(true)}
+              title="Search & commands (⌘K)"
+              style={{ background: "transparent", border: "1px solid " + SOFT_BORDER, color: INK, fontFamily: F.sans, fontSize: 11, padding: "5px 12px", borderRadius: 99, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}
+            >
+              <span aria-hidden="true" style={{ color: GOLD }}>⌕</span>
+              <span className="luma-hide-mobile" style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 10, opacity: 0.55 }}>⌘K</span>
+            </button>
             {effectiveRole && (
-              <span style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, letterSpacing: 2, textTransform: "uppercase", fontWeight: 700, padding: "4px 10px", border: "1px solid " + GOLD, borderRadius: 99 }}>{effectiveRole}</span>
+              <span className="luma-hide-mobile" style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, letterSpacing: 2, textTransform: "uppercase", fontWeight: 700, padding: "4px 10px", border: "1px solid " + GOLD, borderRadius: 99 }}>{effectiveRole}</span>
             )}
             <UserButton afterSignOutUrl="/sign-in" />
           </div>
@@ -760,6 +786,7 @@ export default function App({ userId, role, displayName }) {
       </div>
 
       {/* ── MAIN CONTENT ───────────────────────────────────────────────── */}
+      <div key={tab} className="luma-tab-fade">
       {tab === "Home"     && <HomeTab     displayName={displayName} setTab={setTab} role={effectiveRole} openAsk={openAskWith} />}
       {tab === "Insights" && <InsightsTab role={effectiveRole} />}
       {tab === "Logs"     && <LogsTab role={effectiveRole} subRequest={logsSubRequest} setTab={setTab} />}
@@ -786,6 +813,8 @@ export default function App({ userId, role, displayName }) {
         simDone={simDone} sendSim={sendSim} startScen={startScen} simEndRef={simEndRef}
         totalScore={totalScore} setTab={setTab}
       />}
+
+      </div>
 
       {/* ── GLOBAL SURFACES — slide-over, palette, floating access, toasts ── */}
       <AskPanel
@@ -902,10 +931,10 @@ const GREETING_LINES_FRIDAY = [
 
 // Dates are relative so the marquee always reads as current.
 const ANNOUNCEMENTS = [
-  { title: "Scalp Serum tingling volume up this week — use SOP 01 for all queries", date: dateDaysAgo(0) },
-  { title: "Hair Edit swap deadline is the 12th — flag any requests coming in after", date: dateDaysAgo(1) },
-  { title: "Failed payments up 18% — proactive outreach campaign launching Monday", date: dateDaysAgo(1) },
-  { title: "Save rate hit 43% this week — great work team 🎉", date: dateDaysAgo(2) },
+  { title: "Scalp Serum tingling volume up this week — use SOP 01 for all queries", date: dateDaysAgo(0), dest: "Playbook" },
+  { title: "Hair Edit swap deadline is the 12th — flag any requests coming in after", date: dateDaysAgo(1), dest: "Logs" },
+  { title: "Failed payments up 18% — proactive outreach campaign launching Monday", date: dateDaysAgo(1), dest: "Insights" },
+  { title: "Save rate hit 43% this week — great work team 🎉", date: dateDaysAgo(2), dest: "Insights" },
 ];
 
 function pickByDay(list, today) {
@@ -1059,7 +1088,7 @@ function ImpactHome({ displayName, setTab, role, stats }) {
         {/* 1 — the money leads */}
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 28, flexWrap: "wrap", marginBottom: 12 }}>
           <div>
-            <div style={{ fontFamily: F.serif, fontSize: 52, color: BURG, fontWeight: 600, lineHeight: 1.08, letterSpacing: -1, maxWidth: 640 }}>
+            <div style={{ fontFamily: F.serif, fontSize: "clamp(32px, 6.5vw, 52px)", color: BURG, fontWeight: 600, lineHeight: 1.08, letterSpacing: -1, maxWidth: 640 }}>
               The Hub returned <span style={{ color: GOLD }}>{formatLedgerMoney(L.monthTotal)}</span> this month.
             </div>
             <div style={{ fontFamily: F.serif, fontStyle: "italic", fontSize: 19, color: INK, opacity: 0.7, marginTop: 12 }}>
@@ -1248,7 +1277,7 @@ function VoCView() {
           ))}
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 22, alignItems: "start" }}>
+        <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 22, alignItems: "start" }}>
           <div>
             <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, fontWeight: 800, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 12 }}>Top 3 wins</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -1473,6 +1502,8 @@ function HomeTab({ displayName, setTab, role, openAsk }) {
                 <span style={{ color: tagColor, fontWeight: 700, textTransform: "uppercase", letterSpacing: 3, fontSize: 10 }}>{tagText}</span>
                 {a.url ? (
                   <a href={a.url} target="_blank" rel="noopener noreferrer" style={{ color: CREAM, fontWeight: 500, textDecoration: "underline", textDecorationColor: GOLD, textUnderlineOffset: 4 }}>{a.title}</a>
+                ) : a.dest && canAccessTab(a.dest, role) ? (
+                  <button onClick={() => setTab(a.dest)} style={{ background: "transparent", border: "none", padding: 0, color: CREAM, fontWeight: 500, fontFamily: F.sans, fontSize: 13, cursor: "pointer", textDecoration: "underline", textDecorationColor: "rgba(196,169,107,0.5)", textUnderlineOffset: 4 }}>{a.title}</button>
                 ) : (
                   <span style={{ color: CREAM, fontWeight: 500 }}>{a.title}</span>
                 )}
@@ -1489,7 +1520,7 @@ function HomeTab({ displayName, setTab, role, openAsk }) {
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 32, flexWrap: "wrap" }}>
           <div style={{ flex: "1 1 auto", minWidth: 0 }}>
             <div style={{ ...eyebrow, marginBottom: 20 }}>LUMÉ HAIR Hub</div>
-            <div style={{ fontFamily: F.serif, fontSize: 64, color: BURG, fontWeight: 600, lineHeight: 1.05, marginBottom: 18, letterSpacing: -1.5 }}>
+            <div style={{ fontFamily: F.serif, fontSize: "clamp(38px, 8vw, 64px)", color: BURG, fontWeight: 600, lineHeight: 1.05, marginBottom: 18, letterSpacing: -1.5 }}>
               {prefix}, {firstName}.
             </div>
             <div style={{ fontFamily: F.serif, fontStyle: "italic", fontSize: 22, color: INK, opacity: 0.65, maxWidth: 600, lineHeight: 1.4 }}>
@@ -1602,7 +1633,7 @@ function HomeTab({ displayName, setTab, role, openAsk }) {
         </div>
 
         {/* Today + Coming up — separate rounded cards */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 56 }}>
+        <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 56 }}>
           <div style={{ background: W, padding: "36px 40px", borderRadius: 16, border: "1px solid " + SOFT_BORDER }}>
             <div style={{ ...eyebrow, marginBottom: 24, color: BURG, opacity: 0.55 }}>Today</div>
             {todayEvents.length === 0 ? (
@@ -2299,6 +2330,7 @@ function RecordsGrid({ subName, config }) {
   const [sortDir, setSortDir] = useState("desc");
   const [editing, setEditing] = useState(null); // { rowId, key, value }
   const [savingId, setSavingId] = useState(null);
+  const [drawerRow, setDrawerRow] = useState(null); // 5.3 — right-side record drawer
 
   async function load() {
     setLoading(true);
@@ -2421,7 +2453,7 @@ function RecordsGrid({ subName, config }) {
     URL.revokeObjectURL(url);
   }
 
-  const cellBase = { padding: "6px 10px", fontFamily: F.sans, fontSize: 12, color: INK, borderBottom: "1px solid " + SOFT_BORDER, verticalAlign: "top" };
+  const cellBase = { padding: "5px 8px", fontFamily: F.sans, fontSize: 12, color: INK, borderBottom: "1px solid " + SOFT_BORDER, verticalAlign: "top" };
   const headerBase = { padding: "10px", fontFamily: F.sans, fontSize: 10, color: "#888", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, borderBottom: "1px solid " + SOFT_BORDER, background: CREAM, textAlign: "left", whiteSpace: "nowrap", cursor: "pointer", position: "sticky", top: 0, zIndex: 1 };
 
   return (
@@ -2456,13 +2488,16 @@ function RecordsGrid({ subName, config }) {
           </thead>
           <tbody>
             {sorted.map((r, i) => (
-              <tr key={r.id} style={{ background: i % 2 === 0 ? W : "#fdfbf9", opacity: savingId === r.id ? 0.6 : 1 }}>
+              <tr key={r.id}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "#F6F0E6"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = i % 2 === 0 ? W : "#fdfbf9"; }}
+                  style={{ background: i % 2 === 0 ? W : "#fdfbf9", opacity: savingId === r.id ? 0.6 : 1, transition: "background 0.12s" }}>
                 {config.columns.map((c) => {
                   const val = r[c.key];
                   const isEditing = editing?.rowId === r.id && editing?.key === c.key;
                   return (
-                    <td key={c.key} style={{ ...cellBase, width: c.width, cursor: c.editable ? "text" : "default" }}
-                        onClick={() => !isEditing && startEdit(r.id, c, val)}>
+                    <td key={c.key} style={{ ...cellBase, width: c.width, cursor: c.editable ? "text" : "pointer" }}
+                        onClick={() => { if (isEditing) return; if (c.editable) startEdit(r.id, c, val); else setDrawerRow(r); }}>
                       {isEditing ? (
                         <EditCell col={c} value={editing.value} setValue={(v) => setEditing({ ...editing, value: v })} onCommit={commitEdit} onCancel={cancelEdit} />
                       ) : (
@@ -2502,7 +2537,57 @@ function RecordsGrid({ subName, config }) {
           </tbody>
         </table>
       </div>
+      <RecordDrawer row={drawerRow} config={config} subName={subName} onClose={() => setDrawerRow(null)} />
     </div>
+  );
+}
+
+// 5.3 — right-side drawer: the full record plus its audit trail. Opens
+// from any non-editable cell; editing stays inline in the grid.
+function RecordDrawer({ row, config, subName, onClose }) {
+  useEffect(() => {
+    if (!row) return;
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [row, onClose]);
+  if (!row) return null;
+  const fields = config.columns.filter((c) => c.key !== "createdAt");
+  return (
+    <>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(10,10,9,0.16)", zIndex: 180 }} />
+      <div role="dialog" aria-label="Record detail" style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: "min(420px, 100vw)", background: CREAM, borderLeft: "1px solid " + SOFT_BORDER, boxShadow: "-14px 0 40px rgba(10,10,9,0.15)", zIndex: 185, display: "flex", flexDirection: "column" }}>
+        <div style={{ background: W, padding: "16px 20px", borderBottom: "1px solid " + SOFT_BORDER, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+          <div>
+            <div style={{ fontFamily: F.sans, fontSize: 9, color: GOLD, letterSpacing: 2.5, textTransform: "uppercase", fontWeight: 700 }}>{subName}</div>
+            <div style={{ fontFamily: F.serif, fontSize: 18, fontWeight: 600, color: BURG }}>{row.orderId || row.claimRef || row.cancelledOrderId || row.id}</div>
+          </div>
+          <button onClick={onClose} aria-label="Close" style={{ background: "transparent", border: "1px solid " + SOFT_BORDER, color: BURG, width: 30, height: 30, borderRadius: 99, cursor: "pointer", fontFamily: F.sans, fontSize: 14, lineHeight: "26px", padding: 0 }}>×</button>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
+          {fields.map((c) => {
+            const v = row[c.key];
+            if (v == null || v === "" || (Array.isArray(v) && v.length === 0)) return null;
+            return (
+              <div key={c.key} style={{ marginBottom: 12 }}>
+                <div style={{ fontFamily: F.sans, fontSize: 9, color: INK, opacity: 0.5, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 3 }}>{c.label}</div>
+                <div style={{ fontFamily: F.sans, fontSize: 13, color: INK, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>
+                  {c.type === "bool" ? (v ? "Yes" : "No") : c.type === "date" ? new Date(v).toLocaleString() : displayCellValue(c, v)}
+                </div>
+              </div>
+            );
+          })}
+          <div style={{ borderTop: "1px solid " + SOFT_BORDER, marginTop: 16, paddingTop: 14 }}>
+            <div style={{ fontFamily: F.sans, fontSize: 9, color: GOLD, fontWeight: 800, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 8 }}>Audit</div>
+            <div style={{ fontFamily: F.sans, fontSize: 12, color: INK, opacity: 0.75, lineHeight: 1.8 }}>
+              Created {new Date(row.createdAt).toLocaleString()}<br />
+              {row.updatedAt ? <>Last edited {new Date(row.updatedAt).toLocaleString()} · version {(row.editCount || 1) + 1}<br /></> : <>Never edited — original version<br /></>}
+              Logged by {row.agent === "demo" ? "the CX team (demo seed)" : "you"} · agents can self-edit for 60 minutes, then records lock to Manager+
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -2521,8 +2606,26 @@ function displayCellValue(col, value) {
   return one(value);
 }
 
+const CHIP_KEYS = new Set(["status", "severity", "resolution"]);
+
 function CellDisplay({ col, value }) {
   if (value == null || value === "") return <span style={{ color: INK, opacity: 0.3 }}>—</span>;
+  if (col.type === "select" && CHIP_KEYS.has(col.key)) {
+    const label = displayCellValue(col, value);
+    const hot = ["high", "serious", "rejected"].includes(String(value));
+    return (
+      <span style={{ display: "inline-block", fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: 0.8, textTransform: "uppercase", color: hot ? "#A5544A" : BURG, background: hot ? "rgba(165,84,74,0.08)" : CREAM, border: "1px solid " + (hot ? "rgba(165,84,74,0.25)" : SOFT_BORDER), borderRadius: 99, padding: "2px 10px", whiteSpace: "nowrap" }}>
+        {label}
+      </span>
+    );
+  }
+  if (col.type === "textarea") {
+    return (
+      <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", whiteSpace: "normal", lineHeight: 1.45 }}>
+        {String(value)}
+      </span>
+    );
+  }
   if (col.type === "csv") return <span>{displayCellValue(col, value)}</span>;
   if (col.type === "bool") return <span style={{ color: value ? "#2a7a2a" : INK, fontWeight: value ? 700 : 400 }}>{value ? "✓" : "—"}</span>;
   if (col.type === "date") {
@@ -2672,6 +2775,37 @@ function readSavedRange() {
     if (parsed?.from && parsed?.to) return parsed;
   } catch {}
   return null;
+}
+
+// 5.8 — proof the Hub reaches out: what lands in the inbox Monday 7am.
+function WeeklyDigestPreview() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ border: "1px solid " + SOFT_BORDER, borderRadius: 12, background: W, overflow: "hidden", marginBottom: 20 }}>
+      <button onClick={() => setOpen((o) => !o)} style={{ width: "100%", background: "transparent", border: "none", padding: "12px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", gap: 10 }}>
+        <span style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: BURG }}>Weekly digest — what lands in your inbox Monday 7am</span>
+        <span style={{ color: GOLD, fontSize: 11, transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}>▼</span>
+      </button>
+      {open && (
+        <div style={{ padding: "0 18px 16px" }}>
+          <div style={{ border: "1px solid " + SOFT_BORDER, borderRadius: 10, overflow: "hidden" }}>
+            <div style={{ background: CREAM, padding: "10px 16px", fontFamily: F.sans, fontSize: 12, color: INK, borderBottom: "1px solid " + SOFT_BORDER }}>
+              <div><strong style={{ color: BURG }}>From:</strong> LUMÉ CX Hub &lt;digest@cx.withluma.com.au&gt;</div>
+              <div><strong style={{ color: BURG }}>To:</strong> you · <strong style={{ color: BURG }}>Every Monday, 7:00am</strong></div>
+              <div><strong style={{ color: BURG }}>Subject:</strong> LUMÉ week in review — saves, refunds, and the one thing to fix</div>
+            </div>
+            <div style={{ padding: "14px 16px", fontFamily: F.sans, fontSize: 13, color: INK, lineHeight: 1.7 }}>
+              <div style={{ fontFamily: F.serif, fontSize: 16, color: BURG, fontWeight: 600, marginBottom: 6 }}>Good morning — here's your week.</div>
+              847 tickets · CSAT 4.60 · save rate 43% (up 6 points) · $4,610 returned by the Hub this week.<br />
+              12 order issues logged, replacements out same-day on 80% of cases, and one Parcelline batch went out ({"AUD 445.30"}).<br />
+              <strong style={{ color: BURG }}>The one thing to fix:</strong> tingling surprise on the Scalp Serum PDP — $1,120/month in avoidable refunds.
+              <div style={{ marginTop: 10, fontFamily: F.serif, fontStyle: "italic", fontSize: 13, opacity: 0.65 }}>Compiled automatically by the Hub — 2 hours of manager time saved, receipted in the Value Ledger.</div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function WeeklySummaryView() {
@@ -2869,7 +3003,7 @@ function WeeklySummaryView() {
   };
 
   const sectionLabel = { fontFamily: F.sans, fontSize: 11, color: BURG, textTransform: "uppercase", letterSpacing: 4, fontWeight: 700, marginBottom: 14 };
-  const sectionGap = { marginBottom: 32 };
+  const sectionGap = { marginBottom: 24 };
 
   return (
     <div style={{ background: CREAM, minHeight: "100vh" }}>
@@ -2881,6 +3015,7 @@ function WeeklySummaryView() {
             <div style={{ fontFamily: F.serif, fontSize: 40, color: BURG, fontWeight: 600, lineHeight: 1.05, letterSpacing: -0.5 }}>Weekly Summary</div>
             <div style={{ fontFamily: F.serif, fontStyle: "italic", fontSize: 18, color: INK, opacity: 0.65, marginTop: 6 }}>{reportData.weekLabel}</div>
             <div style={{ fontFamily: F.sans, fontSize: 13, color: INK, opacity: 0.55, marginTop: 10, lineHeight: 1.5, maxWidth: 540 }}>Compiled from Gorgias, Shopify, and Skio. Use this to spot trends, brief stakeholders, and flag anything that needs attention before the week closes.</div>
+            <div style={{ marginTop: 14, maxWidth: 640 }}><WeeklyDigestPreview /></div>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={{ padding: "6px 10px", border: "1px solid " + SOFT_BORDER, borderRadius: 6, fontFamily: F.sans, fontSize: 12 }} />
@@ -3013,7 +3148,7 @@ function WeeklySummaryView() {
             ))}
           </div>
           {/* Themes + recent samples — always show faux data for demo */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 10, padding: "14px 18px" }}>
               <div style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, color: BURG, letterSpacing: 2, textTransform: "uppercase", marginBottom: 12 }}>Themes</div>
               {[
@@ -3395,7 +3530,7 @@ function CountBreakdown({ entries, total }) {
 
 function CountCard({ title, entries, total }) {
   return (
-    <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 10, padding: "14px 18px" }}>
+    <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 10, padding: "11px 14px" }}>
       <div style={{ fontFamily: F.sans, fontSize: 11, color: BURG, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 10 }}>{title}</div>
       <HBarList entries={entries.slice(0, 8)} total={total} labelWidth={150} />
     </div>
@@ -3462,7 +3597,7 @@ function CompactSummary({ count, noun, breakdowns, footer }) {
 
 function KeyMetricsBlock({ gorgias, shop, loop, skio, errors }) {
   const tile = (label, value, hint, accent, trend) => (
-    <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 10, padding: "12px 16px" }}>
+    <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 10, padding: "10px 13px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginBottom: 4 }}>
         <div style={{ fontFamily: F.sans, fontSize: 9, color: INK, opacity: 0.55, letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 700 }}>{label}</div>
         {trend && <DeltaChip delta={trend.delta} good={trend.good} />}
@@ -3550,7 +3685,7 @@ function TrendsBlock({ trends, sampleSize, totalTickets, readAll }) {
 function CustomerInsightsBlock({ byTheme, samples, suggestions, total }) {
   return (
     <div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 16, marginBottom: 16 }}>
+      <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 16, marginBottom: 16 }}>
         <CountCard title="Themes" entries={byTheme} total={total} />
         <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 10, padding: "14px 18px" }}>
           <div style={{ fontFamily: F.sans, fontSize: 11, color: BURG, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 8 }}>Recent samples</div>
@@ -3580,7 +3715,7 @@ function CustomerInsightsBlock({ byTheme, samples, suggestions, total }) {
 
 function FeedbackBlock({ byTheme, samples, total }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 16 }}>
+    <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 16 }}>
       <CountCard title="By theme" entries={byTheme} total={total} />
       <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 10, padding: "14px 18px" }}>
         <div style={{ fontFamily: F.sans, fontSize: 11, color: BURG, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 8 }}>Recent samples</div>
@@ -4310,7 +4445,7 @@ function LogsTab({ role, subRequest, setTab }) {
     <div style={{ background: CREAM, minHeight: "100vh" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "56px 24px 24px" }}>
         <div style={eyebrowS}>LUMÉ HAIR — Logs</div>
-        <div style={{ fontFamily: F.serif, fontSize: 48, color: BURG, fontWeight: 600, lineHeight: 1.05, marginBottom: 14, letterSpacing: -1 }}>
+        <div style={{ fontFamily: F.serif, fontSize: "clamp(32px, 7vw, 48px)", color: BURG, fontWeight: 600, lineHeight: 1.05, marginBottom: 14, letterSpacing: -1 }}>
           {sub}
         </div>
         <div style={{ fontFamily: F.serif, fontStyle: "italic", fontSize: 16, color: INK, opacity: 0.6, marginBottom: 20, maxWidth: 700 }}>
@@ -4717,7 +4852,7 @@ function IssueLogPanel({ role, onViewRecords }) {
           {editingId ? "Edit issue — " + orderId : "Log a new issue"}
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14, marginBottom: 14 }}>
+        <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Order ID <span style={{ color: RED, fontWeight: 700 }}>*</span></label>
             <div style={{ display: "flex", gap: 8 }}>
@@ -4746,7 +4881,7 @@ function IssueLogPanel({ role, onViewRecords }) {
           </div>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
+        <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Customer name</label>
             <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} style={inputBase} />
@@ -4761,7 +4896,7 @@ function IssueLogPanel({ role, onViewRecords }) {
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
+        <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Category <span style={{ color: RED, fontWeight: 700 }}>*</span></label>
             <Combobox value={category} onChange={setCategory} options={ISSUE_CATEGORIES} placeholder="Select a category…" />
@@ -4805,7 +4940,7 @@ function IssueLogPanel({ role, onViewRecords }) {
 
         {showMore && (
           <>
-            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14, marginBottom: 14 }}>
+            <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14, marginBottom: 14 }}>
               <div>
                 <label style={labelStyle}>Photo URLs (one per line or comma separated)</label>
                 <textarea value={photoUrlsText} onChange={(e) => setPhotoUrlsText(e.target.value)} rows={2} placeholder="https://drive.google.com/..." style={{ ...inputBase, fontFamily: F.sans, resize: "vertical" }} />
@@ -5039,7 +5174,7 @@ function ReplacementLogPanel({ role, onViewRecords }) {
       <div onKeyDown={makeFormKeyHandler(submit)} style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 14, padding: "24px 28px", marginBottom: 24 }}>
         <div style={{ fontFamily: F.serif, fontSize: 22, color: BURG, fontWeight: 600, marginBottom: 18 }}>Log a replacement / gift</div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14, marginBottom: 14 }}>
+        <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Order ID <span style={{ color: RED, fontWeight: 700 }}>*</span></label>
             <div style={{ display: "flex", gap: 8 }}>
@@ -5061,7 +5196,7 @@ function ReplacementLogPanel({ role, onViewRecords }) {
           </div>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
+        <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
           <div><label style={labelStyle}>Customer name</label><input value={customerName} onChange={(e) => setCustomerName(e.target.value)} style={inputBase} /></div>
           <div><label style={labelStyle}>Email</label><input value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} style={inputBase} /></div>
           <div><label style={labelStyle}>Country</label><input value={country} onChange={(e) => setCountry(e.target.value)} style={inputBase} /></div>
@@ -5109,7 +5244,7 @@ function ReplacementLogPanel({ role, onViewRecords }) {
           />
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14, marginBottom: 14 }}>
+        <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Original order reference <span style={{ color: RED, fontWeight: 700 }}>*</span></label>
             {/* Aina May 18: was free-text, now a grouped select drawn
@@ -5345,7 +5480,7 @@ function ClaimLogPanel({ role, onViewRecords }) {
       <div onKeyDown={makeFormKeyHandler(submit)} style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 14, padding: "24px 28px", marginBottom: 24 }}>
         <div style={{ fontFamily: F.serif, fontSize: 22, color: BURG, fontWeight: 600, marginBottom: 18 }}>File a Parcelline claim</div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
+        <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Order ID <span style={{ color: RED, fontWeight: 700 }}>*</span></label>
             <div style={{ display: "flex", gap: 8 }}>
@@ -5364,7 +5499,7 @@ function ClaimLogPanel({ role, onViewRecords }) {
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+        <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Category <span style={{ color: RED, fontWeight: 700 }}>*</span></label>
             <Combobox value={category} onChange={setCategory} options={CLAIM_CATEGORIES} placeholder="What went wrong…" />
@@ -5408,7 +5543,7 @@ function ClaimLogPanel({ role, onViewRecords }) {
           )}
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+        <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Evidence URLs (one per line)</label>
             <textarea value={evidenceText} onChange={(e) => setEvidenceText(e.target.value)} rows={2} placeholder="https://drive.google.com/…" style={{ ...inputBase, fontFamily: F.sans, resize: "vertical" }} />
@@ -5568,7 +5703,7 @@ function CancellationLogPanel({ role }) {
       <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 14, padding: "24px 28px", marginBottom: 24 }}>
         <div style={{ fontFamily: F.serif, fontSize: 22, color: BURG, fontWeight: 600, marginBottom: 18 }}>Log a cancellation</div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14, marginBottom: 14 }}>
+        <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Order ID</label>
             <div style={{ display: "flex", gap: 8 }}>
@@ -5583,13 +5718,13 @@ function CancellationLogPanel({ role }) {
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
+        <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
           <div><label style={labelStyle}>Customer name</label><input value={customerName} onChange={(e) => setCustomerName(e.target.value)} style={inputBase} /></div>
           <div><label style={labelStyle}>Email</label><input value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} style={inputBase} /></div>
           <div><label style={labelStyle}>Country</label><input value={country} onChange={(e) => setCountry(e.target.value)} style={inputBase} /></div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+        <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Reason</label>
             <Combobox value={cancellationType} onChange={setCancellationType} options={CANCELLATION_TYPES} />
@@ -5702,7 +5837,7 @@ function CancelNoRefundLogPanel({ role }) {
           For orders we cancelled where the customer didn't receive a cash refund — typically because we sent a replacement order instead.
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+        <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Cancelled order # {reqMark}</label>
             <input value={cancelledOrderId} onChange={(e) => setCancelledOrderId(e.target.value)} placeholder="#LME-10500" style={inputBase} />
@@ -5896,7 +6031,7 @@ function FeedbackLogPanel({ role, onViewRecords }) {
       <div onKeyDown={makeFormKeyHandler(submit)} style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 14, padding: "24px 28px", marginBottom: 24 }}>
         <div style={{ fontFamily: F.serif, fontSize: 22, color: BURG, fontWeight: 600, marginBottom: 18 }}>Log customer feedback</div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14, marginBottom: 14 }}>
+        <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Order ID (optional — IG DM has no order)</label>
             <div style={{ display: "flex", gap: 8 }}>
@@ -5911,13 +6046,13 @@ function FeedbackLogPanel({ role, onViewRecords }) {
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
+        <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
           <div><label style={labelStyle}>Customer name</label><input value={customerName} onChange={(e) => setCustomerName(e.target.value)} style={inputBase} /></div>
           <div><label style={labelStyle}>Email</label><input value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} style={inputBase} /></div>
           <div><label style={labelStyle}>Country</label><input value={country} onChange={(e) => setCountry(e.target.value)} style={inputBase} /></div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+        <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Theme <span style={{ color: RED, fontWeight: 700 }}>*</span></label>
             <Combobox value={theme} onChange={setTheme} options={FEEDBACK_THEMES} placeholder="Select a theme…" />
@@ -6123,7 +6258,7 @@ function OrderRequestLogPanel({ role }) {
       <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 14, padding: "24px 28px", marginBottom: 24 }}>
         <div style={{ fontFamily: F.serif, fontSize: 22, color: BURG, fontWeight: 600, marginBottom: 18 }}>Request Ops to ship a replacement</div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr 1fr", gap: 14, marginBottom: 14 }}>
+        <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 2fr 1fr", gap: 14, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Warehouse</label>
             <Combobox value={region} onChange={setRegion} options={OPS_REGIONS} />
@@ -6148,16 +6283,16 @@ function OrderRequestLogPanel({ role }) {
         </div>
 
         <div style={{ fontFamily: F.sans, fontSize: 10, color: BURG, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", marginBottom: 8, marginTop: 6 }}>Recipient</div>
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr", gap: 14, marginBottom: 14 }}>
+        <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr", gap: 14, marginBottom: 14 }}>
           <div><label style={labelStyle}>Name</label><input value={recipientName} onChange={(e) => setRecipientName(e.target.value)} style={inputBase} /></div>
           <div><label style={labelStyle}>Email</label><input value={shipToEmail} onChange={(e) => setShipToEmail(e.target.value)} style={inputBase} /></div>
           <div><label style={labelStyle}>Phone</label><input value={shipToPhone} onChange={(e) => setShipToPhone(e.target.value)} style={inputBase} /></div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+        <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
           <div><label style={labelStyle}>Address line 1</label><input value={shipToAddress1} onChange={(e) => setShipToAddress1(e.target.value)} style={inputBase} /></div>
           <div><label style={labelStyle}>Address line 2</label><input value={shipToAddress2} onChange={(e) => setShipToAddress2(e.target.value)} style={inputBase} /></div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
+        <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
           <div><label style={labelStyle}>City</label><input value={shipToCity} onChange={(e) => setShipToCity(e.target.value)} style={inputBase} /></div>
           <div><label style={labelStyle}>State</label><input value={shipToState} onChange={(e) => setShipToState(e.target.value)} style={inputBase} /></div>
           <div><label style={labelStyle}>ZIP</label><input value={shipToZip} onChange={(e) => setShipToZip(e.target.value)} style={inputBase} /></div>
@@ -6165,12 +6300,12 @@ function OrderRequestLogPanel({ role }) {
         </div>
 
         <div style={{ fontFamily: F.sans, fontSize: 10, color: BURG, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", marginBottom: 8, marginTop: 12 }}>Ops detail (filled by Ops once shipped)</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
+        <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
           <div><label style={labelStyle}>Dispatch warehouse</label><input value={dispatchWarehouse} onChange={(e) => setDispatchWarehouse(e.target.value)} placeholder="SYD-01 (Parcelline)" style={inputBase} /></div>
           <div><label style={labelStyle}>Ship carrier</label><input value={shipCarrier} onChange={(e) => setShipCarrier(e.target.value)} placeholder="FedEx / asendia / etc." style={inputBase} /></div>
           <div><label style={labelStyle}>Tracking AWB#</label><input value={awb} onChange={(e) => setAwb(e.target.value)} style={inputBase} /></div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
+        <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
           <div><label style={labelStyle}>Reference #</label><input value={referenceNumber} onChange={(e) => setReferenceNumber(e.target.value)} placeholder="ST-20260102-02" style={inputBase} /></div>
           <div><label style={labelStyle}>OMS SO #</label><input value={omsOrderNumber} onChange={(e) => setOmsOrderNumber(e.target.value)} placeholder="PL-88412" style={inputBase} /></div>
           <div><label style={labelStyle}>Ship date</label><input type="date" value={shipDate} onChange={(e) => setShipDate(e.target.value)} style={inputBase} /></div>
@@ -6315,12 +6450,12 @@ function OrderRequestCard({ row, canEdit, onSaved }) {
       ) : (
         <div style={{ marginTop: 12, padding: "12px 14px", background: CREAM, borderRadius: 8 }}>
           <div style={{ fontFamily: F.sans, fontSize: 10, color: BURG, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", marginBottom: 8 }}>Ops fulfillment detail</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
+          <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
             <div><label style={labelStyle}>Dispatch warehouse</label><input value={draft.dispatchWarehouse ?? ""} onChange={(e) => set("dispatchWarehouse", e.target.value)} placeholder="SYD-01 (Parcelline)" style={inputBase} /></div>
             <div><label style={labelStyle}>Ship carrier</label><input value={draft.shipCarrier ?? ""} onChange={(e) => set("shipCarrier", e.target.value)} placeholder="FedEx" style={inputBase} /></div>
             <div><label style={labelStyle}>Tracking AWB#</label><input value={draft.awb ?? ""} onChange={(e) => set("awb", e.target.value)} style={inputBase} /></div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
+          <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
             <div><label style={labelStyle}>Reference #</label><input value={draft.referenceNumber ?? ""} onChange={(e) => set("referenceNumber", e.target.value)} placeholder="ST-20260102-02" style={inputBase} /></div>
             <div><label style={labelStyle}>OMS SO #</label><input value={draft.omsOrderNumber ?? ""} onChange={(e) => set("omsOrderNumber", e.target.value)} placeholder="PL-88412" style={inputBase} /></div>
             <div><label style={labelStyle}>Ship date</label><input type="date" value={draft.shipDate ?? ""} onChange={(e) => set("shipDate", e.target.value)} style={inputBase} /></div>
@@ -6335,16 +6470,16 @@ function OrderRequestCard({ row, canEdit, onSaved }) {
           </div>
 
           <div style={{ fontFamily: F.sans, fontSize: 10, color: BURG, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", marginTop: 14, marginBottom: 8 }}>Recipient</div>
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr", gap: 10, marginBottom: 10 }}>
+          <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr", gap: 10, marginBottom: 10 }}>
             <div><label style={labelStyle}>Name</label><input value={draft.recipientName ?? ""} onChange={(e) => set("recipientName", e.target.value)} style={inputBase} /></div>
             <div><label style={labelStyle}>Email</label><input value={draft.shipToEmail ?? ""} onChange={(e) => set("shipToEmail", e.target.value)} style={inputBase} /></div>
             <div><label style={labelStyle}>Phone</label><input value={draft.shipToPhone ?? ""} onChange={(e) => set("shipToPhone", e.target.value)} style={inputBase} /></div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+          <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
             <div><label style={labelStyle}>Address 1</label><input value={draft.shipToAddress1 ?? ""} onChange={(e) => set("shipToAddress1", e.target.value)} style={inputBase} /></div>
             <div><label style={labelStyle}>Address 2</label><input value={draft.shipToAddress2 ?? ""} onChange={(e) => set("shipToAddress2", e.target.value)} style={inputBase} /></div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
+          <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
             <div><label style={labelStyle}>City</label><input value={draft.shipToCity ?? ""} onChange={(e) => set("shipToCity", e.target.value)} style={inputBase} /></div>
             <div><label style={labelStyle}>State</label><input value={draft.shipToState ?? ""} onChange={(e) => set("shipToState", e.target.value)} style={inputBase} /></div>
             <div><label style={labelStyle}>ZIP</label><input value={draft.shipToZip ?? ""} onChange={(e) => set("shipToZip", e.target.value)} style={inputBase} /></div>
@@ -6539,7 +6674,7 @@ function AdverseReactionLogPanel({ role, onViewRecords }) {
       <div onKeyDown={makeFormKeyHandler(submit)} style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 14, padding: "24px 28px", marginBottom: 24 }}>
         <div style={{ fontFamily: F.serif, fontSize: 22, color: BURG, fontWeight: 600, marginBottom: 18 }}>Log an adverse reaction</div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
+        <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Order ID</label>
             <div style={{ display: "flex", gap: 8 }}>
@@ -6565,7 +6700,7 @@ function AdverseReactionLogPanel({ role, onViewRecords }) {
           </div>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
+        <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
           <div><label style={labelStyle}>Customer name</label><input value={customerName} onChange={(e) => setCustomerName(e.target.value)} style={inputBase} /></div>
           <div><label style={labelStyle}>Email</label><input value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} style={inputBase} /></div>
           <div><label style={labelStyle}>Phone</label><input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} style={inputBase} /></div>
@@ -6578,7 +6713,7 @@ function AdverseReactionLogPanel({ role, onViewRecords }) {
             <span>Patient is the customer</span>
           </label>
           {!patientSameAsCustomer && (
-            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
+            <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
               <div><label style={labelStyle}>Patient name</label><input value={patientName} onChange={(e) => setPatientName(e.target.value)} style={inputBase} /></div>
               <div><label style={labelStyle}>Age</label><input value={patientAge} onChange={(e) => setPatientAge(e.target.value)} style={inputBase} /></div>
             </div>
@@ -6591,7 +6726,7 @@ function AdverseReactionLogPanel({ role, onViewRecords }) {
           <textarea value={complaintDescription} onChange={(e) => setComplaintDescription(e.target.value)} rows={4} placeholder="Use the customer's own words. Do not summarise or interpret." style={{ ...inputBase, fontFamily: F.sans, resize: "vertical" }} />
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+        <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Products affected (one per line) <span style={{ color: RED, fontWeight: 700 }}>*</span></label>
             <textarea value={productsText} onChange={(e) => setProductsText(e.target.value)} rows={2} placeholder="Scalp Serum" style={{ ...inputBase, fontFamily: F.sans, resize: "vertical" }} />
@@ -6621,7 +6756,7 @@ function AdverseReactionLogPanel({ role, onViewRecords }) {
         </div>
 
         <FormSection title="Severity & escalation" />
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
+        <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Severity <span style={{ color: RED, fontWeight: 700 }}>*</span></label>
             <Combobox
@@ -6647,7 +6782,7 @@ function AdverseReactionLogPanel({ role, onViewRecords }) {
           <label style={checkRow}><input type="checkbox" checked={fdaMedwatchFiled} onChange={(e) => setFdaMedwatchFiled(e.target.checked)} /><span>FDA MEDWATCH form filed</span></label>
           <label style={checkRow}><input type="checkbox" checked={returnRequested} onChange={(e) => setReturnRequested(e.target.checked)} /><span>Customer requested to return product</span></label>
           {(isSerious || fdaMedwatchFiled) && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 6 }}>
+            <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 6 }}>
               <div><label style={labelStyle}>MRDD #</label><input value={mrddNumber} onChange={(e) => setMrddNumber(e.target.value)} style={inputBase} /></div>
               <div><label style={labelStyle}>RMA #</label><input value={rmaNumber} onChange={(e) => setRmaNumber(e.target.value)} style={inputBase} /></div>
             </div>
@@ -6655,7 +6790,7 @@ function AdverseReactionLogPanel({ role, onViewRecords }) {
         </div>
 
         <FormSection title="Follow-up" />
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+        <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Follow-up scheduled</label>
             <input type="datetime-local" value={followUpAt} onChange={(e) => setFollowUpAt(e.target.value)} style={inputBase} />
@@ -7132,7 +7267,7 @@ function PlaybookPolicyNew({ query }) {
         <>
           <PlaybookSectionHeader>Shipping windows</PlaybookSectionHeader>
           <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 8, overflow: "hidden", marginBottom: 8 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", background: CREAM, padding: "8px 18px", fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", color: INK, opacity: 0.6 }}>
+            <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", background: CREAM, padding: "8px 18px", fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", color: INK, opacity: 0.6 }}>
               <span>Region</span><span style={{ textAlign: "center" }}>Standard</span><span style={{ textAlign: "right" }}>Express</span>
             </div>
             {filteredShipping.map((r, i) => (
@@ -7442,7 +7577,7 @@ function PlaybookVoiceNew({ query }) {
   return (
     <div>
       <PlaybookSectionHeader>We Are / We Are Not</PlaybookSectionHeader>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
+      <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
         <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 8, padding: 20 }}>
           <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, fontWeight: 700, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 10 }}>We Are</div>
           <ul style={{ margin: 0, paddingLeft: 18, fontFamily: F.sans, fontSize: 14, lineHeight: 1.8, color: INK }}>
@@ -7539,7 +7674,51 @@ function PlaybookNonNegNew({ query }) {
 // which in turn call Clerk's backend API server-side.
 // ═══════════════════════════════════════════════════════════════════════════
 
+// 5.8 — the trust layer: how access, audit, and data handling work.
+// Owner-visible, linked from Team.
+function SecurityAccessPanel({ onClose }) {
+  const ROLE_MODEL = [
+    ["Home", "Everyone"], ["Insights · Logs · Playbook · Training", "Agent+ (Training also open to New Starters)"],
+    ["Reports", "Lead Agent+"], ["Records · Reports Impact", "Manager+"], ["Team · Security", "Admin / Owner"],
+  ];
+  return (
+    <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 14, padding: "22px 26px", marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 14 }}>
+        <div style={{ fontFamily: F.serif, fontSize: 20, color: BURG, fontWeight: 600 }}>Security &amp; access</div>
+        <button onClick={onClose} aria-label="Close" style={{ background: "transparent", border: "1px solid " + SOFT_BORDER, color: BURG, width: 28, height: 28, borderRadius: 99, cursor: "pointer", fontFamily: F.sans, fontSize: 13, padding: 0 }}>×</button>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 18 }}>
+        <div>
+          <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, fontWeight: 800, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 8 }}>Role model</div>
+          {ROLE_MODEL.map(([area, who]) => (
+            <div key={area} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "5px 0", borderBottom: "1px solid #F3EEE6", fontFamily: F.sans, fontSize: 12.5 }}>
+              <span style={{ color: BURG, fontWeight: 600 }}>{area}</span>
+              <span style={{ color: INK, opacity: 0.65, textAlign: "right" }}>{who}</span>
+            </div>
+          ))}
+          <div style={{ fontFamily: F.sans, fontSize: 11.5, color: INK, opacity: 0.6, marginTop: 8, lineHeight: 1.5 }}>
+            Roles live on the identity provider (Clerk), enforced server-side on every API call. "View as" previews are visual only — permissions never change.
+          </div>
+        </div>
+        <div>
+          <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, fontWeight: 800, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 8 }}>Audit trail</div>
+          <div style={{ fontFamily: F.sans, fontSize: 12.5, color: INK, lineHeight: 1.65 }}>
+            Every log records who created it and when. Agents can self-edit for 60 minutes; after that, records lock and only Manager+ can change them — each edit stamps a new version visible in the record drawer. Nothing is hard-deleted from the audit view.
+          </div>
+        </div>
+        <div>
+          <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, fontWeight: 800, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 8 }}>Data handling</div>
+          <div style={{ fontFamily: F.sans, fontSize: 12.5, color: INK, lineHeight: 1.65 }}>
+            Customer data stays inside the Hub and the systems it mirrors (Shopify, Gorgias, Skio, Loop). Exports (CSV, win-back lists) are on-demand and logged. AI answers are grounded in the Playbook — no customer data is used for model training.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TeamTab({ role }) {
+  const [showSecurity, setShowSecurity] = useState(false);
   const [users, setUsers] = useState([]);
   const [pending, setPending] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -7652,12 +7831,22 @@ function TeamTab({ role }) {
     <div style={{ background: CREAM, minHeight: "100vh" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "56px 24px 96px" }}>
         <div style={eyebrowS}>LUMÉ HAIR — Team Management</div>
-        <div style={{ fontFamily: F.serif, fontSize: 48, color: BURG, fontWeight: 600, lineHeight: 1.05, marginBottom: 14, letterSpacing: -1 }}>
+        <div style={{ fontFamily: F.serif, fontSize: "clamp(32px, 7vw, 48px)", color: BURG, fontWeight: 600, lineHeight: 1.05, marginBottom: 14, letterSpacing: -1 }}>
           Team
         </div>
         <div style={{ fontFamily: F.serif, fontStyle: "italic", fontSize: 16, color: INK, opacity: 0.6, marginBottom: 22, maxWidth: 700 }}>
           Invite people. Assign roles. Manage access. {isOwner ? "You're the Owner — you can do anything here." : role === "Admin" ? "You're an Admin — you can manage everyone except other Admins and the Owner." : `You're viewing as ${/^[AEIOU]/.test(role || "") ? "an" : "a"} ${role} — team management is read-only from this role.`}
+          {isOwner && (
+            <>
+              {" "}
+              <button onClick={() => setShowSecurity((v) => !v)} style={{ background: "transparent", border: "none", padding: 0, fontFamily: F.sans, fontSize: "inherit", color: BURG, textDecoration: "underline", cursor: "pointer" }}>
+                Security &amp; access
+              </button>
+            </>
+          )}
         </div>
+
+        {showSecurity && <SecurityAccessPanel onClose={() => setShowSecurity(false)} />}
 
         {/* Safety banner — unassigned roles */}
         {unassignedCount > 0 && (
@@ -8095,7 +8284,7 @@ function PlaybookVoice() {
         How the team actually talks to customers — left column out, right column in.
       </div>
       <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 14, overflow: "hidden" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", background: SOFT_BORDER, gap: 1 }}>
+        <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", background: SOFT_BORDER, gap: 1 }}>
           <div style={{ background: BLUSH, padding: "14px 22px", fontFamily: F.sans, fontSize: 10, color: BURG, fontWeight: 700, letterSpacing: 3, textTransform: "uppercase" }}>Don't say</div>
           <div style={{ background: PEACH, padding: "14px 22px", fontFamily: F.sans, fontSize: 10, color: BURG, fontWeight: 700, letterSpacing: 3, textTransform: "uppercase" }}>Say instead</div>
           {VOICE_PAIRS.flatMap((p, i) => [
@@ -10151,7 +10340,7 @@ function SimTab({ selScen, setSelScen, simMsgs, simInput, setSimInput, simLoadin
       <div style={{ maxWidth: 700, margin: "0 auto", padding: "24px 16px" }}>
         <div style={{ fontFamily: F.sans, fontSize: 11, color: "#999", textTransform: "uppercase", letterSpacing: 2, marginBottom: 8, textAlign: "center" }}>Simulation Scenarios</div>
         <div style={{ fontFamily: F.sans, fontSize: 13, color: "#aaa", textAlign: "center", marginBottom: 24 }}>Practice handling real customer situations. After 2 exchanges you receive coach feedback.</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div className="luma-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           {SCENARIOS.map(scen => (
             <div key={scen.id} onClick={() => startScen(scen)} style={{ background: W, border: "1px solid #e0d9d0", borderRadius: 10, padding: 16, cursor: "pointer" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
@@ -11827,7 +12016,7 @@ function GorgiasTicketLink({ id }) {
 
 function KpiTile({ label, value, hint, trend }) {
   return (
-    <div style={{ background: W, border: "1px solid #e0d9d0", borderRadius: 10, padding: "16px 18px" }}>
+    <div style={{ background: W, border: "1px solid #e0d9d0", borderRadius: 10, padding: "12px 14px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginBottom: 6 }}>
         <div style={{ fontFamily: F.sans, fontSize: 10, color: "#999", textTransform: "uppercase", letterSpacing: 1.5 }}>{label}</div>
         {trend && <DeltaChip delta={trend.delta} good={trend.good} />}
@@ -11845,8 +12034,8 @@ function BreakdownCard({ title, entries, total }) {
   if (!entries?.length) return null;
   const max = entries[0]?.[1] ?? 1;
   return (
-    <div style={{ background: W, border: "1px solid #e0d9d0", borderRadius: 10, padding: "16px 20px", marginBottom: 16 }}>
-      <div style={{ fontFamily: F.serif, fontSize: 16, fontWeight: 700, color: BURG, marginBottom: 12 }}>{title}</div>
+    <div style={{ background: W, border: "1px solid #e0d9d0", borderRadius: 10, padding: "12px 16px", marginBottom: 12 }}>
+      <div style={{ fontFamily: F.serif, fontSize: 16, fontWeight: 700, color: BURG, marginBottom: 10 }}>{title}</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {entries.map(([key, count]) => {
           const pct = total ? Math.round((count / total) * 100) : 0;
