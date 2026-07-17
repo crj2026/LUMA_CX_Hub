@@ -695,6 +695,13 @@ export default function App({ userId, role, displayName }) {
           .luma-form-grid { grid-template-columns: 1fr !important; }
           .luma-hide-mobile { display: none !important; }
           .luma-mobile-only { display: inline-flex; }
+          /* Bar rows (Impact breakdown, HBarList): label + value on the
+             first line, the bar full-width underneath — nothing clips. */
+          .luma-bar-row { grid-template-columns: minmax(0, 1fr) auto !important; row-gap: 5px !important; }
+          .luma-bar-row > .luma-bar-label { grid-column: 1 !important; grid-row: 1; }
+          .luma-bar-row > .luma-bar-value { grid-column: 2 !important; grid-row: 1; }
+          .luma-bar-row > .luma-bar-track { grid-column: 1 / -1 !important; grid-row: 2; }
+          .luma-bar-detail { display: none !important; }
         }
       `}</style>
 
@@ -1105,17 +1112,17 @@ function ImpactHome({ displayName, setTab, role, stats }) {
         <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 14, padding: "22px 26px", margin: "26px 0 14px" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {L.breakdown.map((b) => (
-              <div key={b.key} style={{ display: "grid", gridTemplateColumns: "210px 1fr 190px", alignItems: "center", gap: 14 }}>
-                <div style={{ fontFamily: F.sans, fontSize: 12.5, color: BURG, fontWeight: 600 }}>
+              <div key={b.key} className="luma-bar-row" style={{ display: "grid", gridTemplateColumns: "210px 1fr 190px", alignItems: "center", gap: 14 }}>
+                <div className="luma-bar-label" style={{ fontFamily: F.sans, fontSize: 12.5, color: BURG, fontWeight: 600, gridColumn: 1 }}>
                   {b.label}
                   {b.key === "hours" && <span style={{ opacity: 0.55, fontWeight: 400 }}> · {L.hoursReclaimed}h</span>}
                 </div>
-                <div style={{ background: "#EFE9DF", borderRadius: 99, height: 8, overflow: "hidden" }}>
+                <div className="luma-bar-track" style={{ background: "#EFE9DF", borderRadius: 99, height: 8, overflow: "hidden", gridColumn: 2 }}>
                   <div style={{ background: GOLD, width: Math.max(3, Math.round((b.value / maxBreak) * 100)) + "%", height: "100%", borderRadius: 99 }} />
                 </div>
-                <div style={{ fontFamily: F.sans, fontSize: 12.5, textAlign: "right", whiteSpace: "nowrap" }}>
+                <div className="luma-bar-value" style={{ fontFamily: F.sans, fontSize: 12.5, textAlign: "right", whiteSpace: "nowrap", gridColumn: 3 }}>
                   <span style={{ color: BURG, fontWeight: 700 }}>{formatLedgerMoney(b.value)}</span>
-                  <span style={{ color: INK, opacity: 0.45, marginLeft: 8, fontSize: 11 }}>{b.detail}</span>
+                  <span className="luma-bar-detail" style={{ color: INK, opacity: 0.45, marginLeft: 8, fontSize: 11 }}>{b.detail}</span>
                 </div>
               </div>
             ))}
@@ -1750,12 +1757,12 @@ function HBarList({ entries, total, accent = GOLD, labelWidth = 170 }) {
       {rows.map((r) => {
         const pct = total ? Math.round((r.count / total) * 100) : null;
         return (
-          <div key={r.key} style={{ display: "grid", gridTemplateColumns: labelWidth + "px 1fr 76px", alignItems: "center", gap: 10 }}>
-            <div style={{ fontFamily: F.sans, fontSize: 12, color: BURG, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={r.key}>{r.key}</div>
-            <div style={{ background: "#EFE9DF", borderRadius: 99, height: 6, overflow: "hidden" }}>
+          <div key={r.key} className="luma-bar-row" style={{ display: "grid", gridTemplateColumns: labelWidth + "px 1fr 76px", alignItems: "center", gap: 10 }}>
+            <div className="luma-bar-label" style={{ fontFamily: F.sans, fontSize: 12, color: BURG, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", gridColumn: 1 }} title={r.key}>{r.key}</div>
+            <div className="luma-bar-track" style={{ background: "#EFE9DF", borderRadius: 99, height: 6, overflow: "hidden", gridColumn: 2 }}>
               <div style={{ background: accent, width: Math.max(2, Math.round((r.count / max) * 100)) + "%", height: "100%", borderRadius: 99 }} />
             </div>
-            <div style={{ fontFamily: F.sans, fontSize: 12, color: INK, opacity: 0.7, textAlign: "right", whiteSpace: "nowrap" }}>
+            <div className="luma-bar-value" style={{ fontFamily: F.sans, fontSize: 12, color: INK, opacity: 0.7, textAlign: "right", whiteSpace: "nowrap", gridColumn: 3 }}>
               {r.count.toLocaleString()}{pct != null && <span style={{ opacity: 0.55 }}> · {pct}%</span>}
             </div>
           </div>
@@ -12041,12 +12048,12 @@ function BreakdownCard({ title, entries, total }) {
           const pct = total ? Math.round((count / total) * 100) : 0;
           const barWidth = Math.round((count / max) * 100);
           return (
-            <div key={key} style={{ display: "grid", gridTemplateColumns: "180px 1fr 80px", alignItems: "center", gap: 12 }}>
-              <div style={{ fontFamily: F.sans, fontSize: 12, color: BURG, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{key}</div>
-              <div style={{ background: "#f0ebe5", borderRadius: 99, height: 8, position: "relative", overflow: "hidden" }}>
+            <div key={key} className="luma-bar-row" style={{ display: "grid", gridTemplateColumns: "180px 1fr 80px", alignItems: "center", gap: 12 }}>
+              <div className="luma-bar-label" style={{ fontFamily: F.sans, fontSize: 12, color: BURG, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", gridColumn: 1 }}>{key}</div>
+              <div className="luma-bar-track" style={{ background: "#f0ebe5", borderRadius: 99, height: 8, position: "relative", overflow: "hidden", gridColumn: 2 }}>
                 <div style={{ background: GOLD, width: barWidth + "%", height: "100%", borderRadius: 99, transition: "width 0.4s" }} />
               </div>
-              <div style={{ fontFamily: F.sans, fontSize: 12, color: "#666", textAlign: "right" }}>
+              <div className="luma-bar-value" style={{ fontFamily: F.sans, fontSize: 12, color: "#666", textAlign: "right", gridColumn: 3 }}>
                 {count.toLocaleString()} <span style={{ color: "#aaa" }}>· {pct}%</span>
               </div>
             </div>
