@@ -32,6 +32,14 @@ import {
   LEDGER_RATES, LEDGER_STANCE, LEDGER_SUMMARY, LEDGER_TOP_ACTION,
   LEDGER_TYPES, ledgerEntries,
 } from "../lib/demo-ledger";
+import {
+  CLAIM_CATEGORIES, CLAIM_STATUSES, SKU_COSTS, skuCost,
+  currencyForWarehouse, claimTotal, claimsSeed, RECOVERY_STATS,
+} from "../lib/demo-claims";
+import { VOC_WEIGHTING, VOC_MONTHS } from "../lib/demo-voc";
+import {
+  retentionCohorts, SAVE_PLAY_OUTCOMES, SKIPPED_SUBS, winbackList,
+} from "../lib/demo-retention";
 
 // ─── Design Tokens ───────────────────────────────────────────────────────────
 const RED  = "#B44444";
@@ -54,7 +62,7 @@ const TABS = ["Home","Insights","Reports","Logs","Records","Ask LUMÉ","Playbook
 const TEAM_ROLES = ["New Starter", "Agent", "Ops", "Lead Agent", "Manager", "Admin", "Owner"];
 // Hidden until those features are ready — flip individual entries to false
 // to surface them again.
-const HIDDEN_TABS = { "Ask LUMÉ": true, "Playbook": false, "Training": true, "Affiliates": true };
+const HIDDEN_TABS = { "Ask LUMÉ": true, "Playbook": false, "Training": false, "Affiliates": true };
 // Single source of truth for tab access, shared by the tab bar filter and
 // the redirect-on-preview effect so gated content can never stay mounted
 // for a role that shouldn't see it.
@@ -760,6 +768,7 @@ export default function App({ userId, role, displayName }) {
       {tab === "Playbook"   && <PlaybookTab   role={effectiveRole} queryRequest={playbookQueryRequest} />}
       {tab === "Team"       && <TeamTab       role={effectiveRole} />}
       {tab === "Training" && <TrainingTab
+        role={effectiveRole}
         bcProgress={bcProgress} saveBcProgress={saveBcProgress} bcView={bcView} setBcView={setBcView}
         bcDay={bcDay} setBcDay={setBcDay} bcLesson={bcLesson} setBcLesson={setBcLesson}
         bcQIdx={bcQIdx} setBcQIdx={setBcQIdx} bcChosen={bcChosen} setBcChosen={setBcChosen}
@@ -1123,6 +1132,150 @@ function ImpactHome({ displayName, setTab, role, stats }) {
               </button>
             ))}
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Reports · Recovery — what Parcelline owes, tracked to the dollar.
+function RecoveryView() {
+  const claims = claimsSeed();
+  const byStatus = groupCount(claims, (r) => prettyEnum(r.status, CLAIM_STATUSES));
+  const R = RECOVERY_STATS;
+  return (
+    <div style={{ background: CREAM, minHeight: "100vh" }}>
+      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "40px 24px 96px" }}>
+        <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, letterSpacing: 4, textTransform: "uppercase", fontWeight: 700, marginBottom: 8 }}>Reports · Recovery</div>
+        <div style={{ fontFamily: F.serif, fontSize: 40, color: BURG, fontWeight: 600, lineHeight: 1.05 }}>3PL Recovery</div>
+        <div style={{ fontFamily: F.serif, fontStyle: "italic", fontSize: 16, color: INK, opacity: 0.65, margin: "8px 0 24px", maxWidth: 640 }}>{R.caption}</div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, marginBottom: 24 }}>
+          <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 10, padding: "16px 18px" }}>
+            <div style={{ fontFamily: F.sans, fontSize: 10, color: "#999", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 6 }}>Recovered this quarter</div>
+            <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 10 }}>
+              <div style={{ fontFamily: F.serif, fontSize: 30, fontWeight: 700, color: BURG, lineHeight: 1 }}>{formatLedgerMoney(R.recoveredQuarter)}</div>
+              <Sparkline data={R.monthlyTrend} width={72} height={24} />
+            </div>
+            <div style={{ fontFamily: F.sans, fontSize: 11, color: "#888", marginTop: 6 }}>monthly trend</div>
+          </div>
+          <KpiTile label="Claims filed" value={R.claimsFiled} hint="this quarter" />
+          <KpiTile label="Approval rate" value={`${Math.round(R.approvalRate * 100)}%`} hint="of submitted claims" />
+          <KpiTile label="Days to reimbursement" value={R.avgDaysToReimbursement} hint="average, submission → paid" />
+        </div>
+
+        <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 10, padding: "16px 20px", marginBottom: 24, maxWidth: 560 }}>
+          <div style={{ fontFamily: F.sans, fontSize: 11, color: BURG, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 10 }}>Open claims by status</div>
+          <HBarList entries={byStatus} total={claims.length} labelWidth={210} />
+        </div>
+
+        <div style={{ fontFamily: F.sans, fontSize: 12, color: INK, opacity: 0.6, lineHeight: 1.6, maxWidth: 640 }}>
+          Claims are filed from Logs · 3PL Claim as issues come in, batch to Parcelline every Monday as CSV, and land here once reimbursed — every paid batch also posts to the Value Ledger.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Reports · Voice of Customer V2 — the decision tool. Three actions with
+// dollars attached, three wins, a watchlist, and one narrated paragraph.
+function VoCView() {
+  const [monthKey, setMonthKey] = useState("current");
+  const [copied, setCopied] = useState(false);
+  const M = VOC_MONTHS[monthKey];
+
+  async function copyForExec() {
+    const html = [
+      `<h3>LUMÉ — Voice of Customer (${M.label.toLowerCase()})</h3>`,
+      `<p><em>${VOC_WEIGHTING}</em></p>`,
+      "<h4>Top 3 actions</h4>",
+      "<ol>" + M.actions.map((a) => `<li><strong>${a.title}</strong> — ${a.signals} signals · ${a.impact}</li>`).join("") + "</ol>",
+      "<h4>Wins</h4>",
+      "<ul>" + M.wins.map((wv) => `<li>${wv.title} — ${wv.detail}</li>`).join("") + "</ul>",
+      `<p>${M.summary}</p>`,
+    ].join("");
+    const plain = html.replace(/<[^>]+>/g, "");
+    try {
+      if (navigator.clipboard?.write && typeof ClipboardItem !== "undefined") {
+        await navigator.clipboard.write([new ClipboardItem({
+          "text/html": new Blob([html], { type: "text/html" }),
+          "text/plain": new Blob([plain], { type: "text/plain" }),
+        })]);
+      } else {
+        await navigator.clipboard.writeText(plain);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+      notify("Copied for exec — paste straight into email or Slack");
+    } catch {
+      notify("Could not access the clipboard — try again");
+    }
+  }
+
+  return (
+    <div style={{ background: CREAM, minHeight: "100vh" }}>
+      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "40px 24px 96px" }}>
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 6 }}>
+          <div>
+            <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, letterSpacing: 4, textTransform: "uppercase", fontWeight: 700, marginBottom: 8 }}>Reports · Voice of Customer</div>
+            <div style={{ fontFamily: F.serif, fontSize: 40, color: BURG, fontWeight: 600, lineHeight: 1.05 }}>What customers are telling us</div>
+            <div style={{ fontFamily: F.sans, fontSize: 12, color: INK, opacity: 0.6, marginTop: 8 }}>{VOC_WEIGHTING}</div>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {["current", "previous"].map((k) => (
+              <button key={k} onClick={() => setMonthKey(k)} style={{ background: monthKey === k ? BURG : "transparent", color: monthKey === k ? CREAM : BURG, border: "1px solid " + (monthKey === k ? BURG : SOFT_BORDER), fontFamily: F.sans, fontSize: 11, fontWeight: 700, padding: "8px 16px", letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer", borderRadius: 99 }}>
+                {VOC_MONTHS[k].label}
+              </button>
+            ))}
+            <button onClick={copyForExec} style={{ background: "transparent", color: BURG, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700, padding: "8px 16px", letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer", borderRadius: 99 }}>
+              {copied ? "Copied" : "Copy for exec"}
+            </button>
+          </div>
+        </div>
+
+        <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, fontWeight: 800, letterSpacing: 2.5, textTransform: "uppercase", margin: "26px 0 12px" }}>Top 3 actions — with dollars attached</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
+          {M.actions.map((a, i) => (
+            <div key={i} style={{ background: W, border: "1px solid " + SOFT_BORDER, borderLeft: "3px solid " + GOLD, borderRadius: 12, padding: "18px 20px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
+                <span style={{ fontFamily: F.serif, fontSize: 26, color: GOLD, fontWeight: 600, lineHeight: 1 }}>{i + 1}</span>
+                <span style={{ fontFamily: F.sans, fontSize: 11, color: INK, opacity: 0.55 }}>{a.signals} signals</span>
+              </div>
+              <div style={{ fontFamily: F.serif, fontSize: 17, color: BURG, fontWeight: 600, lineHeight: 1.3, marginBottom: 6 }}>{a.title}</div>
+              <div style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: BURG, marginBottom: 8 }}>{a.impact}</div>
+              <div style={{ fontFamily: F.sans, fontSize: 12.5, color: INK, opacity: 0.7, lineHeight: 1.55 }}>{a.detail}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 22, alignItems: "start" }}>
+          <div>
+            <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, fontWeight: 800, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 12 }}>Top 3 wins</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {M.wins.map((wv, i) => (
+                <div key={i} style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 10, padding: "12px 16px", display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
+                  <span style={{ fontFamily: F.serif, fontSize: 16, color: BURG, fontWeight: 600 }}>{wv.title}</span>
+                  <span style={{ fontFamily: F.sans, fontSize: 12, color: INK, opacity: 0.6 }}>{wv.detail}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontFamily: F.sans, fontSize: 10, color: "#A5544A", fontWeight: 800, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 12 }}>Watchlist</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {M.watchlist.map((wl, i) => (
+                <div key={i} style={{ background: W, border: "1px solid " + SOFT_BORDER, borderLeft: "3px solid #A5544A", borderRadius: 10, padding: "12px 16px" }}>
+                  <div style={{ fontFamily: F.sans, fontSize: 13, color: BURG, fontWeight: 700 }}>{wl.title}</div>
+                  <div style={{ fontFamily: F.sans, fontSize: 12, color: INK, opacity: 0.65, marginTop: 2, lineHeight: 1.5 }}>{wl.detail}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 12, padding: "22px 26px", marginTop: 22 }}>
+          <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, fontWeight: 800, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 10 }}>The read</div>
+          <div style={{ fontFamily: F.serif, fontSize: 17, color: INK, lineHeight: 1.7, maxWidth: 820 }}>{M.summary}</div>
         </div>
       </div>
     </div>
@@ -1780,9 +1933,21 @@ function PremiumTile({ label, value, hint, trend }) {
 // ─── Training Tab (wrapper with internal sub-nav) ─────────────────
 const TRAINING_SUBTABS = ["Bootcamp", "Simulate", "Quiz", "Compare", "Progress"];
 
+// Demo review queue for Lead Agent+ — trainee submissions awaiting a
+// human pass on top of the AI grade.
+const TRAINING_REVIEW_QUEUE = [
+  { trainee: "Ruby Tran",    item: "Scenario 4 — Cancel save via formula swap", aiScore: 82, waiting: "2h" },
+  { trainee: "Jack Halloran", item: "Scenario 9 — Refund outside 30 days",      aiScore: 78, waiting: "5h" },
+  { trainee: "Mia Castellanos", item: "Week 2 writing — lost package",          aiScore: 88, waiting: "1d" },
+];
+
 function TrainingTab(props) {
+  const role = props.role;
   const [sub, setSub] = useState("Bootcamp");
   const eyebrowS = { fontFamily: F.sans, fontSize: 10, color: GOLD, textTransform: "uppercase", letterSpacing: 4, fontWeight: 600, marginBottom: 14 };
+  const isNewStarter = role === "New Starter";
+  const isReviewer = ["Lead Agent", "Manager"].includes(role);
+  const isEditor = ["Admin", "Owner"].includes(role);
 
   return (
     <div style={{ background: CREAM, minHeight: "100vh" }}>
@@ -1792,6 +1957,52 @@ function TrainingTab(props) {
         <div style={{ fontFamily: F.serif, fontSize: 40, color: BURG, fontWeight: 600, lineHeight: 1.05, marginBottom: 24, letterSpacing: -1 }}>
           {sub}
         </div>
+
+        {/* Role-aware shell (Module B): New Starters see their own path;
+            Agents get reference mode; Lead+ review; Admin+ edit. */}
+        {isNewStarter && (
+          <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 14, padding: "20px 24px", marginBottom: 20 }}>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <div style={{ fontFamily: F.serif, fontSize: 20, color: BURG, fontWeight: 600 }}>Your 30-day path — Day 12</div>
+              <div style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: GOLD, letterSpacing: 1, textTransform: "uppercase" }}>40% complete</div>
+            </div>
+            <div style={{ background: "#EFE9DF", borderRadius: 99, height: 8, overflow: "hidden", margin: "12px 0 10px" }}>
+              <div style={{ background: GOLD, width: "40%", height: "100%", borderRadius: 99 }} />
+            </div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+              <div style={{ fontFamily: F.sans, fontSize: 12.5, color: INK, opacity: 0.7 }}>
+                You're in <strong style={{ color: BURG }}>Week 2 — The Playbook</strong> · next up: policy edge cases and the escalation map
+              </div>
+              <button onClick={() => setSub("Bootcamp")} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700, padding: "8px 18px", letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer", borderRadius: 99 }}>
+                Continue
+              </button>
+            </div>
+          </div>
+        )}
+        {role === "Agent" && (
+          <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 10, padding: "12px 18px", marginBottom: 20, fontFamily: F.serif, fontStyle: "italic", fontSize: 14, color: INK, opacity: 0.75 }}>
+            Reference mode — you've graduated. Revisit any module, scenario, or the compare matrix whenever you need a refresher.
+          </div>
+        )}
+        {isReviewer && (
+          <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 14, padding: "18px 22px", marginBottom: 20 }}>
+            <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, fontWeight: 800, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 10 }}>Review queue — {TRAINING_REVIEW_QUEUE.length} waiting</div>
+            {TRAINING_REVIEW_QUEUE.map((q, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "7px 0", borderTop: i > 0 ? "1px solid #F0EBE3" : "none", flexWrap: "wrap" }}>
+                <span style={{ fontFamily: F.sans, fontSize: 13, color: BURG, fontWeight: 700, width: 130 }}>{q.trainee}</span>
+                <span style={{ fontFamily: F.sans, fontSize: 12.5, color: INK, flex: 1, minWidth: 200 }}>{q.item}</span>
+                <span style={{ fontFamily: F.sans, fontSize: 11, color: INK, opacity: 0.55 }}>AI score {q.aiScore} · waiting {q.waiting}</span>
+                <button onClick={() => notify(`Opening ${q.trainee}'s submission — demo`)} style={{ background: "transparent", border: "1px solid " + SOFT_BORDER, color: BURG, fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", padding: "4px 12px", borderRadius: 99, cursor: "pointer" }}>Review</button>
+              </div>
+            ))}
+          </div>
+        )}
+        {isEditor && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 10, padding: "12px 18px", marginBottom: 20 }}>
+            <span style={{ fontFamily: F.sans, fontSize: 12.5, color: INK, opacity: 0.75 }}>You can edit the curriculum — changes publish to every New Starter's path.</span>
+            <button onClick={() => notify("Curriculum editor — demo")} style={{ background: "transparent", border: "1px solid " + BURG, color: BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", padding: "8px 16px", borderRadius: 99, cursor: "pointer" }}>Edit curriculum</button>
+          </div>
+        )}
         {/* Sub-nav pills */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           {TRAINING_SUBTABS.map((s) => {
@@ -1856,7 +2067,7 @@ function TrainingTab(props) {
 
 // "Cancellations" hidden May 13 — Skio is the source of truth (per Aina).
 // Model + API + config preserved as orphans in case we revive it.
-const RECORDS_SUBTABS = ["Order Issue", "Replacements", "Reaction/Concern", "Feedback"];
+const RECORDS_SUBTABS = ["Order Issue", "Replacements", "Reaction/Concern", "Feedback", "Claims"];
 
 // RECORDS_CONFIG is built lazily inside RecordsTab so it can reference
 // the dropdown constants declared in the Logs section (ISSUE_CATEGORIES,
@@ -1959,6 +2170,24 @@ function buildRecordsConfig() {
       { key: "status",               label: "Status",    type: "select",   editable: true,  width: 130, options: AR_STATUS.map(s => s.value), labels: AR_STATUS },
     ],
   },
+  Claims: {
+    listUrl: "/api/logs/claims",
+    patchUrl: (id) => `/api/logs/claims/${id}`,
+    columns: [
+      { key: "createdAt",       label: "Created",   type: "date",   editable: false, width: 110 },
+      { key: "claimRef",        label: "Claim ref", type: "text",   editable: false, width: 100 },
+      { key: "orderId",         label: "Order ID",  type: "text",   editable: false, width: 110 },
+      { key: "ticketId",        label: "Ticket #",  type: "text",   editable: true,  width: 90 },
+      { key: "warehouse",       label: "Warehouse", type: "select", editable: true,  width: 130, options: ISSUE_WAREHOUSES },
+      { key: "category",        label: "Category",  type: "select", editable: true,  width: 160, options: CLAIM_CATEGORIES.map(c => c.value), labels: CLAIM_CATEGORIES },
+      { key: "items",           label: "Items",     type: "csv",    editable: false, width: 180, format: (items) => (items || []).map((i) => `${i.sku} ×${i.qty}`).join(", ") },
+      { key: "claimTotalValue", label: "Claim $",   type: "text",   editable: false, width: 90,  format: (v) => v != null ? Number(v).toFixed(2) : "" },
+      { key: "currency",        label: "Currency",  type: "text",   editable: false, width: 80 },
+      { key: "status",          label: "Status",    type: "select", editable: true,  width: 200, options: CLAIM_STATUSES.map(c => c.value), labels: CLAIM_STATUSES },
+      { key: "evidenceUrls",    label: "Evidence",  type: "csv",    editable: true,  width: 200 },
+      { key: "notes",           label: "Notes",     type: "textarea", editable: true, width: 260 },
+    ],
+  },
   "Ops Requests": {
     listUrl: "/api/logs/order-requests",
     patchUrl: (id) => `/api/logs/order-requests/${id}`,
@@ -2019,6 +2248,7 @@ function RecordsTab({ role }) {
     "Replacements":     "Every replacement request, intake through delivery.",
     "Reaction/Concern": "Every adverse reaction or skin concern on file.",
     "Feedback":         "Every customer feedback note and feature request.",
+    "Claims":           "Every Parcelline claim with item-level landed costs — the audit trail behind Recovery.",
   };
   return (
     <div style={{ background: CREAM, minHeight: "100vh" }}>
@@ -2051,6 +2281,7 @@ function RecordsTab({ role }) {
 // Seed rows per Records list URL — the grid renders instantly and then
 // refreshes silently from the API.
 const RECORDS_SEEDS = {
+  "/api/logs/claims": claimsSeed,
   "/api/logs/issues": issuesSeed,
   "/api/logs/replacements": replacementsSeed,
   "/api/logs/cancellations": cancellationsSeed,
@@ -2279,6 +2510,7 @@ function RecordsGrid({ subName, config }) {
 // labels, strips "main::Sub" composite prefixes, joins arrays. Shared by
 // the Records grid and its CSV export so no raw enum value ever renders.
 function displayCellValue(col, value) {
+  if (col.format) return col.format(value);
   const one = (v) => {
     const s = String(v ?? "");
     const bare = s.includes("::") ? s.split("::").pop() : s;
@@ -2397,11 +2629,11 @@ function ReportsTab({ role }) {
   return <ReportsShell canSeeImpact={canSeeImpact} />;
 }
 
-const REPORTS_SUBTABS = ["Weekly Summary", "Impact"];
+const REPORTS_SUBTABS = ["Weekly Summary", "Impact", "Recovery", "Voice of Customer"];
 
 function ReportsShell({ canSeeImpact }) {
   const [sub, setSub] = useState("Weekly Summary");
-  const subtabs = canSeeImpact ? REPORTS_SUBTABS : ["Weekly Summary"];
+  const subtabs = REPORTS_SUBTABS.filter((t) => t !== "Impact" || canSeeImpact);
   return (
     <div style={{ background: CREAM, minHeight: "100vh" }}>
       {subtabs.length > 1 && (
@@ -2420,7 +2652,10 @@ function ReportsShell({ canSeeImpact }) {
           })}
         </div>
       )}
-      {sub === "Weekly Summary" ? <WeeklySummaryView /> : <LedgerView />}
+      {sub === "Weekly Summary" && <WeeklySummaryView />}
+      {sub === "Impact" && <LedgerView />}
+      {sub === "Recovery" && <RecoveryView />}
+      {sub === "Voice of Customer" && <VoCView />}
     </div>
   );
 }
@@ -3788,7 +4023,7 @@ function SendToStakeholdersModal({ report, fromDate, toDate, onClose }) {
 // (data is already in Skio, no need to log separately). The model,
 // API route, and CancellationLogPanel component are preserved as
 // orphans in case we ever need to revive the tab.
-const LOGS_SUBTABS = ["Order Issue", "Replacements", "Reaction/Concern", "Feedback"];
+const LOGS_SUBTABS = ["Order Issue", "Replacements", "Reaction/Concern", "Feedback", "3PL Claim"];
 
 // Ops Request "Warehouse" dropdown — the three canonical LUMÉ
 // warehouses (Parcelline 3PL), matching the Issue tab's Warehouse field,
@@ -4068,6 +4303,7 @@ function LogsTab({ role, subRequest, setTab }) {
     "Replacements":      "Capture replacement dispatches. Order number auto-fills customer details — pick the reason and items affected.",
     "Reaction/Concern":  "Any customer reporting an unexpected skin or scalp reaction. Log verbatim and escalate immediately to Head of CX.",
     "Feedback":          "Positive shoutouts, feature requests, and constructive notes. Order ID optional for social/chat feedback.",
+    "3PL Claim":         "File a claim against Parcelline for lost, damaged, or mis-picked stock. Items map to landed cost; claims batch to Parcelline weekly.",
   };
   const tagline = SUBTAB_TAGLINES[sub] ?? "Log entries here — they feed the weekly report automatically.";
   return (
@@ -4099,6 +4335,7 @@ function LogsTab({ role, subRequest, setTab }) {
       {sub === "Replacements" && <ReplacementLogPanel role={role} onViewRecords={onViewRecords} />}
       {sub === "Reaction/Concern" && <AdverseReactionLogPanel role={role} onViewRecords={onViewRecords} />}
       {sub === "Feedback" && <FeedbackLogPanel role={role} onViewRecords={onViewRecords} />}
+      {sub === "3PL Claim" && <ClaimLogPanel role={role} onViewRecords={onViewRecords} />}
     </div>
   );
 }
@@ -4944,6 +5181,302 @@ function ReplacementLogPanel({ role, onViewRecords }) {
                 } },
                 { key: "solution",  label: "Solution",              render: (r) => truncate(r.solution || r.details, 80) },
                 editColumn(role, startEdit),
+              ]}
+            />
+          </>
+        );
+      })()}
+    </div>
+  );
+}
+
+// ─── Module A — 3PL Claim log ─────────────────────────────────────
+// Any agent can file. Items map to Parcelline landed costs; claims are
+// batched weekly as CSV to Parcelline's claims team.
+
+function ClaimLogPanel({ role, onViewRecords }) {
+  const [orderId, setOrderId] = useState("");
+  const [ticketId, setTicketId] = useState("");
+  const [warehouse, setWarehouse] = useState("");
+  const [category, setCategory] = useState("");
+  const [items, setItems] = useState([]); // [{ sku, qty }]
+  const [status, setStatus] = useState("draft");
+  const [evidenceText, setEvidenceText] = useState("");
+  const [notes, setNotes] = useState("");
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupError, setLookupError] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState(null);
+  const [savedLabel, setSavedLabel] = useState(null);
+  const [recent, setRecent] = useState(() => claimsSeed()); // instant render — refreshed silently
+  const [loading, setLoading] = useState(false);
+
+  const clearDraft = useFormDraft("draft_claim", {
+    orderId: [orderId, setOrderId], ticketId: [ticketId, setTicketId],
+    warehouse: [warehouse, setWarehouse], category: [category, setCategory],
+    items: [items, setItems], status: [status, setStatus],
+    evidenceText: [evidenceText, setEvidenceText], notes: [notes, setNotes],
+  });
+  useEffect(() => { if (savedLabel && (orderId || notes)) setSavedLabel(null); }, [orderId, notes]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function loadRecent() {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/logs/claims?limit=30");
+      const json = await res.json();
+      if (res.ok) setRecent(json.rows ?? []);
+    } finally { setLoading(false); }
+  }
+  useEffect(() => { loadRecent(); }, []);
+
+  async function lookupOrder() {
+    if (!orderId.trim()) return;
+    setLookupLoading(true);
+    setLookupError(null);
+    try {
+      const res = await fetch(`/api/orders/lookup?id=${encodeURIComponent(orderId.trim())}`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      const wh = json.warehouse || warehouseFromCountry(json.country);
+      if (wh) setWarehouse(wh);
+    } catch (e) { setLookupError(e.message); }
+    finally { setLookupLoading(false); }
+  }
+
+  function toggleSku(sku) {
+    setItems((cur) => cur.some((i) => i.sku === sku) ? cur.filter((i) => i.sku !== sku) : [...cur, { sku, qty: 1 }]);
+  }
+  function setQty(sku, qty) {
+    const q = Math.max(1, Math.min(99, Number(qty) || 1));
+    setItems((cur) => cur.map((i) => i.sku === sku ? { ...i, qty: q } : i));
+  }
+  const total = claimTotal(items);
+  const currency = warehouse ? currencyForWarehouse(warehouse) : "AUD";
+
+  async function submit() {
+    setFormError(null);
+    if (!orderId.trim()) { setFormError("Order ID required"); return; }
+    if (!ticketId.trim()) { setFormError("Gorgias ticket # required"); return; }
+    if (!warehouse) { setFormError("Warehouse required"); return; }
+    if (!category) { setFormError("Category required"); return; }
+    if (items.length === 0) { setFormError("At least one item required"); return; }
+    setSubmitting(true);
+    try {
+      const evidenceUrls = evidenceText.split(/[\n,]/).map((x) => x.trim()).filter(Boolean);
+      const nextRef = "PLC-" + (2418 + recent.filter((r) => String(r.id).includes("demo-clm-1")).length + 1);
+      const res = await fetch("/api/logs/claims", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          claimRef: nextRef,
+          orderId: orderId.trim(),
+          ticketId: ticketId.trim(),
+          warehouse, category, items, status,
+          claimTotalValue: total,
+          currency: currencyForWarehouse(warehouse),
+          evidenceUrls,
+          notes: notes.trim() || undefined,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      const saved = orderId.trim();
+      setOrderId(""); setTicketId(""); setWarehouse(""); setCategory("");
+      setItems([]); setStatus("draft"); setEvidenceText(""); setNotes("");
+      clearDraft();
+      setRecent((cur) => [json.row, ...cur]);
+      notify(`Claim filed — ${saved} (${formatLedgerMoney(total)})`);
+      setSavedLabel(`Claim filed for ${saved}`);
+    } catch (e) { setFormError(e.message); }
+    finally { setSubmitting(false); }
+  }
+
+  // ── Weekly batch: everything non-draft from the last 7 days ──
+  const batch = recent.filter((r) => r.status !== "draft" && r.status !== "rejected" && (Date.now() - new Date(r.createdAt).getTime()) < 7 * 86400000);
+  const byWarehouse = {};
+  for (const c of batch) (byWarehouse[c.warehouse] = byWarehouse[c.warehouse] || []).push(c);
+  const currencyTotals = {};
+  for (const c of batch) currencyTotals[c.currency] = Math.round(((currencyTotals[c.currency] || 0) + (c.claimTotalValue || 0)) * 100) / 100;
+
+  function weekCommencing() {
+    const d = new Date();
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    return d.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" });
+  }
+
+  function downloadBatchCSV() {
+    const esc = (v) => /[",\n]/.test(String(v ?? "")) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v ?? "");
+    const header = ["claim_ref", "order_id", "warehouse", "sku", "qty", "unit_cost", "claim_total", "currency", "category", "evidence_url", "notes"].join(",");
+    const lines = [];
+    for (const c of batch) {
+      for (const it of c.items || []) {
+        lines.push([
+          c.claimRef, c.orderId, c.warehouse, it.sku, it.qty,
+          skuCost(it.sku).toFixed(2), (c.claimTotalValue ?? claimTotal(c.items)).toFixed(2),
+          c.currency, prettyEnum(c.category, CLAIM_CATEGORIES),
+          (c.evidenceUrls || [])[0] || "", c.notes || "",
+        ].map(esc).join(","));
+      }
+    }
+    const blob = new Blob([header + "\n" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `LUME_parcelline_claims_wc_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    notify("Weekly claims batch downloaded");
+  }
+
+  function emailBatch() {
+    const subject = encodeURIComponent(`LUMÉ weekly claims batch — w/c ${weekCommencing()}`);
+    const totalsLine = Object.entries(currencyTotals).map(([cur, v]) => `${cur} ${v.toFixed(2)}`).join(" · ");
+    const body = encodeURIComponent(
+      `Hi Parcelline claims team,\n\nAttached is this week's LUMÉ claims batch — ${batch.length} claims (${totalsLine}).\nCSV generated from the LUMÉ CX Hub.\n\nWarmly,\nLUMÉ CX`
+    );
+    window.location.href = `mailto:claims@parcelline.com?cc=ops@lumebeauty.com&subject=${subject}&body=${body}`;
+  }
+
+  const inputBase = { width: "100%", padding: "10px 14px", borderRadius: 8, border: "1px solid " + SOFT_BORDER, background: W, fontFamily: F.sans, fontSize: 13, color: INK, outline: "none", boxSizing: "border-box" };
+  const labelStyle = { fontFamily: F.sans, fontSize: 10, color: INK, opacity: 0.7, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 4, display: "block" };
+
+  return (
+    <div style={{ maxWidth: 1100, margin: "0 auto", padding: "16px 24px 96px" }}>
+      <div onKeyDown={makeFormKeyHandler(submit)} style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 14, padding: "24px 28px", marginBottom: 24 }}>
+        <div style={{ fontFamily: F.serif, fontSize: 22, color: BURG, fontWeight: 600, marginBottom: 18 }}>File a Parcelline claim</div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
+          <div>
+            <label style={labelStyle}>Order ID <span style={{ color: RED, fontWeight: 700 }}>*</span></label>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input value={orderId} onChange={(e) => setOrderId(e.target.value)} placeholder="#LME-10500" style={{ ...inputBase, flex: 1 }} />
+              <button onClick={lookupOrder} disabled={!orderId.trim() || lookupLoading} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700, padding: "0 18px", letterSpacing: 1.5, textTransform: "uppercase", cursor: orderId.trim() && !lookupLoading ? "pointer" : "not-allowed", borderRadius: 8, opacity: orderId.trim() && !lookupLoading ? 1 : 0.5 }}>Lookup</button>
+            </div>
+            {lookupError && <div style={{ fontFamily: F.sans, fontSize: 11, color: RED, marginTop: 4 }}>{lookupError}</div>}
+          </div>
+          <div>
+            <label style={labelStyle}>Gorgias ticket # <span style={{ color: RED, fontWeight: 700 }}>*</span></label>
+            <input value={ticketId} onChange={(e) => setTicketId(e.target.value)} placeholder="e.g. 4821" style={inputBase} />
+          </div>
+          <div>
+            <label style={labelStyle}>Warehouse <span style={{ color: RED, fontWeight: 700 }}>*</span></label>
+            <Combobox value={warehouse} onChange={setWarehouse} options={ISSUE_WAREHOUSES} placeholder="Auto-fills from lookup" />
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+          <div>
+            <label style={labelStyle}>Category <span style={{ color: RED, fontWeight: 700 }}>*</span></label>
+            <Combobox value={category} onChange={setCategory} options={CLAIM_CATEGORIES} placeholder="What went wrong…" />
+          </div>
+          <div>
+            <label style={labelStyle}>Status</label>
+            <Combobox value={status} onChange={setStatus} options={CLAIM_STATUSES} />
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <label style={labelStyle}>Items <span style={{ color: RED, fontWeight: 700 }}>*</span> <span style={{ fontFamily: F.serif, fontStyle: "italic", textTransform: "none", letterSpacing: 0, fontWeight: 400, opacity: 0.7 }}>(mapped to Parcelline landed cost)</span></label>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: items.length ? 12 : 0 }}>
+            {SKU_COSTS.map((sk) => {
+              const on = items.some((i) => i.sku === sk.sku);
+              return (
+                <button key={sk.sku} onClick={() => toggleSku(sk.sku)} style={{ background: on ? BURG : "transparent", color: on ? CREAM : BURG, border: "1px solid " + (on ? BURG : SOFT_BORDER), fontFamily: F.sans, fontSize: 12, padding: "7px 14px", borderRadius: 99, cursor: "pointer" }}>
+                  {sk.label} · ${sk.cost.toFixed(2)}
+                </button>
+              );
+            })}
+          </div>
+          {items.length > 0 && (
+            <div style={{ background: CREAM, border: "1px solid " + SOFT_BORDER, borderRadius: 10, padding: "12px 16px" }}>
+              {items.map((it) => {
+                const sk = SKU_COSTS.find((x) => x.sku === it.sku);
+                return (
+                  <div key={it.sku} style={{ display: "flex", alignItems: "center", gap: 12, padding: "4px 0", fontFamily: F.sans, fontSize: 13 }}>
+                    <span style={{ flex: 1, color: BURG, fontWeight: 600 }}>{sk?.label} <span style={{ opacity: 0.5, fontWeight: 400 }}>({it.sku})</span></span>
+                    <span style={{ opacity: 0.6 }}>${skuCost(it.sku).toFixed(2)} ×</span>
+                    <input type="number" min={1} max={99} value={it.qty} onChange={(e) => setQty(it.sku, e.target.value)} style={{ width: 56, padding: "5px 8px", borderRadius: 6, border: "1px solid " + SOFT_BORDER, fontFamily: F.sans, fontSize: 13, textAlign: "center" }} />
+                    <span style={{ width: 70, textAlign: "right", color: BURG, fontWeight: 700 }}>${(skuCost(it.sku) * it.qty).toFixed(2)}</span>
+                  </div>
+                );
+              })}
+              <div style={{ borderTop: "1px dashed " + SOFT_BORDER, marginTop: 8, paddingTop: 8, display: "flex", justifyContent: "flex-end", fontFamily: F.sans, fontSize: 13 }}>
+                <span style={{ opacity: 0.6, marginRight: 10 }}>Claim total</span>
+                <span style={{ color: BURG, fontWeight: 800 }}>{currency} {total.toFixed(2)}</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+          <div>
+            <label style={labelStyle}>Evidence URLs (one per line)</label>
+            <textarea value={evidenceText} onChange={(e) => setEvidenceText(e.target.value)} rows={2} placeholder="https://drive.google.com/…" style={{ ...inputBase, fontFamily: F.sans, resize: "vertical" }} />
+          </div>
+          <div>
+            <label style={labelStyle}>Notes</label>
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="What Parcelline needs to approve this first pass." style={{ ...inputBase, fontFamily: F.sans, resize: "vertical" }} />
+          </div>
+        </div>
+
+        {formError && <div style={{ background: "#fee", border: "1px solid " + RED, color: RED, padding: 8, borderRadius: 6, marginBottom: 12, fontFamily: F.sans, fontSize: 12 }}>{formError}</div>}
+
+        <FormActionBar note="Claims batch to Parcelline every Monday — file as you go.">
+          {savedLabel ? (
+            <SavedActions savedLabel={savedLabel} onLogAnother={() => setSavedLabel(null)} onViewRecords={onViewRecords} />
+          ) : (
+          <button onClick={submit} disabled={submitting} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 12, fontWeight: 700, padding: "12px 28px", letterSpacing: 2, textTransform: "uppercase", cursor: submitting ? "wait" : "pointer", borderRadius: 99, opacity: submitting ? 0.6 : 1 }}>{submitting ? "Saving" : "File Claim"}</button>
+          )}
+        </FormActionBar>
+      </div>
+
+      {/* ── This week's batch — what goes to Parcelline on Monday ── */}
+      <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 14, padding: "20px 24px", marginBottom: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
+          <div>
+            <div style={{ fontFamily: F.serif, fontSize: 18, color: BURG, fontWeight: 600 }}>This week's batch — {batch.length} claim{batch.length === 1 ? "" : "s"}</div>
+            <div style={{ fontFamily: F.sans, fontSize: 12, color: INK, opacity: 0.6, marginTop: 2 }}>
+              {Object.entries(currencyTotals).map(([cur, v]) => `${cur} ${v.toFixed(2)}`).join(" · ") || "Nothing queued yet"}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={downloadBatchCSV} disabled={batch.length === 0} style={{ background: "transparent", color: BURG, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700, padding: "9px 16px", letterSpacing: 1.5, textTransform: "uppercase", cursor: batch.length ? "pointer" : "not-allowed", borderRadius: 99, opacity: batch.length ? 1 : 0.5 }}>Download CSV</button>
+            <button onClick={emailBatch} disabled={batch.length === 0} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700, padding: "9px 16px", letterSpacing: 1.5, textTransform: "uppercase", cursor: batch.length ? "pointer" : "not-allowed", borderRadius: 99, opacity: batch.length ? 1 : 0.5 }}>Email to Parcelline</button>
+          </div>
+        </div>
+        {Object.entries(byWarehouse).map(([wh, claims]) => (
+          <div key={wh} style={{ padding: "8px 0", borderTop: "1px solid #F0EBE3" }}>
+            <div style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", color: GOLD, marginBottom: 6 }}>{wh}</div>
+            {claims.map((c) => (
+              <div key={c.id} style={{ display: "flex", gap: 12, alignItems: "baseline", fontFamily: F.sans, fontSize: 12.5, padding: "3px 0", flexWrap: "wrap" }}>
+                <span style={{ color: BURG, fontWeight: 700, width: 74 }}>{c.claimRef}</span>
+                <span style={{ opacity: 0.7, width: 96 }}>{c.orderId}</span>
+                <span style={{ flex: 1, minWidth: 140 }}>{prettyEnum(c.category, CLAIM_CATEGORIES)} — {(c.items || []).map((i) => `${i.sku} ×${i.qty}`).join(", ")}</span>
+                <span style={{ color: BURG, fontWeight: 700 }}>{c.currency} {(c.claimTotalValue ?? 0).toFixed(2)}</span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+
+      {(() => {
+        const recent7 = filterLast7Days(recent);
+        return (
+          <>
+            <div style={{ fontFamily: F.sans, fontSize: 11, color: BURG, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", marginBottom: 12 }}>
+              Recent claims · last 7 days ({recent7.length})
+            </div>
+            <RecentLogTable
+              rows={recent7}
+              emptyMessage="No claims filed in the last 7 days."
+              columns={[
+                { key: "createdAt", label: "Date",     width: 70,  render: (r) => shortDate(r.createdAt) },
+                { key: "claimRef",  label: "Claim",    width: 90 },
+                { key: "orderId",   label: "Order",    width: 100 },
+                { key: "category",  label: "Category", width: 170, render: (r) => prettyEnum(r.category, CLAIM_CATEGORIES) },
+                { key: "items",     label: "Items",                render: (r) => (r.items || []).map((i) => `${i.sku} ×${i.qty}`).join(", ") },
+                { key: "claimTotalValue", label: "Total", width: 100, render: (r) => `${r.currency} ${(r.claimTotalValue ?? 0).toFixed(2)}` },
+                { key: "status",    label: "Status",   width: 190, render: (r) => prettyEnum(r.status, CLAIM_STATUSES) },
               ]}
             />
           </>
@@ -9518,6 +10051,7 @@ function CommandPalette({ open, onClose, role, setTab, requestLogsSub, requestPl
     { section: "Actions", label: "Log replacement", hint: "Logs · Replacements", run: () => { setTab("Logs"); requestLogsSub("Replacements"); } },
     { section: "Actions", label: "Log reaction / concern", hint: "Logs · Reaction", run: () => { setTab("Logs"); requestLogsSub("Reaction/Concern"); } },
     { section: "Actions", label: "Log feedback", hint: "Logs · Feedback", run: () => { setTab("Logs"); requestLogsSub("Feedback"); } },
+    { section: "Actions", label: "New 3PL claim", hint: "Logs · 3PL Claim", run: () => { setTab("Logs"); requestLogsSub("3PL Claim"); } },
   ].filter((a) => match(a.label));
 
   const navItems = TABS.filter((t) => canAccessTab(t, role)).map((t) => ({
@@ -10466,6 +11000,121 @@ function formatMoney(value, currency = "USD") {
   }
 }
 
+// ─── Module D — Retention Cohorts (extends Insights) ─────────────────────────
+
+function heatCellStyle(rate) {
+  if (rate == null) return { background: "#F6F2EB", color: "#C8BFB2" };
+  // 0.78 → 0.94 mapped onto a gold wash — deeper = better retention.
+  const t = Math.max(0, Math.min(1, (rate - 0.78) / 0.16));
+  const alpha = 0.10 + t * 0.55;
+  return { background: `rgba(196,169,107,${alpha.toFixed(2)})`, color: t > 0.6 ? "#3A2F1B" : INK };
+}
+
+function RetentionSection() {
+  const cohorts = retentionCohorts();
+  const winback = winbackList();
+  const S = SAVE_PLAY_OUTCOMES;
+
+  function exportWinback() {
+    const esc = (v) => /[",\n]/.test(String(v ?? "")) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v ?? "");
+    const header = ["Name", "Phone", "Country", "Hair profile", "Edit pairing", "Cancelled reason", "Would have renewed"].join(",");
+    const body = winback.map((r) => [r.name, r.phone, r.country, r.hairProfile, r.pairing, r.cancelledReason, r.wouldRenew].map(esc).join(",")).join("\n");
+    const blob = new Blob([header + "\n" + body], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `LUME_winback_outreach_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    notify("Win-back list exported — ready for outreach");
+  }
+
+  const th = { padding: "9px 12px", fontSize: 10, fontWeight: 700, color: "#888", letterSpacing: 1.2, textTransform: "uppercase", borderBottom: "1px solid " + SOFT_BORDER, background: CREAM, whiteSpace: "nowrap" };
+  const td = { padding: "9px 12px", fontFamily: F.sans, fontSize: 12.5, borderBottom: "1px solid #F3EEE6", whiteSpace: "nowrap" };
+
+  return (
+    <>
+      <div style={{ fontFamily: F.sans, fontSize: 11, color: "#999", textTransform: "uppercase", letterSpacing: 1.5, margin: "24px 0 8px" }}>Retention · 90-day cohorts</div>
+
+      <div style={{ background: W, border: "1px solid #e0d9d0", borderRadius: 10, overflow: "auto", marginBottom: 12 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 640 }}>
+          <thead>
+            <tr>
+              <th style={{ ...th, textAlign: "left" }}>Signup month</th>
+              <th style={{ ...th, textAlign: "right" }}>Signups</th>
+              <th style={{ ...th, textAlign: "right" }}>Active</th>
+              <th style={{ ...th, textAlign: "right" }}>Paused</th>
+              <th style={{ ...th, textAlign: "right" }}>Cancelled</th>
+              <th style={{ ...th, textAlign: "center" }}>M1 renewal</th>
+              <th style={{ ...th, textAlign: "center" }}>M2 renewal</th>
+              <th style={{ ...th, textAlign: "center" }}>M3 renewal</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cohorts.map((c) => (
+              <tr key={c.month}>
+                <td style={{ ...td, color: BURG, fontWeight: 700 }}>{c.month}</td>
+                <td style={{ ...td, textAlign: "right" }}>{c.started.toLocaleString()}</td>
+                <td style={{ ...td, textAlign: "right" }}>{c.active.toLocaleString()}</td>
+                <td style={{ ...td, textAlign: "right", opacity: 0.7 }}>{c.paused.toLocaleString()}</td>
+                <td style={{ ...td, textAlign: "right", opacity: 0.7 }}>{c.cancelled.toLocaleString()}</td>
+                {["m1", "m2", "m3"].map((k) => (
+                  <td key={k} style={{ ...td, textAlign: "center", fontWeight: 700, ...heatCellStyle(c[k]) }}>
+                    {c[k] != null ? Math.round(c[k] * 100) + "%" : "—"}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 12 }}>
+        <KpiTile label="Save intercepts" value={S.intercepts} hint="cancel flows entered" />
+        <KpiTile label="Saved" value={`${S.saved} (${Math.round(S.saveRate * 100)}%)`} hint="of intercepts" trend={DEMO_TREND.saveRate} />
+        <KpiTile label={S.bestPlay.label} value={`${Math.round(S.bestPlay.rate * 100)}%`} hint="save rate — best play" />
+        <KpiTile label={S.secondPlay.label} value={`${Math.round(S.secondPlay.rate * 100)}%`} hint="save rate" />
+        <KpiTile label="Skipped this month" value={SKIPPED_SUBS.count} hint={`top reason: ${SKIPPED_SUBS.topReason.toLowerCase()}`} />
+      </div>
+
+      <div style={{ background: W, border: "1px solid #e0d9d0", borderRadius: 10, padding: "16px 20px", marginBottom: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 10 }}>
+          <div>
+            <div style={{ fontFamily: F.serif, fontSize: 16, fontWeight: 700, color: BURG }}>Win-back list — {winback.length} cancelled in range</div>
+            <div style={{ fontFamily: F.sans, fontSize: 11.5, color: INK, opacity: 0.6, marginTop: 2 }}>Hair profile and Edit pairing come with each name — the outreach writes itself.</div>
+          </div>
+          <button onClick={exportWinback} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700, padding: "9px 16px", letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer", borderRadius: 99 }}>
+            Export for outreach
+          </button>
+        </div>
+        <div style={{ overflow: "auto", maxHeight: 300 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 760 }}>
+            <thead>
+              <tr>
+                {["Name", "Phone", "Hair profile", "Edit pairing", "Reason", "Would renew"].map((h) => (
+                  <th key={h} style={{ ...th, textAlign: "left", position: "sticky", top: 0, zIndex: 1 }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {winback.map((r) => (
+                <tr key={r.name}>
+                  <td style={{ ...td, color: BURG, fontWeight: 600 }}>{r.name}</td>
+                  <td style={{ ...td, opacity: 0.75 }}>{r.phone}</td>
+                  <td style={td}>{r.hairProfile}</td>
+                  <td style={td}>{r.pairing}</td>
+                  <td style={{ ...td, opacity: 0.75 }}>{r.cancelledReason}</td>
+                  <td style={{ ...td, opacity: 0.75 }}>{new Date(r.wouldRenew + "T00:00:00").toLocaleDateString("en-AU", { day: "numeric", month: "short" })}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
+}
+
 function InsightsTab({ role }) {
   const canSeeRefunds = role && ["Lead Agent", "Manager", "Admin", "Owner"].includes(role);
   const initial = presetRange("Today");
@@ -10781,6 +11430,8 @@ function InsightsTab({ role }) {
           )}
         </>
       )}
+
+      <RetentionSection />
 
       {data && (
         <>
