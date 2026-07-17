@@ -25,8 +25,9 @@ import {
 } from "../lib/demo-logs";
 import {
   DEMO_SUMMARY, DEMO_SHOPIFY, DEMO_SKIO, DEMO_SKIO_CANCEL_REASONS,
-  DEMO_LOOP, DEMO_TRENDS,
+  DEMO_LOOP, DEMO_TRENDS, DEMO_TREND,
 } from "../lib/demo-insights";
+import { sparklinePath } from "../lib/chart-utils";
 
 // ─── Design Tokens ───────────────────────────────────────────────────────────
 const RED  = "#B44444";
@@ -657,30 +658,31 @@ export default function App({ userId, role, displayName }) {
             {/* "View as" preview selector — Manager/Admin/Owner only.
                 Lets Cherie record a Loom from the Agent perspective. */}
             {canPreviewAs && (
-              <select
+              <Combobox
                 value={viewAsRole || ""}
-                onChange={(e) => updateViewAsRole(e.target.value || null)}
+                onChange={(v) => updateViewAsRole(v || null)}
                 title="Preview the hub as if you were this role. Purely visual — your real permissions are unchanged."
+                options={[
+                  { value: "", label: "View as: my role" },
+                  { value: "New Starter", label: "View as: New Starter" },
+                  { value: "Agent", label: "View as: Agent" },
+                  { value: "Ops", label: "View as: Ops" },
+                  { value: "Lead Agent", label: "View as: Lead Agent" },
+                  { value: "Manager", label: "View as: Manager" },
+                  ...(role === "Owner" ? [{ value: "Admin", label: "View as: Admin" }] : []),
+                ]}
+                panelWidth={210}
                 style={{
+                  width: 180,
                   fontFamily: F.sans, fontSize: 10, fontWeight: 700,
                   letterSpacing: 1.5, textTransform: "uppercase",
-                  padding: "4px 10px",
+                  padding: "5px 12px",
                   border: "1px solid " + (viewAsRole ? RED : SOFT_BORDER),
                   background: viewAsRole ? "#fee" : W,
                   color: viewAsRole ? RED : INK,
-                  borderRadius: 99, cursor: "pointer", outline: "none",
+                  borderRadius: 99,
                 }}
-              >
-                <option value="">View as: my role</option>
-                <option value="New Starter">View as: New Starter</option>
-                <option value="Agent">View as: Agent</option>
-                <option value="Ops">View as: Ops</option>
-                <option value="Lead Agent">View as: Lead Agent</option>
-                <option value="Manager">View as: Manager</option>
-                {role === "Owner" && (
-                  <option value="Admin">View as: Admin</option>
-                )}
-              </select>
+              />
             )}
             {effectiveRole && (
               <span style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, letterSpacing: 2, textTransform: "uppercase", fontWeight: 700, padding: "4px 10px", border: "1px solid " + GOLD, borderRadius: 99 }}>{effectiveRole}</span>
@@ -1043,21 +1045,25 @@ function HomeTab({ displayName, setTab, role }) {
             label="Tickets handled"
             value={stats?.volume != null ? stats.volume.toLocaleString() : "—"}
             hint={stats?.volume != null ? `${stats.volume.toLocaleString()} today` : "today"}
+            trend={DEMO_TREND.tickets}
           />
           <PremiumTile
             label="CSAT"
             value={stats?.csat?.average != null ? stats.csat.average.toFixed(2) : "—"}
             hint={stats?.csat?.count ? `${stats.csat.count} responses today` : "no responses yet"}
+            trend={DEMO_TREND.csat}
           />
           <PremiumTile
             label="Avg resolution"
             value={formatDuration(stats?.resolution?.avgSeconds)}
             hint={stats?.resolution?.count ? `${stats.resolution.count} closed` : "—"}
+            trend={DEMO_TREND.resolution}
           />
           <PremiumTile
             label="Open"
             value={stats?.byStatus?.open != null ? stats.byStatus.open.toLocaleString() : "—"}
             hint="awaiting reply · team"
+            trend={DEMO_TREND.open}
           />
         </div>
 
@@ -1175,14 +1181,211 @@ function HomeTab({ displayName, setTab, role }) {
   );
 }
 
-function PremiumTile({ label, value, hint }) {
+// ─── Chart & form primitives (Part 5.1 / 5.2) ────────────────────────────────
+// Restrained, editorial data-viz: thin gold strokes, no gridlines, the
+// number stays the hero. Every headline stat pairs a 30-day sparkline
+// with a delta chip vs the previous period.
+
+const CHIP_GREEN = "#3F7A4E";
+const CHIP_RED = "#A5544A";
+
+function DeltaChip({ delta, good }) {
+  if (!delta) return null;
+  const up = String(delta).trim().startsWith("+") ? true : String(delta).trim().startsWith("-") ? false : true;
+  const color = good ? CHIP_GREEN : CHIP_RED;
+  const soft = good ? "rgba(63,122,78," : "rgba(165,84,74,";
   return (
-    <div style={{ background: W, padding: "32px 30px", minHeight: 130, borderRadius: 16, border: "1px solid " + SOFT_BORDER }}>
-      <div style={{ fontFamily: F.sans, fontSize: 10, color: INK, opacity: 0.55, textTransform: "uppercase", letterSpacing: 2.5, fontWeight: 600, marginBottom: 16 }}>
-        {label}
+    <span title="vs previous period" style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: 0.4, color, background: soft + "0.08)", border: "1px solid " + soft + "0.22)", borderRadius: 99, padding: "2px 8px", whiteSpace: "nowrap", lineHeight: 1.6 }}>
+      {up ? "▲" : "▼"} {String(delta).replace(/^[+-]\s*/, "")}
+    </span>
+  );
+}
+
+function Sparkline({ data, width = 88, height = 30, stroke = GOLD }) {
+  const { path, lastX, lastY } = sparklinePath(data || [], width, height, 3);
+  if (!path) return null;
+  return (
+    <svg width={width} height={height} viewBox={"0 0 " + width + " " + height} style={{ display: "block", flexShrink: 0 }} aria-hidden="true">
+      <path d={path} fill="none" stroke={stroke} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.85" />
+      <circle cx={lastX} cy={lastY} r="2.2" fill={BURG} />
+    </svg>
+  );
+}
+
+// Horizontal bar list — counts as bars, not text lists. Entries are
+// [label, count] pairs or {key, count} objects.
+function HBarList({ entries, total, accent = GOLD, labelWidth = 170 }) {
+  const rows = (entries || []).map((e) => Array.isArray(e) ? { key: e[0], count: e[1] } : e);
+  if (!rows.length) return null;
+  const max = Math.max(...rows.map((r) => r.count), 1);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+      {rows.map((r) => {
+        const pct = total ? Math.round((r.count / total) * 100) : null;
+        return (
+          <div key={r.key} style={{ display: "grid", gridTemplateColumns: labelWidth + "px 1fr 76px", alignItems: "center", gap: 10 }}>
+            <div style={{ fontFamily: F.sans, fontSize: 12, color: BURG, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={r.key}>{r.key}</div>
+            <div style={{ background: "#EFE9DF", borderRadius: 99, height: 6, overflow: "hidden" }}>
+              <div style={{ background: accent, width: Math.max(2, Math.round((r.count / max) * 100)) + "%", height: "100%", borderRadius: 99 }} />
+            </div>
+            <div style={{ fontFamily: F.sans, fontSize: 12, color: INK, opacity: 0.7, textAlign: "right", whiteSpace: "nowrap" }}>
+              {r.count.toLocaleString()}{pct != null && <span style={{ opacity: 0.55 }}> · {pct}%</span>}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Combobox — the app's only select control (no native <select>) ──────────
+// Type-ahead single select styled to the design system: cream panel,
+// letter-spaced current value, keyboard-first (arrows / Enter / Esc).
+function Combobox({
+  value, onChange, options, placeholder = "Select…",
+  allowEmpty = false, emptyLabel = "—",
+  autoFocus = false, onCommit, onCancel,
+  style = {}, panelWidth, disabled = false, title,
+}) {
+  const items = (options || []).map((o) => (o && typeof o === "object" ? o : { value: o, label: o === "" ? emptyLabel : String(o) }));
+  const all = allowEmpty && !items.some((i) => i.value === "") ? [{ value: "", label: emptyLabel }, ...items] : items;
+  const [open, setOpen] = useState(autoFocus);
+  const [query, setQuery] = useState("");
+  const [hi, setHi] = useState(0);
+  const rootRef = useRef(null);
+  const inputRef = useRef(null);
+  const current = all.find((i) => i.value === value) || all.find((i) => i.label === value) || null;
+  const q = query.trim().toLowerCase();
+  const filtered = q ? all.filter((i) => String(i.label).toLowerCase().includes(q)) : all;
+
+  useEffect(() => {
+    if (open) {
+      setQuery("");
+      const idx = filtered.findIndex((i) => i === current);
+      setHi(idx >= 0 ? idx : 0);
+      const id = setTimeout(() => inputRef.current?.focus(), 0);
+      return () => clearTimeout(id);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  function select(item) {
+    if (!item) return;
+    onChange(item.value);
+    setOpen(false);
+    onCommit?.(item.value);
+  }
+  function handleRootBlur(e) {
+    if (rootRef.current && !rootRef.current.contains(e.relatedTarget)) {
+      setOpen(false);
+      if (open) onCommit?.(current ? current.value : value);
+    }
+  }
+  function onInputKey(e) {
+    if (e.key === "ArrowDown") { e.preventDefault(); setHi((h) => Math.min(h + 1, filtered.length - 1)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setHi((h) => Math.max(h - 1, 0)); }
+    else if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); select(filtered[Math.min(hi, filtered.length - 1)]); }
+    else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setOpen(false); onCancel?.(); }
+    else if (e.key === "Tab") { setOpen(false); onCommit?.(current ? current.value : value); }
+  }
+  function onButtonKey(e) {
+    if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") { e.preventDefault(); setOpen(true); }
+    else if (e.key === "Escape") { onCancel?.(); }
+  }
+
+  const base = { width: "100%", padding: "10px 14px", borderRadius: 8, border: "1px solid " + SOFT_BORDER, background: W, fontFamily: F.sans, fontSize: 13, color: INK, outline: "none", boxSizing: "border-box", ...style };
+
+  return (
+    <div ref={rootRef} onBlur={handleRootBlur} style={{ position: "relative", width: style.width || "100%" }}>
+      <button
+        type="button"
+        role="combobox"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        disabled={disabled}
+        title={title}
+        onClick={() => !disabled && setOpen((o) => !o)}
+        onKeyDown={onButtonKey}
+        onFocus={(e) => { e.currentTarget.style.borderColor = GOLD; }}
+        onBlurCapture={(e) => { if (e.target === e.currentTarget) e.currentTarget.style.borderColor = style.border ? undefined : ""; }}
+        style={{ ...base, textAlign: "left", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.55 : 1, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}
+      >
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", opacity: current ? 1 : 0.45 }}>
+          {current ? current.label : placeholder}
+        </span>
+        <span aria-hidden="true" style={{ fontSize: 9, color: GOLD, flexShrink: 0, transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}>▼</span>
+      </button>
+      {open && (
+        <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, minWidth: panelWidth, zIndex: 60, background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 10, boxShadow: "0 10px 28px rgba(10,10,9,0.10)", overflow: "hidden" }}>
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={(e) => { setQuery(e.target.value); setHi(0); }}
+            onKeyDown={onInputKey}
+            placeholder="Type to filter"
+            style={{ width: "100%", boxSizing: "border-box", padding: "9px 14px", border: "none", borderBottom: "1px solid " + SOFT_BORDER, background: CREAM, fontFamily: F.sans, fontSize: 12, color: INK, outline: "none" }}
+          />
+          <div role="listbox" style={{ maxHeight: 240, overflowY: "auto" }}>
+            {filtered.length === 0 && (
+              <div style={{ padding: "10px 14px", fontFamily: F.serif, fontStyle: "italic", fontSize: 13, color: INK, opacity: 0.5 }}>No matches</div>
+            )}
+            {filtered.map((item, i) => {
+              const active = i === hi;
+              const selected = current && item.value === current.value;
+              return (
+                <div
+                  key={String(item.value) + i}
+                  role="option"
+                  aria-selected={selected}
+                  onMouseEnter={() => setHi(i)}
+                  onMouseDown={(e) => { e.preventDefault(); select(item); }}
+                  style={{ padding: "9px 14px", cursor: "pointer", background: active ? CREAM : W, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}
+                >
+                  <span style={{ fontFamily: F.sans, fontSize: 13, color: INK, fontWeight: selected ? 700 : 400 }}>{item.label}</span>
+                  {selected && <span style={{ color: GOLD, fontSize: 11 }}>●</span>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Sticky bottom action bar for forms longer than a viewport (5.2).
+function FormActionBar({ children, note }) {
+  return (
+    <div style={{ position: "sticky", bottom: 0, zIndex: 30, margin: "20px -28px -24px", padding: "14px 28px", background: "rgba(250,248,243,0.97)", backdropFilter: "blur(6px)", borderTop: "1px solid " + SOFT_BORDER, borderRadius: "0 0 14px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+      <div style={{ fontFamily: F.serif, fontStyle: "italic", fontSize: 12, color: INK, opacity: 0.55 }}>{note || ""}</div>
+      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>{children}</div>
+    </div>
+  );
+}
+
+// Letter-spaced caps section header inside long forms (5.2).
+function FormSection({ title }) {
+  return (
+    <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, fontWeight: 700, letterSpacing: 3, textTransform: "uppercase", margin: "22px 0 12px", paddingTop: 16, borderTop: "1px solid #EFE9DF" }}>
+      {title}
+    </div>
+  );
+}
+
+function PremiumTile({ label, value, hint, trend }) {
+  return (
+    <div style={{ background: W, padding: "28px 30px", minHeight: 130, borderRadius: 16, border: "1px solid " + SOFT_BORDER }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 14 }}>
+        <div style={{ fontFamily: F.sans, fontSize: 10, color: INK, opacity: 0.55, textTransform: "uppercase", letterSpacing: 2.5, fontWeight: 600 }}>
+          {label}
+        </div>
+        {trend && <DeltaChip delta={trend.delta} good={trend.good} />}
       </div>
-      <div style={{ fontFamily: F.serif, fontSize: 40, color: BURG, fontWeight: 500, lineHeight: 1, letterSpacing: -1 }}>
-        {value}
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12 }}>
+        <div style={{ fontFamily: F.serif, fontSize: 40, color: BURG, fontWeight: 500, lineHeight: 1, letterSpacing: -1 }}>
+          {value}
+        </div>
+        {trend && <Sparkline data={trend.series} />}
       </div>
       {hint && (
         <div style={{ fontFamily: F.sans, fontSize: 11, color: INK, opacity: 0.55, marginTop: 10, letterSpacing: 0.5 }}>
@@ -1291,7 +1494,7 @@ function buildRecordsConfig() {
       { key: "country",        label: "Country",   type: "text",     editable: true,  width: 80 },
       { key: "warehouse",      label: "Warehouse", type: "select",   editable: true,  width: 110, options: ["", ...ISSUE_WAREHOUSES] },
       { key: "category",       label: "Category",  type: "select",   editable: true,  width: 130, options: ISSUE_CATEGORIES.map(c => c.value), labels: ISSUE_CATEGORIES },
-      { key: "severity",       label: "Severity",  type: "select",   editable: true,  width: 90,  options: ISSUE_SEVERITY },
+      { key: "severity",       label: "Severity",  type: "select",   editable: true,  width: 90,  options: ISSUE_SEVERITY.map(s => s.value), labels: ISSUE_SEVERITY },
       { key: "resolution",     label: "Resolution",type: "select",   editable: true,  width: 110, options: ISSUE_RESOLUTIONS.map(r => r.value), labels: ISSUE_RESOLUTIONS },
       { key: "itemsAffected",  label: "Items",     type: "csv",      editable: true,  width: 160 },
       { key: "description",    label: "Description",type: "textarea",editable: true,  width: 280 },
@@ -1528,9 +1731,10 @@ function RecordsGrid({ subName, config }) {
   }
   function cancelEdit() { setEditing(null); }
 
-  async function commitEdit() {
+  async function commitEdit(overrideValue) {
     if (!editing) return;
-    const { rowId, key, value } = editing;
+    const { rowId, key } = editing;
+    const value = typeof overrideValue === "string" || typeof overrideValue === "boolean" ? overrideValue : editing.value;
     const col = config.columns.find((c) => c.key === key);
     let payloadValue;
     if (col.type === "csv") payloadValue = String(value).split(",").map((s) => s.trim()).filter(Boolean);
@@ -1728,12 +1932,16 @@ function EditCell({ col, value, setValue, onCommit, onCancel }) {
   };
   if (col.type === "select") {
     return (
-      <select autoFocus value={value} onChange={(e) => setValue(e.target.value)} onBlur={onCommit} onKeyDown={onKey} style={inputBase}>
-        {col.options.map((opt) => {
-          const lab = col.labels?.find((l) => l.value === opt)?.label ?? (opt === "" ? "—" : opt);
-          return <option key={opt} value={opt}>{lab}</option>;
-        })}
-      </select>
+      <Combobox
+        autoFocus
+        value={value}
+        onChange={(v) => setValue(v)}
+        onCommit={(v) => onCommit(v)}
+        onCancel={onCancel}
+        options={col.options.map((opt) => ({ value: opt, label: col.labels?.find((l) => l.value === opt)?.label ?? (opt === "" ? "—" : opt) }))}
+        style={{ padding: "4px 8px", fontSize: 12 }}
+        panelWidth={200}
+      />
     );
   }
   if (col.type === "bool") {
@@ -2408,6 +2616,12 @@ function RefundsSummaryBlock({ loop, shop }) {
         </tbody>
       </table>
       {(loop?.topReasons ?? []).length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <div style={{ fontFamily: F.sans, fontSize: 11, color: BURG, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 10 }}>Refund reasons</div>
+          <HBarList entries={loop.topReasons.map((r) => ({ key: r.reason, count: r.count }))} total={loop.count} labelWidth={220} />
+        </div>
+      )}
+      {(loop?.topReasons ?? []).length > 0 && (
         <div style={{ marginTop: 16, background: CREAM, borderRadius: 8, padding: "12px 14px" }}>
           <div style={{ fontFamily: F.sans, fontSize: 11, color: BURG, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>Top 3 refund reasons (from Loop)</div>
           {loop.topReasons.map((rr, j) => (
@@ -2537,13 +2751,8 @@ function CountBreakdown({ entries, total }) {
 function CountCard({ title, entries, total }) {
   return (
     <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 10, padding: "14px 18px" }}>
-      <div style={{ fontFamily: F.sans, fontSize: 11, color: BURG, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 8 }}>{title}</div>
-      {entries.slice(0, 8).map((e) => (
-        <div key={e.key} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", fontFamily: F.sans, fontSize: 13, color: INK }}>
-          <span>{e.key}</span>
-          <span style={{ color: BURG, fontWeight: 700 }}>{e.count}</span>
-        </div>
-      ))}
+      <div style={{ fontFamily: F.sans, fontSize: 11, color: BURG, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 10 }}>{title}</div>
+      <HBarList entries={entries.slice(0, 8)} total={total} labelWidth={150} />
     </div>
   );
 }
@@ -2592,16 +2801,11 @@ function CompactSummary({ count, noun, breakdowns, footer }) {
       </div>
       {breakdowns.map(({ label, entries }, i) => (
         entries.length > 0 && (
-          <div key={i} style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, padding: "4px 0", fontFamily: F.sans, fontSize: 12 }}>
-            <span style={{ color: INK, opacity: 0.55, letterSpacing: 1, textTransform: "uppercase", fontSize: 10, fontWeight: 700, marginRight: 4 }}>{label}</span>
-            {entries.slice(0, 8).map((e) => (
-              <span key={e.key} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: CREAM, color: BURG, padding: "4px 10px", borderRadius: 99, fontWeight: 600 }}>
-                <span>{e.key}</span>
-                <span style={{ color: BURG, opacity: 0.55, fontWeight: 500 }}>{e.count}</span>
-              </span>
-            ))}
+          <div key={i} style={{ padding: "6px 0" }}>
+            <div style={{ color: INK, opacity: 0.55, letterSpacing: 1, textTransform: "uppercase", fontSize: 10, fontWeight: 700, fontFamily: F.sans, marginBottom: 6 }}>{label}</div>
+            <HBarList entries={entries.slice(0, 8)} total={count} labelWidth={160} />
             {entries.length > 8 && (
-              <span style={{ color: INK, opacity: 0.5, fontSize: 11 }}>+{entries.length - 8} more</span>
+              <div style={{ color: INK, opacity: 0.5, fontSize: 11, fontFamily: F.sans, marginTop: 4 }}>+{entries.length - 8} more</div>
             )}
           </div>
         )
@@ -2612,10 +2816,16 @@ function CompactSummary({ count, noun, breakdowns, footer }) {
 }
 
 function KeyMetricsBlock({ gorgias, shop, loop, skio, errors }) {
-  const tile = (label, value, hint, accent) => (
+  const tile = (label, value, hint, accent, trend) => (
     <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 10, padding: "12px 16px" }}>
-      <div style={{ fontFamily: F.sans, fontSize: 9, color: INK, opacity: 0.55, letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 700, marginBottom: 4 }}>{label}</div>
-      <div style={{ fontFamily: F.serif, fontSize: 22, color: accent || BURG, fontWeight: 700, lineHeight: 1.1 }}>{value}</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginBottom: 4 }}>
+        <div style={{ fontFamily: F.sans, fontSize: 9, color: INK, opacity: 0.55, letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 700 }}>{label}</div>
+        {trend && <DeltaChip delta={trend.delta} good={trend.good} />}
+      </div>
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 8 }}>
+        <div style={{ fontFamily: F.serif, fontSize: 22, color: accent || BURG, fontWeight: 700, lineHeight: 1.1 }}>{value}</div>
+        {trend && <Sparkline data={trend.series} width={58} height={20} />}
+      </div>
       {hint && <div style={{ fontFamily: F.sans, fontSize: 10, color: INK, opacity: 0.5, marginTop: 4 }}>{hint}</div>}
     </div>
   );
@@ -2647,22 +2857,24 @@ function KeyMetricsBlock({ gorgias, shop, loop, skio, errors }) {
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
-      {tile("Tickets", num(gorgias?.volume), gorgias?.volume != null ? `${num(gorgias.volume)} in range` : null)}
-      {tile("Open", num(gorgias?.byStatus?.open))}
-      {tile("Closed", num(gorgias?.byStatus?.closed))}
-      {tile("CSAT", gorgias?.csat?.average != null ? gorgias.csat.average.toFixed(2) : "—", gorgias?.csat?.count ? `${gorgias.csat.count} responses` : null)}
-      {tile("Resolution", dur(gorgias?.resolution?.avgSeconds), gorgias?.resolution?.count ? `${gorgias.resolution.count} closed` : null)}
-      {tile("Msgs / ticket", gorgias?.mpt?.average != null ? gorgias.mpt.average.toFixed(1) : "—")}
-      {tile("Orders", num(shop?.orders))}
-      {tile("Refunds", num(totalRefunds), refundHint)}
+      {tile("Tickets", num(gorgias?.volume), gorgias?.volume != null ? `${num(gorgias.volume)} in range` : null, null, DEMO_TREND.tickets)}
+      {tile("Open", num(gorgias?.byStatus?.open), null, null, DEMO_TREND.open)}
+      {tile("Closed", num(gorgias?.byStatus?.closed), null, null, DEMO_TREND.closed)}
+      {tile("CSAT", gorgias?.csat?.average != null ? gorgias.csat.average.toFixed(2) : "—", gorgias?.csat?.count ? `${gorgias.csat.count} responses` : null, null, DEMO_TREND.csat)}
+      {tile("Resolution", dur(gorgias?.resolution?.avgSeconds), gorgias?.resolution?.count ? `${gorgias.resolution.count} closed` : null, null, DEMO_TREND.resolution)}
+      {tile("Msgs / ticket", gorgias?.mpt?.average != null ? gorgias.mpt.average.toFixed(1) : "—", null, null, DEMO_TREND.mpt)}
+      {tile("Orders", num(shop?.orders), null, null, DEMO_TREND.orders)}
+      {tile("Refunds", num(totalRefunds), refundHint, null, DEMO_TREND.refunds)}
       {tile(
         "Refund rate ($)",
         pct(shop?.refundRateDollars ?? shop?.refundRate),
-        shop?.refundRate != null ? `${(shop.refundRate * 100).toFixed(2)}% by count` : null
+        shop?.refundRate != null ? `${(shop.refundRate * 100).toFixed(2)}% by count` : null,
+        null,
+        DEMO_TREND.refundRate
       )}
-      {tile("Active subs", num(skio?.active), skio?.paused != null ? `${num(skio.paused)} paused` : null)}
-      {tile("Cancellations", num(skio?.cancelled), "in range")}
-      {tile("Churn rate", pct(skio?.churnRate))}
+      {tile("Active subs", num(skio?.active), skio?.paused != null ? `${num(skio.paused)} paused` : null, null, DEMO_TREND.activeSubs)}
+      {tile("Cancellations", num(skio?.cancelled), "in range", null, DEMO_TREND.cancelledSubs)}
+      {tile("Churn rate", pct(skio?.churnRate), null, null, DEMO_TREND.churnRate)}
     </div>
   );
 }
@@ -3286,7 +3498,11 @@ const ISSUE_RESOLUTIONS = [
 // (shared with the seed data so every record resolves to a real
 // warehouse — nothing ever buckets as "Unspecified").
 const ISSUE_WAREHOUSES = WAREHOUSES;
-const ISSUE_SEVERITY = ["low", "normal", "high"];
+const ISSUE_SEVERITY = [
+  { value: "low",    label: "Low" },
+  { value: "normal", label: "Normal" },
+  { value: "high",   label: "High" },
+];
 
 // Reusable multi-select chips component (used by Issues Items Affected
 // and Replacement Main/Sub Reason fields). Click to toggle; selected
@@ -3330,18 +3546,12 @@ function MultiSelectGroupedDropdowns({ groupedOptions, selected, onChange, place
         {groupedOptions.map((group) => (
           <div key={group.group}>
             <div style={headerStyle}>{group.group}</div>
-            <select
+            <Combobox
               value=""
-              onChange={(e) => { addItem(e.target.value); }}
-              style={selectStyle}
-            >
-              <option value="">{placeholder || "Select an item…"}</option>
-              {group.items.map((item) => (
-                <option key={item} value={item} disabled={sel.has(item)}>
-                  {sel.has(item) ? `${item}  ✓` : item}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => { if (v) addItem(v); }}
+              options={group.items.filter((item) => !sel.has(item))}
+              placeholder={placeholder || "Add an item…"}
+            />
           </div>
         ))}
       </div>
@@ -3738,31 +3948,19 @@ function IssueLogPanel({ role }) {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Category <span style={{ color: RED, fontWeight: 700 }}>*</span></label>
-            <select value={category} onChange={(e) => setCategory(e.target.value)} style={inputBase}>
-              <option value="">Select a category…</option>
-              {ISSUE_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-            </select>
+            <Combobox value={category} onChange={setCategory} options={ISSUE_CATEGORIES} placeholder="Select a category…" />
           </div>
           <div>
             <label style={labelStyle}>Severity <span style={{ color: RED, fontWeight: 700 }}>*</span></label>
-            <select value={severity} onChange={(e) => setSeverity(e.target.value)} style={inputBase}>
-              <option value="">Select severity…</option>
-              {ISSUE_SEVERITY.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
+            <Combobox value={severity} onChange={setSeverity} options={ISSUE_SEVERITY} placeholder="Select severity…" />
           </div>
           <div>
             <label style={labelStyle}>Warehouse</label>
-            <select value={warehouse} onChange={(e) => setWarehouse(e.target.value)} style={inputBase}>
-              <option value="">—</option>
-              {ISSUE_WAREHOUSES.map((w) => <option key={w} value={w}>{w}</option>)}
-            </select>
+            <Combobox value={warehouse} onChange={setWarehouse} options={ISSUE_WAREHOUSES} allowEmpty placeholder="—" />
           </div>
           <div>
             <label style={labelStyle}>Resolution <span style={{ color: RED, fontWeight: 700 }}>*</span></label>
-            <select value={resolution} onChange={(e) => setResolution(e.target.value)} style={inputBase}>
-              <option value="">Select resolution…</option>
-              {ISSUE_RESOLUTIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
-            </select>
+            <Combobox value={resolution} onChange={setResolution} options={ISSUE_RESOLUTIONS} placeholder="Select resolution…" />
           </div>
         </div>
 
@@ -3801,12 +3999,14 @@ function IssueLogPanel({ role }) {
 
         {formError && <div style={{ background: "#fee", border: "1px solid " + RED, color: RED, padding: 8, borderRadius: 6, marginBottom: 12, fontFamily: F.sans, fontSize: 12 }}>{formError}</div>}
 
-        <button onClick={submit} disabled={submitting} style={{
-          background: BURG, color: CREAM, border: "1px solid " + BURG,
-          fontFamily: F.sans, fontSize: 12, fontWeight: 700, padding: "12px 28px",
-          letterSpacing: 2, textTransform: "uppercase", cursor: submitting ? "wait" : "pointer", borderRadius: 99,
-          opacity: submitting ? 0.6 : 1,
-        }}>{submitting ? "Saving..." : "Save Issue"}</button>
+        <FormActionBar note="Under 30 seconds, keyboard first — Tab through, Enter to save.">
+          <button onClick={submit} disabled={submitting} style={{
+            background: BURG, color: CREAM, border: "1px solid " + BURG,
+            fontFamily: F.sans, fontSize: 12, fontWeight: 700, padding: "12px 28px",
+            letterSpacing: 2, textTransform: "uppercase", cursor: submitting ? "wait" : "pointer", borderRadius: 99,
+            opacity: submitting ? 0.6 : 1,
+          }}>{submitting ? "Saving" : "Save Issue"}</button>
+        </FormActionBar>
       </div>
 
       {(() => {
@@ -3985,10 +4185,7 @@ function ReplacementLogPanel({ role }) {
 
         <div style={{ marginBottom: 14 }}>
           <label style={labelStyle}>Warehouse <span style={{ fontFamily: F.serif, fontStyle: "italic", textTransform: "none", letterSpacing: 0, fontWeight: 400, opacity: 0.7 }}>(auto-filled from country — override if wrong)</span></label>
-          <select value={warehouse} onChange={(e) => setWarehouse(e.target.value)} style={inputBase}>
-            <option value="">—</option>
-            {ISSUE_WAREHOUSES.map((w) => <option key={w} value={w}>{w}</option>)}
-          </select>
+          <Combobox value={warehouse} onChange={setWarehouse} options={ISSUE_WAREHOUSES} allowEmpty placeholder="—" />
         </div>
 
         <div style={{ marginBottom: 14 }}>
@@ -4035,20 +4232,12 @@ function ReplacementLogPanel({ role }) {
                 from PRODUCT_CATALOGUE_SIMPLE. Same SKU list the Issues
                 tab uses, with <optgroup> per product line. Made
                 mandatory same day. */}
-            <select
+            <Combobox
               value={originalOrder}
-              onChange={(e) => setOriginalOrder(e.target.value)}
-              style={inputBase}
-            >
-              <option value="">Select original order…</option>
-              {PRODUCT_CATALOGUE_SIMPLE.map((g) => (
-                <optgroup key={g.group} label={g.group}>
-                  {g.items.map((item) => (
-                    <option key={item} value={item}>{item}</option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
+              onChange={setOriginalOrder}
+              options={PRODUCT_CATALOGUE_SIMPLE.flatMap((g) => g.items)}
+              placeholder="Select original order…"
+            />
           </div>
           <div>
             <label style={labelStyle}>Courier (if known)</label>
@@ -4068,7 +4257,9 @@ function ReplacementLogPanel({ role }) {
 
         {formError && <div style={{ background: "#fee", border: "1px solid " + RED, color: RED, padding: 8, borderRadius: 6, marginBottom: 12, fontFamily: F.sans, fontSize: 12 }}>{formError}</div>}
 
-        <button onClick={submit} disabled={submitting} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 12, fontWeight: 700, padding: "12px 28px", letterSpacing: 2, textTransform: "uppercase", cursor: submitting ? "wait" : "pointer", borderRadius: 99, opacity: submitting ? 0.6 : 1 }}>{submitting ? "Saving..." : "Save Replacement"}</button>
+        <FormActionBar note="Order lookup fills the customer for you.">
+          <button onClick={submit} disabled={submitting} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 12, fontWeight: 700, padding: "12px 28px", letterSpacing: 2, textTransform: "uppercase", cursor: submitting ? "wait" : "pointer", borderRadius: 99, opacity: submitting ? 0.6 : 1 }}>{submitting ? "Saving" : "Save Replacement"}</button>
+        </FormActionBar>
       </div>
 
       {(() => {
@@ -4211,15 +4402,11 @@ function CancellationLogPanel({ role }) {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Reason</label>
-            <select value={cancellationType} onChange={(e) => setCancellationType(e.target.value)} style={inputBase}>
-              {CANCELLATION_TYPES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-            </select>
+            <Combobox value={cancellationType} onChange={setCancellationType} options={CANCELLATION_TYPES} />
           </div>
           <div>
             <label style={labelStyle}>What was cancelled</label>
-            <select value={scope} onChange={(e) => setScope(e.target.value)} style={inputBase}>
-              {CANCELLATION_SCOPES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </select>
+            <Combobox value={scope} onChange={setScope} options={CANCELLATION_SCOPES} />
           </div>
         </div>
 
@@ -4230,7 +4417,7 @@ function CancellationLogPanel({ role }) {
 
         {formError && <div style={{ background: "#fee", border: "1px solid " + RED, color: RED, padding: 8, borderRadius: 6, marginBottom: 12, fontFamily: F.sans, fontSize: 12 }}>{formError}</div>}
 
-        <button onClick={submit} disabled={submitting} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 12, fontWeight: 700, padding: "12px 28px", letterSpacing: 2, textTransform: "uppercase", cursor: submitting ? "wait" : "pointer", borderRadius: 99, opacity: submitting ? 0.6 : 1 }}>{submitting ? "Saving..." : "Save Cancellation"}</button>
+        <button onClick={submit} disabled={submitting} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 12, fontWeight: 700, padding: "12px 28px", letterSpacing: 2, textTransform: "uppercase", cursor: submitting ? "wait" : "pointer", borderRadius: 99, opacity: submitting ? 0.6 : 1 }}>{submitting ? "Saving" : "Save Cancellation"}</button>
       </div>
 
       <div style={{ fontFamily: F.sans, fontSize: 11, color: BURG, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", marginBottom: 12 }}>
@@ -4353,7 +4540,7 @@ function CancelNoRefundLogPanel({ role }) {
 
         {formError && <div style={{ background: "#fee", border: "1px solid " + RED, color: RED, padding: 8, borderRadius: 6, marginBottom: 12, fontFamily: F.sans, fontSize: 12 }}>{formError}</div>}
 
-        <button onClick={submit} disabled={submitting} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 12, fontWeight: 700, padding: "12px 28px", letterSpacing: 2, textTransform: "uppercase", cursor: submitting ? "wait" : "pointer", borderRadius: 99, opacity: submitting ? 0.6 : 1 }}>{submitting ? "Saving..." : "Save Entry"}</button>
+        <button onClick={submit} disabled={submitting} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 12, fontWeight: 700, padding: "12px 28px", letterSpacing: 2, textTransform: "uppercase", cursor: submitting ? "wait" : "pointer", borderRadius: 99, opacity: submitting ? 0.6 : 1 }}>{submitting ? "Saving" : "Save Entry"}</button>
       </div>
 
       <div style={{ fontFamily: F.sans, fontSize: 11, color: BURG, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", marginBottom: 12 }}>
@@ -4507,17 +4694,11 @@ function FeedbackLogPanel({ role }) {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Theme <span style={{ color: RED, fontWeight: 700 }}>*</span></label>
-            <select value={theme} onChange={(e) => setTheme(e.target.value)} style={inputBase}>
-              <option value="">Select a theme…</option>
-              {FEEDBACK_THEMES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-            </select>
+            <Combobox value={theme} onChange={setTheme} options={FEEDBACK_THEMES} placeholder="Select a theme…" />
           </div>
           <div>
             <label style={labelStyle}>Related team <span style={{ color: RED, fontWeight: 700 }}>*</span></label>
-            <select value={relatedTeam} onChange={(e) => setRelatedTeam(e.target.value)} style={inputBase}>
-              <option value="">Select a team…</option>
-              {FEEDBACK_TEAMS.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
+            <Combobox value={relatedTeam} onChange={setRelatedTeam} options={FEEDBACK_TEAMS} placeholder="Select a team…" />
           </div>
         </div>
 
@@ -4533,7 +4714,7 @@ function FeedbackLogPanel({ role }) {
 
         {formError && <div style={{ background: "#fee", border: "1px solid " + RED, color: RED, padding: 8, borderRadius: 6, marginBottom: 12, fontFamily: F.sans, fontSize: 12 }}>{formError}</div>}
 
-        <button onClick={submit} disabled={submitting} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 12, fontWeight: 700, padding: "12px 28px", letterSpacing: 2, textTransform: "uppercase", cursor: submitting ? "wait" : "pointer", borderRadius: 99, opacity: submitting ? 0.6 : 1 }}>{submitting ? "Saving..." : "Save Feedback"}</button>
+        <button onClick={submit} disabled={submitting} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 12, fontWeight: 700, padding: "12px 28px", letterSpacing: 2, textTransform: "uppercase", cursor: submitting ? "wait" : "pointer", borderRadius: 99, opacity: submitting ? 0.6 : 1 }}>{submitting ? "Saving" : "Save Feedback"}</button>
       </div>
 
       {(() => {
@@ -4707,9 +4888,7 @@ function OrderRequestLogPanel({ role }) {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr 1fr", gap: 14, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Warehouse</label>
-            <select value={region} onChange={(e) => setRegion(e.target.value)} style={inputBase}>
-              {OPS_REGIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
-            </select>
+            <Combobox value={region} onChange={setRegion} options={OPS_REGIONS} />
           </div>
           <div>
             <label style={labelStyle}>Order ref (auto-fills recipient)</label>
@@ -4759,9 +4938,7 @@ function OrderRequestLogPanel({ role }) {
           <div><label style={labelStyle}>Ship date</label><input type="date" value={shipDate} onChange={(e) => setShipDate(e.target.value)} style={inputBase} /></div>
           <div>
             <label style={labelStyle}>Status</label>
-            <select value={status} onChange={(e) => setStatus(e.target.value)} style={inputBase}>
-              {OPS_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </select>
+            <Combobox value={status} onChange={setStatus} options={OPS_STATUSES} />
           </div>
         </div>
         <div style={{ marginBottom: 14 }}>
@@ -4783,7 +4960,9 @@ function OrderRequestLogPanel({ role }) {
 
         {formError && <div style={{ background: "#fee", border: "1px solid " + RED, color: RED, padding: 8, borderRadius: 6, marginBottom: 12, fontFamily: F.sans, fontSize: 12 }}>{formError}</div>}
 
-        <button onClick={submit} disabled={submitting} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 12, fontWeight: 700, padding: "12px 28px", letterSpacing: 2, textTransform: "uppercase", cursor: submitting ? "wait" : "pointer", borderRadius: 99, opacity: submitting ? 0.6 : 1 }}>{submitting ? "Saving..." : "Submit Ops Request"}</button>
+        <FormActionBar note="Everything Parcelline needs to dispatch.">
+          <button onClick={submit} disabled={submitting} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 12, fontWeight: 700, padding: "12px 28px", letterSpacing: 2, textTransform: "uppercase", cursor: submitting ? "wait" : "pointer", borderRadius: 99, opacity: submitting ? 0.6 : 1 }}>{submitting ? "Saving" : "Submit Ops Request"}</button>
+        </FormActionBar>
       </div>
       )}
 
@@ -4792,10 +4971,9 @@ function OrderRequestLogPanel({ role }) {
           {isOpsRole ? "Pending fulfillment queue" : (scopeShown === "all" ? "Recent — all agents" : "Your recent entries")} ({recent.length})
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <select value={filterRegion} onChange={(e) => setFilterRegion(e.target.value)} style={{ ...inputBase, width: 160, padding: "6px 10px" }}>
-            <option value="">All regions</option>
-            {OPS_REGIONS.map((r) => <option key={r.value} value={r.value}>{r.value}</option>)}
-          </select>
+          <div style={{ width: 170 }}>
+            <Combobox value={filterRegion} onChange={setFilterRegion} options={[{ value: "", label: "All regions" }, ...OPS_REGIONS]} style={{ padding: "6px 10px", fontSize: 12 }} />
+          </div>
           <label style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: F.sans, fontSize: 12, color: INK, cursor: "pointer" }}>
             <input type="checkbox" checked={filterPending} onChange={(e) => setFilterPending(e.target.checked)} />
             <span>Not yet sent</span>
@@ -4910,9 +5088,7 @@ function OrderRequestCard({ row, canEdit, onSaved }) {
             <div><label style={labelStyle}>Ship date</label><input type="date" value={draft.shipDate ?? ""} onChange={(e) => set("shipDate", e.target.value)} style={inputBase} /></div>
             <div>
               <label style={labelStyle}>Status</label>
-              <select value={draft.status} onChange={(e) => set("status", e.target.value)} style={inputBase}>
-                {OPS_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-              </select>
+              <Combobox value={draft.status} onChange={(v) => set("status", v)} options={OPS_STATUSES} />
             </div>
           </div>
           <div style={{ marginBottom: 10 }}>
@@ -5125,9 +5301,7 @@ function AdverseReactionLogPanel({ role }) {
           </div>
           <div>
             <label style={labelStyle}>Reported via</label>
-            <select value={complaintMethod} onChange={(e) => setComplaintMethod(e.target.value)} style={inputBase}>
-              {AR_METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-            </select>
+            <Combobox value={complaintMethod} onChange={setComplaintMethod} options={AR_METHODS} />
           </div>
         </div>
 
@@ -5158,6 +5332,7 @@ function AdverseReactionLogPanel({ role }) {
           )}
         </div>
 
+        <FormSection title="Reaction detail" />
         <div style={{ marginBottom: 14 }}>
           <label style={labelStyle}>Verbatim complaint <span style={{ color: RED, fontWeight: 700 }}>*</span> (paste exactly what the customer said)</label>
           <textarea value={complaintDescription} onChange={(e) => setComplaintDescription(e.target.value)} rows={4} placeholder="Use the customer's own words. Do not summarise or interpret." style={{ ...inputBase, fontFamily: F.sans, resize: "vertical" }} />
@@ -5166,7 +5341,7 @@ function AdverseReactionLogPanel({ role }) {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Products affected (one per line) <span style={{ color: RED, fontWeight: 700 }}>*</span></label>
-            <textarea value={productsText} onChange={(e) => setProductsText(e.target.value)} rows={2} placeholder="Daily Ultimate Essentials Pro" style={{ ...inputBase, fontFamily: F.sans, resize: "vertical" }} />
+            <textarea value={productsText} onChange={(e) => setProductsText(e.target.value)} rows={2} placeholder="Scalp Serum" style={{ ...inputBase, fontFamily: F.sans, resize: "vertical" }} />
           </div>
           <div>
             <label style={labelStyle}>Lot # (one per line, if known)</label>
@@ -5192,26 +5367,25 @@ function AdverseReactionLogPanel({ role }) {
           </div>
         </div>
 
+        <FormSection title="Severity & escalation" />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Severity <span style={{ color: RED, fontWeight: 700 }}>*</span></label>
-            <select value={severity} onChange={(e) => { setSeverity(e.target.value); if (e.target.value === "serious") setIsSerious(true); }} style={{ ...inputBase, color: severity === "serious" ? RED : INK, fontWeight: severity === "serious" ? 700 : 400 }}>
-              <option value="">Select severity…</option>
-              {AR_SEVERITY.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </select>
+            <Combobox
+              value={severity}
+              onChange={(v) => { setSeverity(v); if (v === "serious") setIsSerious(true); }}
+              options={AR_SEVERITY}
+              placeholder="Select severity…"
+              style={{ color: severity === "serious" ? RED : INK, fontWeight: severity === "serious" ? 700 : 400 }}
+            />
           </div>
           <div>
             <label style={labelStyle}>Escalated to</label>
-            <select value={escalatedTo} onChange={(e) => setEscalatedTo(e.target.value)} style={inputBase}>
-              <option value="">— not yet escalated</option>
-              {AR_ESCALATION.map((e) => <option key={e} value={e}>{e}</option>)}
-            </select>
+            <Combobox value={escalatedTo} onChange={setEscalatedTo} options={[{ value: "", label: "— not yet escalated" }, ...AR_ESCALATION]} />
           </div>
           <div>
             <label style={labelStyle}>Status</label>
-            <select value={status} onChange={(e) => setStatus(e.target.value)} style={inputBase}>
-              {AR_STATUS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </select>
+            <Combobox value={status} onChange={setStatus} options={AR_STATUS} />
           </div>
         </div>
 
@@ -5227,6 +5401,7 @@ function AdverseReactionLogPanel({ role }) {
           )}
         </div>
 
+        <FormSection title="Follow-up" />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Follow-up scheduled</label>
@@ -5245,7 +5420,9 @@ function AdverseReactionLogPanel({ role }) {
 
         {formError && <div style={{ background: "#fee", border: "1px solid " + RED, color: RED, padding: 8, borderRadius: 6, marginBottom: 12, fontFamily: F.sans, fontSize: 12 }}>{formError}</div>}
 
-        <button onClick={submit} disabled={submitting} style={{ background: severity === "serious" ? RED : BURG, color: CREAM, border: "1px solid " + (severity === "serious" ? RED : BURG), fontFamily: F.sans, fontSize: 12, fontWeight: 700, padding: "12px 28px", letterSpacing: 2, textTransform: "uppercase", cursor: submitting ? "wait" : "pointer", borderRadius: 99, opacity: submitting ? 0.6 : 1 }}>{submitting ? "Saving..." : "File adverse reaction report"}</button>
+        <FormActionBar note="Compliance record — thoroughness is the feature.">
+          <button onClick={submit} disabled={submitting} style={{ background: severity === "serious" ? RED : BURG, color: CREAM, border: "1px solid " + (severity === "serious" ? RED : BURG), fontFamily: F.sans, fontSize: 12, fontWeight: 700, padding: "12px 28px", letterSpacing: 2, textTransform: "uppercase", cursor: submitting ? "wait" : "pointer", borderRadius: 99, opacity: submitting ? 0.6 : 1 }}>{submitting ? "Saving" : "File adverse reaction report"}</button>
+        </FormActionBar>
       </div>
 
       {canSeeList ? (
@@ -5269,7 +5446,7 @@ function AdverseReactionLogPanel({ role }) {
                       )}
                     </span>
                   ) },
-                  { key: "severity",     label: "Severity", width: 90 },
+                  { key: "severity",     label: "Severity", width: 90, render: (r) => ({ low: "Low", moderate: "Moderate", high: "High", serious: "SERIOUS" })[r.severity] ?? prettyEnum(r.severity, AR_SEVERITY) },
                   { key: "symptoms",     label: "Symptoms",             render: (r) => truncate((r.symptoms || []).join(", "), 80) },
                   { key: "escalatedTo",  label: "Escalated",width: 110, render: (r) => r.escalatedTo || "—" },
                   { key: "status",       label: "Status",   width: 90 },
@@ -6281,27 +6458,14 @@ function TeamTab({ role }) {
                       Owner
                     </span>
                   ) : (
-                    <select
+                    <div style={{ width: 150 }}><Combobox
                       value={u.role || ""}
-                      onChange={(e) => changeRole(u.id, e.target.value)}
+                      onChange={(v) => changeRole(u.id, v)}
                       disabled={locked || rowBusy}
-                      style={{
-                        background: locked ? CREAM : W,
-                        border: "1px solid " + SOFT_BORDER,
-                        borderRadius: 8,
-                        padding: "6px 12px",
-                        fontFamily: F.sans,
-                        fontSize: 12,
-                        color: INK,
-                        cursor: locked ? "not-allowed" : "pointer",
-                        minWidth: 130,
-                      }}
-                    >
-                      {!u.role && <option value="">— (no role set)</option>}
-                      {rolesAvailableFor(u).map((r) => (
-                        <option key={r} value={r}>{r}</option>
-                      ))}
-                    </select>
+                      options={TEAM_ROLES}
+                      placeholder="No role"
+                      style={{ padding: "6px 12px", fontSize: 12, background: locked ? CREAM : W }}
+                    /></div>
                   )}
                 </div>
                 <div>
@@ -6429,13 +6593,9 @@ function InviteUserModal({ viewerIsOwner, onClose, onInvited }) {
         />
 
         <label style={{ fontFamily: F.sans, fontSize: 10, color: INK, opacity: 0.7, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", display: "block", marginBottom: 4 }}>Role</label>
-        <select
-          value={role}
-          onChange={(e) => setRole(e.target.value)}
-          style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: "1px solid " + SOFT_BORDER, background: W, fontFamily: F.sans, fontSize: 14, color: INK, outline: "none", marginBottom: 20, boxSizing: "border-box" }}
-        >
-          {availableRoles.map((r) => <option key={r} value={r}>{r}</option>)}
-        </select>
+        <div style={{ marginBottom: 20 }}>
+          <Combobox value={role} onChange={setRole} options={availableRoles} style={{ fontSize: 14 }} />
+        </div>
 
         {error && (
           <div style={{ background: "#fee", border: "1px solid " + RED, color: RED, padding: 10, borderRadius: 6, marginBottom: 14, fontFamily: F.sans, fontSize: 12 }}>
@@ -9494,10 +9654,10 @@ function InsightsTab({ role }) {
               bulk lookup that's too slow to run inline) — pulled until we
               have a pre-warmed lookup. */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 24 }}>
-            <KpiTile label="Tickets" value={data.volume?.toLocaleString() ?? "—"} hint={data.volume != null ? `${data.volume.toLocaleString()} in range` : null} />
-            <KpiTile label="CSAT" value={data.csat?.average != null ? data.csat.average.toFixed(2) : "—"} hint={data.csat?.count ? `${data.csat.count} responses` : "no responses"} />
-            <KpiTile label="Closed" value={(data.byStatus?.closed ?? 0).toLocaleString()} hint={fmtPct(data.byStatus?.closed ?? 0, data.volume)} />
-            <KpiTile label="Open" value={(data.byStatus?.open ?? 0).toLocaleString()} hint={fmtPct(data.byStatus?.open ?? 0, data.volume)} />
+            <KpiTile label="Tickets" value={data.volume?.toLocaleString() ?? "—"} hint={data.volume != null ? `${data.volume.toLocaleString()} in range` : null} trend={DEMO_TREND.tickets} />
+            <KpiTile label="CSAT" value={data.csat?.average != null ? data.csat.average.toFixed(2) : "—"} hint={data.csat?.count ? `${data.csat.count} responses` : "no responses"} trend={DEMO_TREND.csat} />
+            <KpiTile label="Closed" value={(data.byStatus?.closed ?? 0).toLocaleString()} hint={fmtPct(data.byStatus?.closed ?? 0, data.volume)} trend={DEMO_TREND.closed} />
+            <KpiTile label="Open" value={(data.byStatus?.open ?? 0).toLocaleString()} hint={fmtPct(data.byStatus?.open ?? 0, data.volume)} trend={DEMO_TREND.open} />
             <KpiTile
               label="Trustpilot"
               value={TRUSTPILOT_STATS.trustScore.toFixed(1)}
@@ -9526,6 +9686,7 @@ function InsightsTab({ role }) {
               label="Orders"
               value={shop?.orders != null ? shop.orders.toLocaleString() : "—"}
               hint={shopError ? "error" : null}
+              trend={DEMO_TREND.orders}
             />
             <KpiTile
               label="Refund rate ($)"
@@ -9540,11 +9701,13 @@ function InsightsTab({ role }) {
                 if (shop?.refunded != null) parts.push(`${shop.refunded.toLocaleString()} refunded (${shop.fullyRefunded ?? 0} full / ${shop.partiallyRefunded ?? 0} partial)`);
                 return parts.length ? parts.join(" · ") : null;
               })()}
+              trend={DEMO_TREND.refundRate}
             />
             <KpiTile
               label="Cancel rate"
               value={shop?.cancelRate != null ? `${(shop.cancelRate * 100).toFixed(2)}%` : "—"}
               hint={shop?.cancelled != null ? `${shop.cancelled.toLocaleString()} cancelled` : null}
+              trend={DEMO_TREND.cancelRate}
             />
           </div>
           {shopError && (
@@ -9557,6 +9720,13 @@ function InsightsTab({ role }) {
 
       {canSeeRefunds && (loop || loopLoading || loopError) && (
         <LoopRefundsCard loop={loop} shop={shop} loading={loopLoading} error={loopError} />
+      )}
+
+      {canSeeRefunds && (loop?.topReasons ?? []).length > 0 && (
+        <div style={{ background: W, border: "1px solid #e0d9d0", borderRadius: 10, padding: "16px 20px", marginBottom: 16 }}>
+          <div style={{ fontFamily: F.serif, fontSize: 16, fontWeight: 700, color: BURG, marginBottom: 12 }}>Refund reasons</div>
+          <HBarList entries={loop.topReasons.map((r) => ({ key: r.reason, count: r.count }))} total={loop.count} labelWidth={220} />
+        </div>
       )}
 
       {/* Combined exit signals — one place to see what's making customers
@@ -9579,26 +9749,31 @@ function InsightsTab({ role }) {
               label="Active subs"
               value={skio?.active != null ? skio.active.toLocaleString() : "—"}
               hint={skio?.paused != null ? `${skio.paused.toLocaleString()} paused` : null}
+              trend={DEMO_TREND.activeSubs}
             />
             <KpiTile
               label="Churn rate"
               value={skio?.churnRate != null ? `${(skio.churnRate * 100).toFixed(2)}%` : "—"}
               hint={skio?.activeAtStart != null ? `${skio.cancelled?.toLocaleString() ?? 0} of ${skio.activeAtStart.toLocaleString()} at start` : null}
+              trend={DEMO_TREND.churnRate}
             />
             <KpiTile
               label="Cancellations"
               value={skio?.cancelled != null ? skio.cancelled.toLocaleString() : "—"}
               hint="in range"
+              trend={DEMO_TREND.cancelledSubs}
             />
             <KpiTile
               label="New subs"
               value={skio?.created != null ? skio.created.toLocaleString() : "—"}
               hint={skio?.netChange != null ? `${skio.netChange >= 0 ? "+" : ""}${skio.netChange.toLocaleString()} net` : null}
+              trend={DEMO_TREND.createdSubs}
             />
             <KpiTile
               label="Failed payments"
               value={skio?.failedPayments != null ? skio.failedPayments.toLocaleString() : "—"}
               hint="in range"
+              trend={DEMO_TREND.failedPayments}
             />
           </div>
           {/* Skio "Top Cancel Reasons" removed — now consolidated with
@@ -10003,11 +10178,17 @@ function GorgiasTicketLink({ id }) {
   );
 }
 
-function KpiTile({ label, value, hint }) {
+function KpiTile({ label, value, hint, trend }) {
   return (
     <div style={{ background: W, border: "1px solid #e0d9d0", borderRadius: 10, padding: "16px 18px" }}>
-      <div style={{ fontFamily: F.sans, fontSize: 10, color: "#999", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 6 }}>{label}</div>
-      <div style={{ fontFamily: F.serif, fontSize: 30, fontWeight: 700, color: BURG, lineHeight: 1 }}>{value}</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginBottom: 6 }}>
+        <div style={{ fontFamily: F.sans, fontSize: 10, color: "#999", textTransform: "uppercase", letterSpacing: 1.5 }}>{label}</div>
+        {trend && <DeltaChip delta={trend.delta} good={trend.good} />}
+      </div>
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 10 }}>
+        <div style={{ fontFamily: F.serif, fontSize: 30, fontWeight: 700, color: BURG, lineHeight: 1 }}>{value}</div>
+        {trend && <Sparkline data={trend.series} width={72} height={24} />}
+      </div>
       {hint && <div style={{ fontFamily: F.sans, fontSize: 11, color: "#888", marginTop: 6 }}>{hint}</div>}
     </div>
   );
@@ -10027,7 +10208,7 @@ function BreakdownCard({ title, entries, total }) {
             <div key={key} style={{ display: "grid", gridTemplateColumns: "180px 1fr 80px", alignItems: "center", gap: 12 }}>
               <div style={{ fontFamily: F.sans, fontSize: 12, color: BURG, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{key}</div>
               <div style={{ background: "#f0ebe5", borderRadius: 99, height: 8, position: "relative", overflow: "hidden" }}>
-                <div style={{ background: "linear-gradient(90deg,#C8B9A5,#D4956A)", width: barWidth + "%", height: "100%", borderRadius: 99, transition: "width 0.4s" }} />
+                <div style={{ background: GOLD, width: barWidth + "%", height: "100%", borderRadius: 99, transition: "width 0.4s" }} />
               </div>
               <div style={{ fontFamily: F.sans, fontSize: 12, color: "#666", textAlign: "right" }}>
                 {count.toLocaleString()} <span style={{ color: "#aaa" }}>· {pct}%</span>
