@@ -50,7 +50,7 @@ const TABS = ["Home","Insights","Reports","Logs","Records","Ask LUMÉ","Playbook
 const TEAM_ROLES = ["New Starter", "Agent", "Ops", "Lead Agent", "Manager", "Admin", "Owner"];
 // Hidden until those features are ready — flip individual entries to false
 // to surface them again.
-const HIDDEN_TABS = { "Ask LUMÉ": false, "Playbook": false, "Training": true, "Affiliates": true };
+const HIDDEN_TABS = { "Ask LUMÉ": true, "Playbook": false, "Training": true, "Affiliates": true };
 // Single source of truth for tab access, shared by the tab bar filter and
 // the redirect-on-preview effect so gated content can never stay mounted
 // for a role that shouldn't see it.
@@ -293,7 +293,36 @@ async function callClaude(systemPrompt, messages, maxTokens = 600) {
 }
 
 // ─── System Prompts ───────────────────────────────────────────────────────────
-const ASK_SYSTEM = buildAskLumaSystem();
+// Ticket-handling answers come back structured so the panel can render
+// Quick Decision / Suggested Reply / If They Push Back as distinct cards
+// (and the copy button can grab only the customer-facing draft).
+const ASK_FORMAT = [
+  "OUTPUT FORMAT — when the question is about handling a live ticket or customer situation, structure the answer with exactly these markdown headings, in this order:",
+  "### QUICK DECISION",
+  "one or two sentences — the call to make, immediately actionable.",
+  "### SUGGESTED REPLY",
+  "the complete customer-facing draft in the LUMÉ voice, sign-off included. Nothing under this heading except the draft itself.",
+  "### IF THEY PUSH BACK",
+  "the fallback position — what can flex, what stays firm.",
+  "For purely informational questions (facts, policy lookups, product details) answer normally without the headings.",
+].join(" ");
+const ASK_SYSTEM = buildAskLumaSystem() + " " + ASK_FORMAT;
+
+// Split a structured Ask LUMÉ answer into its cards. Returns null when
+// the reply has no section headings (informational answers).
+function parseAskSections(content) {
+  const re = /^###\s*(QUICK DECISION|SUGGESTED REPLY|IF THEY PUSH BACK)\s*$/gim;
+  const parts = [];
+  let match, last = null;
+  while ((match = re.exec(content)) !== null) {
+    if (last) parts.push({ key: last.key, body: content.slice(last.end, match.index).trim() });
+    last = { key: match[1].toUpperCase(), end: match.index + match[0].length };
+  }
+  if (!last) return null;
+  parts.push({ key: last.key, body: content.slice(last.end).trim() });
+  const intro = content.slice(0, content.search(re.source ? /^###\s*(QUICK DECISION|SUGGESTED REPLY|IF THEY PUSH BACK)\s*$/im : 0)).trim();
+  return { intro, sections: parts };
+}
 
 const SIM_CUSTOMER_SYSTEM = [
   "You are a customer of LUMÉ, a premium haircare brand (serums + The Hair Edit subscription box). Stay in character. Be realistic and skeptical but not abusive.",
@@ -402,6 +431,26 @@ export default function App({ userId, role, displayName }) {
   const [chatInput,   setChatInput]   = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const chatEndRef = useRef(null);
+  const [askOpen, setAskOpen] = useState(false);
+
+  // Command palette (Cmd+K / Ctrl+K)
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [logsSubRequest, setLogsSubRequest] = useState(null);
+  const [playbookQueryRequest, setPlaybookQueryRequest] = useState(null);
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
+        e.preventDefault();
+        setPaletteOpen((o) => !o);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  function openAskWith(prefill) {
+    if (typeof prefill === "string" && prefill) setChatInput(prefill);
+    setAskOpen(true);
+  }
 
   // Simulate
   const [selScen,     setSelScen]     = useState(null);
@@ -515,9 +564,10 @@ export default function App({ userId, role, displayName }) {
   }
 
   // ── Ask LUMÉ Logic ────────────────────────────────────────────────────────
-  async function sendChat() {
-    if (!chatInput.trim() || chatLoading) return;
-    const userMsg = { role:"user", content: chatInput.trim() };
+  async function sendChat(textOverride) {
+    const text = (typeof textOverride === "string" ? textOverride : chatInput).trim();
+    if (!text || chatLoading) return;
+    const userMsg = { role:"user", content: text };
     const newMsgs = [...chatMsgs, userMsg];
     setChatMsgs(newMsgs);
     setChatInput("");
@@ -698,14 +748,13 @@ export default function App({ userId, role, displayName }) {
       </div>
 
       {/* ── MAIN CONTENT ───────────────────────────────────────────────── */}
-      {tab === "Home"     && <HomeTab     displayName={displayName} setTab={setTab} role={effectiveRole} />}
+      {tab === "Home"     && <HomeTab     displayName={displayName} setTab={setTab} role={effectiveRole} openAsk={openAskWith} />}
       {tab === "Insights" && <InsightsTab role={effectiveRole} />}
-      {tab === "Logs"     && <LogsTab role={effectiveRole} />}
+      {tab === "Logs"     && <LogsTab role={effectiveRole} subRequest={logsSubRequest} setTab={setTab} />}
       {tab === "Reports"  && <ReportsTab role={effectiveRole} />}
       {tab === "Records"  && <RecordsTab role={effectiveRole} />}
-      {tab === "Playbook"   && <PlaybookTab   role={effectiveRole} />}
+      {tab === "Playbook"   && <PlaybookTab   role={effectiveRole} queryRequest={playbookQueryRequest} />}
       {tab === "Team"       && <TeamTab       role={effectiveRole} />}
-      {tab === "Ask LUMÉ"  && <AskTab      chatMsgs={chatMsgs} chatInput={chatInput} setChatInput={setChatInput} chatLoading={chatLoading} sendChat={sendChat} chatEndRef={chatEndRef} />}
       {tab === "Training" && <TrainingTab
         bcProgress={bcProgress} saveBcProgress={saveBcProgress} bcView={bcView} setBcView={setBcView}
         bcDay={bcDay} setBcDay={setBcDay} bcLesson={bcLesson} setBcLesson={setBcLesson}
@@ -724,6 +773,25 @@ export default function App({ userId, role, displayName }) {
         simDone={simDone} sendSim={sendSim} startScen={startScen} simEndRef={simEndRef}
         totalScore={totalScore} setTab={setTab}
       />}
+
+      {/* ── GLOBAL SURFACES — slide-over, palette, floating access, toasts ── */}
+      <AskPanel
+        open={askOpen}
+        onClose={() => setAskOpen(false)}
+        chatMsgs={chatMsgs} chatInput={chatInput} setChatInput={setChatInput}
+        chatLoading={chatLoading} sendChat={sendChat} chatEndRef={chatEndRef}
+      />
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        role={effectiveRole}
+        setTab={setTab}
+        requestLogsSub={(subName) => setLogsSubRequest({ sub: subName, nonce: Date.now() })}
+        requestPlaybookQuery={(query) => setPlaybookQueryRequest({ query, nonce: Date.now() })}
+        openAsk={openAskWith}
+      />
+      <FloatingAskButton onClick={() => setAskOpen(true)} hidden={askOpen} />
+      <ToastHost />
 
       {/* ── LEADERBOARD MODAL ──────────────────────────────────────────── */}
       {showLB && (
@@ -913,7 +981,7 @@ const DARK_BORDER = "#2A2A28";
 const CREAM_TXT = "#F4F0E8";
 const WARM_GRAY = "#B0AAA2";
 
-function HomeTab({ displayName, setTab, role }) {
+function HomeTab({ displayName, setTab, role, openAsk }) {
   // Instant render: seed with the bundled demo summary, then refresh
   // silently in the background — the tiles never show a loading state.
   const [stats, setStats] = useState(DEMO_SUMMARY);
@@ -936,6 +1004,22 @@ function HomeTab({ displayName, setTab, role }) {
       }
     })();
     return () => { cancelled = true; };
+  }, []);
+
+  const isAgentTier = ["New Starter", "Agent", "Ops", "Lead Agent"].includes(role);
+  // "My day" — the agent's own picture: logs today, anything pending
+  // review, and one-tap Ask LUMÉ shortcuts.
+  const myDay = useMemo(() => {
+    const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
+    const todayCount = (rows) => rows.filter((r) => new Date(r.createdAt) >= startOfDay).length;
+    const ars = adverseReactionsSeed();
+    return {
+      issues: todayCount(issuesSeed()),
+      replacements: todayCount(replacementsSeed()),
+      feedback: todayCount(feedbackSeed()),
+      reactions: todayCount(ars),
+      pendingReview: ars.filter((r) => r.status === "under-review").length,
+    };
   }, []);
 
   const today = new Date();
@@ -999,7 +1083,7 @@ function HomeTab({ displayName, setTab, role }) {
 
           {/* Ask Luma quick-launch card */}
           <div
-            onClick={() => setTab("Ask LUMÉ")}
+            onClick={openAsk}
             style={{
               flex: "0 0 auto",
               display: "inline-flex", alignItems: "center", gap: 14,
@@ -1066,6 +1150,35 @@ function HomeTab({ displayName, setTab, role }) {
             trend={DEMO_TREND.open}
           />
         </div>
+
+        {isAgentTier && (
+          <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 16, padding: "24px 30px", marginTop: -36, marginBottom: 56 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 14 }}>
+              <div style={{ fontFamily: F.sans, fontSize: 10, color: INK, opacity: 0.55, textTransform: "uppercase", letterSpacing: 2.5, fontWeight: 600 }}>My day</div>
+              {myDay.pendingReview > 0 && (
+                <span style={{ fontFamily: F.sans, fontSize: 11, color: BURG, background: CREAM, border: "1px solid " + SOFT_BORDER, borderRadius: 99, padding: "3px 12px" }}>
+                  {myDay.pendingReview} of mine pending review
+                </span>
+              )}
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 26, marginBottom: 16 }}>
+              {[["Issues", myDay.issues], ["Replacements", myDay.replacements], ["Feedback", myDay.feedback], ["Reactions", myDay.reactions]].map(([label, n]) => (
+                <div key={label}>
+                  <span style={{ fontFamily: F.serif, fontSize: 26, color: BURG, fontWeight: 600, marginRight: 8 }}>{n}</span>
+                  <span style={{ fontFamily: F.sans, fontSize: 12, color: INK, opacity: 0.6 }}>{label} logged today</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+              <span style={{ fontFamily: F.serif, fontStyle: "italic", fontSize: 13, color: INK, opacity: 0.55, marginRight: 4 }}>Quick asks:</span>
+              {["Refund outside 30 days?", "Customer reports tingling", "How do I save a cancel?"].map((c) => (
+                <button key={c} onClick={() => openAsk(c)} style={{ background: CREAM, border: "1px solid " + SOFT_BORDER, color: BURG, fontFamily: F.sans, fontSize: 12, padding: "6px 14px", borderRadius: 99, cursor: "pointer" }}>
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Quote of the day — large editorial block on white */}
         <div style={{ background: W, padding: "56px 56px", marginBottom: 56, position: "relative", border: "1px solid " + SOFT_BORDER, borderLeft: "2px solid " + GOLD, borderRadius: 18 }}>
@@ -1234,6 +1347,44 @@ function HBarList({ entries, total, accent = GOLD, labelWidth = 170 }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ─── Toast system ────────────────────────────────────────────────────────────
+// Global notify() + a single <ToastHost /> mounted in App. Toasts are the
+// confirmation layer for every quick action (log saved, draft copied,
+// inserted into Gorgias). Design-system styled: cream card, gold accent.
+let _toastListeners = [];
+function notify(message, opts = {}) {
+  const t = { id: Date.now() + Math.random(), message, ...opts };
+  _toastListeners.forEach((fn) => fn(t));
+}
+
+function ToastHost() {
+  const [toasts, setToasts] = useState([]);
+  useEffect(() => {
+    const push = (t) => {
+      setToasts((cur) => [...cur.slice(-3), t]);
+      const ttl = t.duration || 4200;
+      setTimeout(() => setToasts((cur) => cur.filter((x) => x.id !== t.id)), ttl);
+    };
+    _toastListeners.push(push);
+    return () => { _toastListeners = _toastListeners.filter((f) => f !== push); };
+  }, []);
+  if (toasts.length === 0) return null;
+  return (
+    <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", zIndex: 300, display: "flex", flexDirection: "column", gap: 8, alignItems: "center", pointerEvents: "none" }}>
+      {toasts.map((t) => (
+        <div key={t.id} style={{ pointerEvents: "auto", background: W, border: "1px solid " + SOFT_BORDER, borderLeft: "3px solid " + GOLD, borderRadius: 10, boxShadow: "0 8px 28px rgba(10,10,9,0.14)", padding: "12px 18px", display: "flex", alignItems: "center", gap: 14, maxWidth: 480 }}>
+          <span style={{ fontFamily: F.sans, fontSize: 13, color: INK }}>{t.message}</span>
+          {t.action && (
+            <button onClick={t.action.onClick} style={{ background: "transparent", border: "none", fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: BURG, textDecoration: "underline", cursor: "pointer", whiteSpace: "nowrap", padding: 0 }}>
+              {t.action.label}
+            </button>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
@@ -3642,10 +3793,16 @@ function MultiSelectChips({ options, selected, onChange, placeholder, search = f
   );
 }
 
-function LogsTab({ role }) {
+function LogsTab({ role, subRequest, setTab }) {
+  const canSeeRecords = canAccessTab("Records", role);
+  const onViewRecords = canSeeRecords && setTab ? () => setTab("Records") : null;
   const isOpsRole = role === "Ops";
   const visibleSubtabs = LOGS_SUBTABS;
   const [sub, setSub] = useState("Order Issue");
+  // Cmd+K "Log …" actions land on the right sub-tab.
+  useEffect(() => {
+    if (subRequest?.sub && LOGS_SUBTABS.includes(subRequest.sub)) setSub(subRequest.sub);
+  }, [subRequest]);
   const eyebrowS = { fontFamily: F.sans, fontSize: 10, color: GOLD, textTransform: "uppercase", letterSpacing: 4, fontWeight: 600, marginBottom: 14 };
   const SUBTAB_TAGLINES = {
     "Order Issue":       "Log damaged, missing, or incorrect items. Enter the LUMÉ order number and note what went wrong.",
@@ -3679,11 +3836,108 @@ function LogsTab({ role }) {
             })}
           </div>
       </div>
-      {sub === "Order Issue" && <IssueLogPanel role={role} />}
-      {sub === "Replacements" && <ReplacementLogPanel role={role} />}
-      {sub === "Reaction/Concern" && <AdverseReactionLogPanel role={role} />}
-      {sub === "Feedback" && <FeedbackLogPanel role={role} />}
+      {sub === "Order Issue" && <IssueLogPanel role={role} onViewRecords={onViewRecords} />}
+      {sub === "Replacements" && <ReplacementLogPanel role={role} onViewRecords={onViewRecords} />}
+      {sub === "Reaction/Concern" && <AdverseReactionLogPanel role={role} onViewRecords={onViewRecords} />}
+      {sub === "Feedback" && <FeedbackLogPanel role={role} onViewRecords={onViewRecords} />}
     </div>
+  );
+}
+
+// ─── Logging-loop helpers (2.1 / 2.5) ────────────────────────────────────────
+
+// Draft persistence: unsaved form state survives tab switches within the
+// session. Pass { fieldName: [value, setter] } — restores once on mount,
+// saves on every change, and the returned function clears the draft.
+function useFormDraft(key, fields) {
+  const restored = useRef(false);
+  useEffect(() => {
+    if (restored.current) return;
+    restored.current = true;
+    try {
+      const saved = JSON.parse(window.sessionStorage.getItem(key) || "null");
+      if (saved) {
+        for (const [name, pair] of Object.entries(fields)) {
+          if (saved[name] !== undefined) pair[1](saved[name]);
+        }
+      }
+    } catch { /* ignore */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    try {
+      const out = {};
+      let any = false;
+      for (const [name, pair] of Object.entries(fields)) {
+        out[name] = pair[0];
+        const v = pair[0];
+        if (v && (!Array.isArray(v) || v.length > 0)) any = true;
+      }
+      if (any) window.sessionStorage.setItem(key, JSON.stringify(out));
+      else window.sessionStorage.removeItem(key);
+    } catch { /* ignore */ }
+  });
+  return () => { try { window.sessionStorage.removeItem(key); } catch { /* ignore */ } };
+}
+
+// Keyboard-first forms: Enter submits from any field once required fields
+// are valid; Esc clears focus. Textareas and open comboboxes keep their
+// native Enter behaviour.
+function makeFormKeyHandler(submit) {
+  return (e) => {
+    if (e.key === "Escape") { e.target?.blur?.(); return; }
+    if (e.key !== "Enter" || e.shiftKey) return;
+    const tag = e.target?.tagName;
+    if (tag === "TEXTAREA" || tag === "BUTTON") return;
+    if (e.target?.closest?.("[role=combobox],[role=listbox]")) return;
+    e.preventDefault();
+    submit();
+  };
+}
+
+// 2.5 — agents can edit their own entries for 60 minutes, then the record
+// locks (Manager+ can still edit via Records).
+const EDIT_WINDOW_MS = 60 * 60 * 1000;
+function canEditLogRow(r, role) {
+  if (role && ["Manager", "Admin", "Owner"].includes(role)) return true;
+  return Date.now() - new Date(r.createdAt).getTime() < EDIT_WINDOW_MS;
+}
+
+// Trailing "Edit" column for the recent lists. onEdit(null) means locked.
+function editColumn(role, onEdit, lockTitle) {
+  return {
+    key: "_edit", label: "", width: 60,
+    render: (r) => {
+      const editable = onEdit && canEditLogRow(r, role);
+      if (editable) {
+        return (
+          <button onClick={() => onEdit(r)} style={{ background: "transparent", border: "1px solid " + SOFT_BORDER, color: BURG, fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", padding: "3px 10px", borderRadius: 99, cursor: "pointer" }}>
+            Edit
+          </button>
+        );
+      }
+      return (
+        <span title={lockTitle || "Locked — the 60-minute edit window has passed. A Manager can edit this in Records."} style={{ fontFamily: F.sans, fontSize: 12, opacity: 0.4, cursor: "help" }} aria-label="Locked">🔒</span>
+      );
+    },
+  };
+}
+
+// Success state after a save — the form resets, a toast confirms, and the
+// action bar flips to "Log another" + "View in Records".
+function SavedActions({ savedLabel, onLogAnother, onViewRecords }) {
+  return (
+    <>
+      <span style={{ fontFamily: F.sans, fontSize: 12, color: CHIP_GREEN, fontWeight: 700 }}>✓ {savedLabel}</span>
+      {onViewRecords && (
+        <button onClick={onViewRecords} style={{ background: "transparent", border: "none", fontFamily: F.sans, fontSize: 12, color: BURG, textDecoration: "underline", cursor: "pointer", padding: 0 }}>
+          View in Records
+        </button>
+      )}
+      <button onClick={onLogAnother} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 12, fontWeight: 700, padding: "12px 28px", letterSpacing: 2, textTransform: "uppercase", cursor: "pointer", borderRadius: 99 }}>
+        Log another
+      </button>
+    </>
   );
 }
 
@@ -3766,7 +4020,7 @@ function RecentLogTable({ rows, columns, emptyMessage }) {
   );
 }
 
-function IssueLogPanel({ role }) {
+function IssueLogPanel({ role, onViewRecords }) {
   const [orderId, setOrderId] = useState("");
   const [ticketId, setTicketId] = useState("");
   const [customerName, setCustomerName] = useState("");
@@ -3795,6 +4049,25 @@ function IssueLogPanel({ role }) {
   const [recent, setRecent] = useState(() => issuesSeed()); // instant render — refreshed silently
   const [scope, setScope] = useState("own");
   const [loading, setLoading] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [savedLabel, setSavedLabel] = useState(null);
+  const [showMore, setShowMore] = useState(false);
+  const orderInputRef = useRef(null);
+  const cardRef = useRef(null);
+
+  // Draft survives tab switches within the session (2.1).
+  const clearDraft = useFormDraft("draft_issue", {
+    orderId: [orderId, setOrderId], ticketId: [ticketId, setTicketId],
+    customerName: [customerName, setCustomerName], customerEmail: [customerEmail, setCustomerEmail],
+    country: [country, setCountry], warehouse: [warehouse, setWarehouse],
+    category: [category, setCategory], severity: [severity, setSeverity],
+    itemsAffected: [itemsAffected, setItemsAffected], description: [description, setDescription],
+    photoUrlsText: [photoUrlsText, setPhotoUrlsText], videoUrl: [videoUrl, setVideoUrl],
+    resolution: [resolution, setResolution], resolutionNotes: [resolutionNotes, setResolutionNotes],
+  });
+
+  // Fresh input clears the "saved" state so the bar returns to Save.
+  useEffect(() => { if (savedLabel && (orderId || description)) setSavedLabel(null); }, [orderId, description]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadRecent() {
     setLoading(true);
@@ -3833,11 +4106,41 @@ function IssueLogPanel({ role }) {
         .map((li) => `${li.title}${li.variantTitle ? " — " + li.variantTitle : ""} x${li.quantity}`)
         .join("\n");
       setLookupHint({ items, fulfillment: json.fulfillmentStatus, financial: json.financialStatus });
+      // Pre-select Items affected from the order's line items when the
+      // agent hasn't picked any yet — one less field to touch.
+      if (itemsAffected.length === 0) {
+        const catalogue = new Set(PRODUCT_CATALOGUE_SIMPLE.flatMap((g) => g.items));
+        const mapped = (json.lineItems ?? []).map((li) => `${li.title} x${li.quantity}`).filter((v) => catalogue.has(v));
+        if (mapped.length > 0) setItemsAffected(mapped);
+      }
     } catch (e) {
       setLookupError(e.message);
     } finally {
       setLookupLoading(false);
     }
+  }
+
+  function startEdit(r) {
+    setEditingId(r.id);
+    setSavedLabel(null);
+    setOrderId(r.orderId || ""); setTicketId(r.ticketId || "");
+    setCustomerName(r.customerName || ""); setCustomerEmail(r.customerEmail || "");
+    setCountry(r.country || ""); setWarehouse(r.warehouse || "");
+    setCategory(r.category || ""); setSeverity(r.severity || "");
+    setItemsAffected(r.itemsAffected || []); setDescription(r.description || "");
+    setPhotoUrlsText((r.photoUrls || []).join("\n")); setVideoUrl(r.videoUrl || "");
+    setResolution(r.resolution || ""); setResolutionNotes(r.resolutionNotes || "");
+    setShowMore(Boolean((r.photoUrls || []).length || r.videoUrl || r.resolutionNotes));
+    cardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function resetForm() {
+    setOrderId(""); setTicketId(""); setCustomerName(""); setCustomerEmail(""); setCountry("");
+    setWarehouse(""); setCategory(""); setSeverity("");
+    setItemsAffected([]); setDescription(""); setPhotoUrlsText(""); setVideoUrl("");
+    setResolution(""); setResolutionNotes("");
+    setLookupHint(null); setEditingId(null);
+    clearDraft();
   }
 
   async function submit() {
@@ -3855,33 +4158,48 @@ function IssueLogPanel({ role }) {
       // itemsAffected is now an array from the multi-select dropdown
       // (was previously a free-text comma-separated input).
       const photoUrls = photoUrlsText.split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
-      const res = await fetch("/api/logs/issues", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          orderId: orderId.trim(),
-          ticketId: ticketId.trim(),
-          customerName: customerName.trim() || undefined,
-          customerEmail: customerEmail.trim() || undefined,
-          country: country.trim() || undefined,
-          warehouse: warehouse || undefined,
-          category, severity,
-          itemsAffected,
-          description: description.trim(),
-          photoUrls,
-          videoUrl: videoUrl.trim() || undefined,
-          resolution,
-          resolutionNotes: resolutionNotes.trim() || undefined,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
-      setOrderId(""); setTicketId(""); setCustomerName(""); setCustomerEmail(""); setCountry("");
-      setWarehouse(""); setCategory("missing-item"); setSeverity("normal");
-      setItemsAffected([]); setDescription(""); setPhotoUrlsText(""); setVideoUrl("");
-      setResolution("pending"); setResolutionNotes("");
-      setLookupHint(null);
-      loadRecent();
+      const payload = {
+        orderId: orderId.trim(),
+        ticketId: ticketId.trim(),
+        customerName: customerName.trim() || undefined,
+        customerEmail: customerEmail.trim() || undefined,
+        country: country.trim() || undefined,
+        warehouse: warehouse || undefined,
+        category, severity,
+        itemsAffected,
+        description: description.trim(),
+        photoUrls,
+        videoUrl: videoUrl.trim() || undefined,
+        resolution,
+        resolutionNotes: resolutionNotes.trim() || undefined,
+      };
+      if (editingId) {
+        const res = await fetch(`/api/logs/issues/${editingId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+        // Audit trail: keep createdAt, stamp updatedAt + bump the edit count.
+        setRecent((cur) => cur.map((x) => x.id === editingId ? { ...x, ...payload, updatedAt: new Date().toISOString(), editCount: (x.editCount || 0) + 1 } : x));
+        notify(`Issue ${orderId.trim()} updated`);
+        resetForm();
+        setSavedLabel(null);
+      } else {
+        const res = await fetch("/api/logs/issues", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+        setRecent((cur) => [json.row, ...cur]);
+        notify(`Order issue logged — ${orderId.trim()}`);
+        const saved = orderId.trim();
+        resetForm();
+        setSavedLabel(`Issue logged for ${saved}`);
+      }
     } catch (e) {
       setFormError(e.message);
     } finally {
@@ -3898,14 +4216,16 @@ function IssueLogPanel({ role }) {
 
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", padding: "16px 24px 96px" }}>
-      <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 14, padding: "24px 28px", marginBottom: 24 }}>
-        <div style={{ fontFamily: F.serif, fontSize: 22, color: BURG, fontWeight: 600, marginBottom: 18 }}>Log a new issue</div>
+      <div ref={cardRef} onKeyDown={makeFormKeyHandler(submit)} style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 14, padding: "24px 28px", marginBottom: 24 }}>
+        <div style={{ fontFamily: F.serif, fontSize: 22, color: BURG, fontWeight: 600, marginBottom: 18 }}>
+          {editingId ? "Edit issue — " + orderId : "Log a new issue"}
+        </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>Order ID <span style={{ color: RED, fontWeight: 700 }}>*</span></label>
             <div style={{ display: "flex", gap: 8 }}>
-              <input value={orderId} onChange={(e) => setOrderId(e.target.value)} placeholder="#LME-10500" style={{ ...inputBase, flex: 1 }} />
+              <input ref={orderInputRef} value={orderId} onChange={(e) => setOrderId(e.target.value)} placeholder="#LME-10500" style={{ ...inputBase, flex: 1 }} />
               <button onClick={lookupOrder} disabled={!orderId.trim() || lookupLoading} style={{
                 background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700,
                 padding: "0 18px", letterSpacing: 1.5, textTransform: "uppercase", cursor: orderId.trim() && !lookupLoading ? "pointer" : "not-allowed",
@@ -3981,31 +4301,56 @@ function IssueLogPanel({ role }) {
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="What did the customer report?" style={{ ...inputBase, fontFamily: F.sans, resize: "vertical" }} />
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14, marginBottom: 14 }}>
-          <div>
-            <label style={labelStyle}>Photo URLs (one per line or comma separated)</label>
-            <textarea value={photoUrlsText} onChange={(e) => setPhotoUrlsText(e.target.value)} rows={2} placeholder="https://drive.google.com/..." style={{ ...inputBase, fontFamily: F.sans, resize: "vertical" }} />
-          </div>
-          <div>
-            <label style={labelStyle}>Video URL</label>
-            <input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="optional" style={inputBase} />
-          </div>
-        </div>
+        <button onClick={() => setShowMore((v) => !v)} style={{ background: "transparent", border: "none", padding: 0, marginBottom: 14, fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", color: GOLD, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ display: "inline-block", transform: showMore ? "rotate(90deg)" : "none", transition: "transform 0.15s", fontSize: 10 }}>▸</span>
+          {showMore ? "Hide extra detail" : "Add more detail"}
+          <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, opacity: 0.6 }}>— photos, video, resolution notes</span>
+        </button>
 
-        <div style={{ marginBottom: 14 }}>
-          <label style={labelStyle}>Resolution notes</label>
-          <input value={resolutionNotes} onChange={(e) => setResolutionNotes(e.target.value)} placeholder="optional — what was done" style={inputBase} />
-        </div>
+        {showMore && (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14, marginBottom: 14 }}>
+              <div>
+                <label style={labelStyle}>Photo URLs (one per line or comma separated)</label>
+                <textarea value={photoUrlsText} onChange={(e) => setPhotoUrlsText(e.target.value)} rows={2} placeholder="https://drive.google.com/..." style={{ ...inputBase, fontFamily: F.sans, resize: "vertical" }} />
+              </div>
+              <div>
+                <label style={labelStyle}>Video URL</label>
+                <input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="optional" style={inputBase} />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 14 }}>
+              <label style={labelStyle}>Resolution notes</label>
+              <input value={resolutionNotes} onChange={(e) => setResolutionNotes(e.target.value)} placeholder="optional — what was done" style={inputBase} />
+            </div>
+          </>
+        )}
 
         {formError && <div style={{ background: "#fee", border: "1px solid " + RED, color: RED, padding: 8, borderRadius: 6, marginBottom: 12, fontFamily: F.sans, fontSize: 12 }}>{formError}</div>}
 
-        <FormActionBar note="Under 30 seconds, keyboard first — Tab through, Enter to save.">
-          <button onClick={submit} disabled={submitting} style={{
-            background: BURG, color: CREAM, border: "1px solid " + BURG,
-            fontFamily: F.sans, fontSize: 12, fontWeight: 700, padding: "12px 28px",
-            letterSpacing: 2, textTransform: "uppercase", cursor: submitting ? "wait" : "pointer", borderRadius: 99,
-            opacity: submitting ? 0.6 : 1,
-          }}>{submitting ? "Saving" : "Save Issue"}</button>
+        <FormActionBar note={editingId ? "Editing your entry — saves a new version to the audit trail." : "Under 30 seconds, keyboard first — Tab through, Enter to save."}>
+          {savedLabel && !editingId ? (
+            <SavedActions
+              savedLabel={savedLabel}
+              onLogAnother={() => { setSavedLabel(null); orderInputRef.current?.focus(); }}
+              onViewRecords={onViewRecords}
+            />
+          ) : (
+            <>
+              {editingId && (
+                <button onClick={resetForm} style={{ background: "transparent", border: "1px solid " + SOFT_BORDER, color: BURG, fontFamily: F.sans, fontSize: 12, fontWeight: 700, padding: "12px 22px", letterSpacing: 2, textTransform: "uppercase", cursor: "pointer", borderRadius: 99 }}>
+                  Cancel
+                </button>
+              )}
+              <button onClick={submit} disabled={submitting} style={{
+                background: BURG, color: CREAM, border: "1px solid " + BURG,
+                fontFamily: F.sans, fontSize: 12, fontWeight: 700, padding: "12px 28px",
+                letterSpacing: 2, textTransform: "uppercase", cursor: submitting ? "wait" : "pointer", borderRadius: 99,
+                opacity: submitting ? 0.6 : 1,
+              }}>{submitting ? "Saving" : editingId ? "Save changes" : "Save Issue"}</button>
+            </>
+          )}
         </FormActionBar>
       </div>
 
@@ -4020,12 +4365,13 @@ function IssueLogPanel({ role }) {
               rows={recent7}
               emptyMessage="No issues logged in the last 7 days."
               columns={[
-                { key: "createdAt",   label: "Date",        width: 70,  render: (r) => shortDate(r.createdAt) },
+                { key: "createdAt",   label: "Date",        width: 70,  render: (r) => <span>{shortDate(r.createdAt)}{r.updatedAt ? <span title={"Edited " + new Date(r.updatedAt).toLocaleString()} style={{ opacity: 0.5 }}> ✎</span> : null}</span> },
                 { key: "orderId",     label: "Order",       width: 110 },
                 { key: "category",    label: "Category",    width: 130, render: (r) => prettyEnum(r.category, ISSUE_CATEGORIES) },
                 { key: "warehouse",   label: "Warehouse",   width: 90,  render: (r) => r.warehouse || "—" },
                 { key: "resolution",  label: "Resolution",  width: 110, render: (r) => prettyEnum(r.resolution, ISSUE_RESOLUTIONS) },
                 { key: "description", label: "Description",             render: (r) => truncate(r.description, 80) },
+                editColumn(role, startEdit),
               ]}
             />
           </>
@@ -4037,7 +4383,7 @@ function IssueLogPanel({ role }) {
 
 // ─── Replacement log ──────────────────────────────────────────────
 
-function ReplacementLogPanel({ role }) {
+function ReplacementLogPanel({ role, onViewRecords }) {
   const [orderId, setOrderId] = useState("");
   const [ticketId, setTicketId] = useState("");
   const [customerName, setCustomerName] = useState("");
@@ -4064,6 +4410,19 @@ function ReplacementLogPanel({ role }) {
   const [recent, setRecent] = useState(() => replacementsSeed()); // instant render — refreshed silently
   const [scopeShown, setScopeShown] = useState("own");
   const [loading, setLoading] = useState(false);
+  const [savedLabel, setSavedLabel] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+  const orderInputRef = useRef(null);
+
+  const clearDraft = useFormDraft("draft_replacement", {
+    orderId: [orderId, setOrderId], ticketId: [ticketId, setTicketId],
+    customerName: [customerName, setCustomerName], customerEmail: [customerEmail, setCustomerEmail],
+    country: [country, setCountry], warehouse: [warehouse, setWarehouse],
+    reasonMains: [reasonMains, setReasonMains], reasonSubs: [reasonSubs, setReasonSubs],
+    itemsAffected: [itemsAffected, setItemsAffected], originalOrder: [originalOrder, setOriginalOrder],
+    details: [details, setDetails], courier: [courier, setCourier], solution: [solution, setSolution],
+  });
+  useEffect(() => { if (savedLabel && (orderId || details)) setSavedLabel(null); }, [orderId, details]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadRecent() {
     setLoading(true);
@@ -4102,6 +4461,24 @@ function ReplacementLogPanel({ role }) {
     finally { setLookupLoading(false); }
   }
 
+  function startEdit(r) {
+    setEditingId(r.id); setSavedLabel(null);
+    setOrderId(r.orderId || ""); setTicketId(r.ticketId || "");
+    setCustomerName(r.customerName || ""); setCustomerEmail(r.customerEmail || "");
+    setCountry(r.country || ""); setWarehouse(r.warehouse || "");
+    setReasonMains(r.reasonMains || []); setReasonSubs(r.reasonSubs || []);
+    setItemsAffected(r.itemsAffected || []); setOriginalOrder(r.originalOrder || r.orderId || "");
+    setDetails(r.details || ""); setCourier(r.courier || ""); setSolution(r.solution || "");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  function cancelEditMode() {
+    setEditingId(null);
+    setOrderId(""); setTicketId(""); setCustomerName(""); setCustomerEmail(""); setCountry("");
+    setWarehouse(""); setReasonMains([]); setReasonSubs([]); setItemsAffected([]);
+    setOriginalOrder(""); setDetails(""); setCourier(""); setSolution("");
+    clearDraft();
+  }
+
   async function submit() {
     setFormError(null);
     if (!orderId.trim()) { setFormError("Order ID required"); return; }
@@ -4117,8 +4494,8 @@ function ReplacementLogPanel({ role }) {
     if (!solution.trim()) { setFormError("Solution required"); return; }
     setSubmitting(true);
     try {
-      const res = await fetch("/api/logs/replacements", {
-        method: "POST",
+      const res = await fetch(editingId ? `/api/logs/replacements/${editingId}` : "/api/logs/replacements", {
+        method: editingId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           orderId: orderId.trim(),
@@ -4138,11 +4515,22 @@ function ReplacementLogPanel({ role }) {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      const saved = orderId.trim();
+      const wasEditing = editingId;
+      if (wasEditing) {
+        setRecent((cur) => cur.map((x) => x.id === wasEditing ? { ...x, ...json.row, id: wasEditing, createdAt: x.createdAt, updatedAt: new Date().toISOString(), editCount: (x.editCount || 0) + 1 } : x));
+        notify(`Replacement ${saved} updated`);
+      } else {
+        setRecent((cur) => [json.row, ...cur]);
+        notify(`Replacement logged — ${saved}`);
+        setSavedLabel(`Replacement logged for ${saved}`);
+      }
+      setEditingId(null);
       setOrderId(""); setTicketId(""); setCustomerName(""); setCustomerEmail(""); setCountry("");
       setWarehouse(""); setReasonMains([]); setReasonSubs([]); setItemsAffected([]);
       setOriginalOrder(""); setDetails(""); setCourier("");
       setSolution(""); setLookupHint(null);
-      loadRecent();
+      clearDraft();
     } catch (e) { setFormError(e.message); }
     finally { setSubmitting(false); }
   }
@@ -4152,7 +4540,7 @@ function ReplacementLogPanel({ role }) {
 
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", padding: "16px 24px 96px" }}>
-      <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 14, padding: "24px 28px", marginBottom: 24 }}>
+      <div onKeyDown={makeFormKeyHandler(submit)} style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 14, padding: "24px 28px", marginBottom: 24 }}>
         <div style={{ fontFamily: F.serif, fontSize: 22, color: BURG, fontWeight: 600, marginBottom: 18 }}>Log a replacement / gift</div>
 
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14, marginBottom: 14 }}>
@@ -4258,7 +4646,16 @@ function ReplacementLogPanel({ role }) {
         {formError && <div style={{ background: "#fee", border: "1px solid " + RED, color: RED, padding: 8, borderRadius: 6, marginBottom: 12, fontFamily: F.sans, fontSize: 12 }}>{formError}</div>}
 
         <FormActionBar note="Order lookup fills the customer for you.">
-          <button onClick={submit} disabled={submitting} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 12, fontWeight: 700, padding: "12px 28px", letterSpacing: 2, textTransform: "uppercase", cursor: submitting ? "wait" : "pointer", borderRadius: 99, opacity: submitting ? 0.6 : 1 }}>{submitting ? "Saving" : "Save Replacement"}</button>
+          {savedLabel && !editingId ? (
+            <SavedActions savedLabel={savedLabel} onLogAnother={() => setSavedLabel(null)} onViewRecords={onViewRecords} />
+          ) : (
+          <>
+          {editingId && (
+            <button onClick={cancelEditMode} style={{ background: "transparent", border: "1px solid " + SOFT_BORDER, color: BURG, fontFamily: F.sans, fontSize: 12, fontWeight: 700, padding: "12px 22px", letterSpacing: 2, textTransform: "uppercase", cursor: "pointer", borderRadius: 99 }}>Cancel</button>
+          )}
+          <button onClick={submit} disabled={submitting} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 12, fontWeight: 700, padding: "12px 28px", letterSpacing: 2, textTransform: "uppercase", cursor: submitting ? "wait" : "pointer", borderRadius: 99, opacity: submitting ? 0.6 : 1 }}>{submitting ? "Saving" : editingId ? "Save changes" : "Save Replacement"}</button>
+          </>
+          )}
         </FormActionBar>
       </div>
 
@@ -4273,7 +4670,7 @@ function ReplacementLogPanel({ role }) {
               rows={recent7}
               emptyMessage="No replacements logged in the last 7 days."
               columns={[
-                { key: "createdAt", label: "Date",      width: 70,  render: (r) => shortDate(r.createdAt) },
+                { key: "createdAt", label: "Date",      width: 70,  render: (r) => <span>{shortDate(r.createdAt)}{r.updatedAt ? <span title={"Edited " + new Date(r.updatedAt).toLocaleString()} style={{ opacity: 0.5 }}> ✎</span> : null}</span> },
                 { key: "orderId",   label: "Order",     width: 110 },
                 { key: "reason",    label: "Reason",                render: (r) => {
                   const mains = r.reasonMains?.length > 0
@@ -4287,6 +4684,7 @@ function ReplacementLogPanel({ role }) {
                   return items.length > 0 ? truncate(items.join(", "), 80) : "—";
                 } },
                 { key: "solution",  label: "Solution",              render: (r) => truncate(r.solution || r.details, 80) },
+                editColumn(role, startEdit),
               ]}
             />
           </>
@@ -4581,7 +4979,7 @@ function CancelNoRefundLogPanel({ role }) {
 
 // ─── Feedback log ─────────────────────────────────────────────────
 
-function FeedbackLogPanel({ role }) {
+function FeedbackLogPanel({ role, onViewRecords }) {
   const [orderId, setOrderId] = useState("");
   const [ticketId, setTicketId] = useState("");
   const [customerName, setCustomerName] = useState("");
@@ -4598,8 +4996,18 @@ function FeedbackLogPanel({ role }) {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
   const [recent, setRecent] = useState(() => feedbackSeed()); // instant render — refreshed silently
+  const [savedLabel, setSavedLabel] = useState(null);
+  const [editingId, setEditingId] = useState(null);
   const [scopeShown, setScopeShown] = useState("own");
   const [loading, setLoading] = useState(false);
+
+  const clearDraft = useFormDraft("draft_feedback", {
+    orderId: [orderId, setOrderId], ticketId: [ticketId, setTicketId],
+    customerName: [customerName, setCustomerName], customerEmail: [customerEmail, setCustomerEmail],
+    country: [country, setCountry], theme: [theme, setTheme],
+    relatedTeam: [relatedTeam, setRelatedTeam], details: [details, setDetails], suggestion: [suggestion, setSuggestion],
+  });
+  useEffect(() => { if (savedLabel && (ticketId || details)) setSavedLabel(null); }, [ticketId, details]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadRecent() {
     setLoading(true);
@@ -4629,6 +5037,21 @@ function FeedbackLogPanel({ role }) {
     finally { setLookupLoading(false); }
   }
 
+  function startEdit(r) {
+    setEditingId(r.id); setSavedLabel(null);
+    setOrderId(r.orderId || ""); setTicketId(r.ticketId || "");
+    setCustomerName(r.customerName || ""); setCustomerEmail(r.customerEmail || "");
+    setCountry(r.country || ""); setTheme(r.theme || "");
+    setRelatedTeam(r.relatedTeam || ""); setDetails(r.details || ""); setSuggestion(r.suggestion || "");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  function cancelEditMode() {
+    setEditingId(null);
+    setOrderId(""); setTicketId(""); setCustomerName(""); setCustomerEmail(""); setCountry("");
+    setTheme(""); setRelatedTeam(""); setDetails(""); setSuggestion("");
+    clearDraft();
+  }
+
   async function submit() {
     setFormError(null);
     if (!ticketId.trim()) { setFormError("Gorgias ticket # required"); return; }
@@ -4638,8 +5061,8 @@ function FeedbackLogPanel({ role }) {
     if (!details.trim()) { setFormError("What did the customer say? required"); return; }
     setSubmitting(true);
     try {
-      const res = await fetch("/api/logs/feedback", {
-        method: "POST",
+      const res = await fetch(editingId ? `/api/logs/feedback/${editingId}` : "/api/logs/feedback", {
+        method: editingId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           orderId: orderId.trim() || undefined,
@@ -4655,9 +5078,20 @@ function FeedbackLogPanel({ role }) {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      const savedTicket = ticketId.trim();
+      const wasEditing = editingId;
+      if (wasEditing) {
+        setRecent((cur) => cur.map((x) => x.id === wasEditing ? { ...x, ...json.row, id: wasEditing, createdAt: x.createdAt, updatedAt: new Date().toISOString(), editCount: (x.editCount || 0) + 1 } : x));
+        notify("Feedback entry updated");
+      } else {
+        setRecent((cur) => [json.row, ...cur]);
+        notify(`Feedback logged — ticket #${savedTicket}`);
+        setSavedLabel("Feedback logged");
+      }
+      setEditingId(null);
       setOrderId(""); setTicketId(""); setCustomerName(""); setCustomerEmail(""); setCountry("");
       setTheme(""); setRelatedTeam(""); setDetails(""); setSuggestion("");
-      loadRecent();
+      clearDraft();
     } catch (e) { setFormError(e.message); }
     finally { setSubmitting(false); }
   }
@@ -4667,7 +5101,7 @@ function FeedbackLogPanel({ role }) {
 
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", padding: "16px 24px 96px" }}>
-      <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 14, padding: "24px 28px", marginBottom: 24 }}>
+      <div onKeyDown={makeFormKeyHandler(submit)} style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 14, padding: "24px 28px", marginBottom: 24 }}>
         <div style={{ fontFamily: F.serif, fontSize: 22, color: BURG, fontWeight: 600, marginBottom: 18 }}>Log customer feedback</div>
 
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14, marginBottom: 14 }}>
@@ -4714,7 +5148,18 @@ function FeedbackLogPanel({ role }) {
 
         {formError && <div style={{ background: "#fee", border: "1px solid " + RED, color: RED, padding: 8, borderRadius: 6, marginBottom: 12, fontFamily: F.sans, fontSize: 12 }}>{formError}</div>}
 
-        <button onClick={submit} disabled={submitting} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 12, fontWeight: 700, padding: "12px 28px", letterSpacing: 2, textTransform: "uppercase", cursor: submitting ? "wait" : "pointer", borderRadius: 99, opacity: submitting ? 0.6 : 1 }}>{submitting ? "Saving" : "Save Feedback"}</button>
+        <FormActionBar note="Feedback feeds the weekly report and VoC automatically.">
+          {savedLabel && !editingId ? (
+            <SavedActions savedLabel={savedLabel} onLogAnother={() => setSavedLabel(null)} onViewRecords={onViewRecords} />
+          ) : (
+          <>
+          {editingId && (
+            <button onClick={cancelEditMode} style={{ background: "transparent", border: "1px solid " + SOFT_BORDER, color: BURG, fontFamily: F.sans, fontSize: 12, fontWeight: 700, padding: "12px 22px", letterSpacing: 2, textTransform: "uppercase", cursor: "pointer", borderRadius: 99 }}>Cancel</button>
+          )}
+          <button onClick={submit} disabled={submitting} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 12, fontWeight: 700, padding: "12px 28px", letterSpacing: 2, textTransform: "uppercase", cursor: submitting ? "wait" : "pointer", borderRadius: 99, opacity: submitting ? 0.6 : 1 }}>{submitting ? "Saving" : editingId ? "Save changes" : "Save Feedback"}</button>
+          </>
+          )}
+        </FormActionBar>
       </div>
 
       {(() => {
@@ -4728,12 +5173,13 @@ function FeedbackLogPanel({ role }) {
               rows={recent7}
               emptyMessage="No feedback logged in the last 7 days."
               columns={[
-                { key: "createdAt",    label: "Date",  width: 70,  render: (r) => shortDate(r.createdAt) },
+                { key: "createdAt",    label: "Date",  width: 70,  render: (r) => <span>{shortDate(r.createdAt)}{r.updatedAt ? <span title={"Edited " + new Date(r.updatedAt).toLocaleString()} style={{ opacity: 0.5 }}> ✎</span> : null}</span> },
                 { key: "orderId",      label: "Order", width: 110, render: (r) => r.orderId || "—" },
                 { key: "theme",        label: "Theme", width: 110, render: (r) => prettyEnum(r.theme, FEEDBACK_THEMES) },
                 { key: "relatedTeam",  label: "Team",  width: 90,  render: (r) => r.relatedTeam || "—" },
                 { key: "details",      label: "Details",           render: (r) => truncate(r.details, 100) },
                 { key: "suggestion",   label: "Suggestion",        render: (r) => truncate(r.suggestion, 80) },
+                editColumn(role, startEdit),
               ]}
             />
           </>
@@ -5141,7 +5587,7 @@ function OrderRequestCard({ row, canEdit, onSaved }) {
 
 // ─── Adverse Reaction log ────────────────────────────────────────
 
-function AdverseReactionLogPanel({ role }) {
+function AdverseReactionLogPanel({ role, onViewRecords }) {
   const canSeeList = role && ["Lead Agent", "Manager", "Admin", "Owner"].includes(role);
 
   const [orderId, setOrderId] = useState("");
@@ -5177,7 +5623,19 @@ function AdverseReactionLogPanel({ role }) {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
   const [recent, setRecent] = useState(() => adverseReactionsSeed()); // instant render — refreshed silently
+  const [savedLabel, setSavedLabel] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  const clearDraft = useFormDraft("draft_reaction", {
+    orderId: [orderId, setOrderId], ticketId: [ticketId, setTicketId],
+    customerName: [customerName, setCustomerName], customerEmail: [customerEmail, setCustomerEmail],
+    country: [country, setCountry], complaintMethod: [complaintMethod, setComplaintMethod],
+    complaintDescription: [complaintDescription, setComplaintDescription],
+    productsText: [productsText, setProductsText], lotsText: [lotsText, setLotsText],
+    symptoms: [symptoms, setSymptoms], severity: [severity, setSeverity],
+    escalatedTo: [escalatedTo, setEscalatedTo], status: [status, setStatus],
+  });
+  useEffect(() => { if (savedLabel && (orderId || complaintDescription)) setSavedLabel(null); }, [orderId, complaintDescription]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadRecent() {
     if (!canSeeList) return;
@@ -5267,7 +5725,10 @@ function AdverseReactionLogPanel({ role }) {
       setReturnRequested(false); setRmaNumber("");
       setFollowUpAt(""); setFollowUpMethod(""); setFollowUpNotes("");
       setStatus("open"); setLookupHint(null);
-      loadRecent();
+      clearDraft();
+      setRecent((cur) => [json.row, ...cur]);
+      notify("Reaction report filed — escalation clock started");
+      setSavedLabel("Reaction report filed");
     } catch (e) { setFormError(e.message); }
     finally { setSubmitting(false); }
   }
@@ -5283,7 +5744,7 @@ function AdverseReactionLogPanel({ role }) {
         Capture the customer's words verbatim. Do not troubleshoot. Issue full refund. Escalate to Head of CX immediately for any reaction.
       </div>
 
-      <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 14, padding: "24px 28px", marginBottom: 24 }}>
+      <div onKeyDown={makeFormKeyHandler(submit)} style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 14, padding: "24px 28px", marginBottom: 24 }}>
         <div style={{ fontFamily: F.serif, fontSize: 22, color: BURG, fontWeight: 600, marginBottom: 18 }}>Log an adverse reaction</div>
 
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
@@ -5421,7 +5882,11 @@ function AdverseReactionLogPanel({ role }) {
         {formError && <div style={{ background: "#fee", border: "1px solid " + RED, color: RED, padding: 8, borderRadius: 6, marginBottom: 12, fontFamily: F.sans, fontSize: 12 }}>{formError}</div>}
 
         <FormActionBar note="Compliance record — thoroughness is the feature.">
+          {savedLabel ? (
+            <SavedActions savedLabel={savedLabel} onLogAnother={() => setSavedLabel(null)} onViewRecords={onViewRecords} />
+          ) : (
           <button onClick={submit} disabled={submitting} style={{ background: severity === "serious" ? RED : BURG, color: CREAM, border: "1px solid " + (severity === "serious" ? RED : BURG), fontFamily: F.sans, fontSize: 12, fontWeight: 700, padding: "12px 28px", letterSpacing: 2, textTransform: "uppercase", cursor: submitting ? "wait" : "pointer", borderRadius: 99, opacity: submitting ? 0.6 : 1 }}>{submitting ? "Saving" : "File adverse reaction report"}</button>
+          )}
         </FormActionBar>
       </div>
 
@@ -5449,7 +5914,8 @@ function AdverseReactionLogPanel({ role }) {
                   { key: "severity",     label: "Severity", width: 90, render: (r) => ({ low: "Low", moderate: "Moderate", high: "High", serious: "SERIOUS" })[r.severity] ?? prettyEnum(r.severity, AR_SEVERITY) },
                   { key: "symptoms",     label: "Symptoms",             render: (r) => truncate((r.symptoms || []).join(", "), 80) },
                   { key: "escalatedTo",  label: "Escalated",width: 110, render: (r) => r.escalatedTo || "—" },
-                  { key: "status",       label: "Status",   width: 90 },
+                  { key: "status",       label: "Status",   width: 90,  render: (r) => prettyEnum(r.status, AR_STATUS) },
+                  editColumn(role, null, "Compliance record — locked for agents. Manager+ can edit in Records."),
                 ]}
               />
             </>
@@ -5479,9 +5945,12 @@ const PLAYBOOK_SUBTABS = PLAYBOOK_SUBTABS_NEW;
 // Escalation · Voice · Non-Negotiables. Search scopes to the active panel.
 // ═══════════════════════════════════════════════════════════════════════════
 
-function PlaybookTab({ role }) {
+function PlaybookTab({ role, queryRequest }) {
   const [sub, setSub] = useState("Products");
   const [query, setQuery] = useState("");
+  useEffect(() => {
+    if (queryRequest?.query != null) setQuery(queryRequest.query);
+  }, [queryRequest]);
   const eyebrowS = { fontFamily: F.sans, fontSize: 10, color: GOLD, textTransform: "uppercase", letterSpacing: 4, fontWeight: 600, marginBottom: 14 };
 
   // Subtitle that follows the active subtab — orients the reader without
@@ -7118,6 +7587,8 @@ function renderChatMarkdown(text) {
 
   for (const raw of lines) {
     const line = raw.replace(/\s+$/, "");
+    const heading = line.match(/^\s*#{1,4}\s+(.+)$/);
+    if (heading) { flushList(); blocks.push({ type: "h", text: heading[1] }); continue; }
     const num = line.match(/^\s*(\d+)\.\s+(.+)$/);
     const bullet = line.match(/^\s*[-*]\s+(.+)$/);
 
@@ -7159,6 +7630,7 @@ function renderChatMarkdown(text) {
   };
 
   return blocks.map((b, idx) => {
+    if (b.type === "h") return <div key={idx} style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: 2.5, textTransform: "uppercase", color: GOLD, margin: "10px 0 4px" }}>{b.text}</div>;
     if (b.type === "br") return <div key={idx} style={{ height: 6 }} />;
     if (b.type === "ol") return (
       <ol key={idx} style={{ margin: "4px 0 8px", paddingLeft: 22, lineHeight: 1.55 }}>
@@ -8560,55 +9032,320 @@ const tpRenderStars = (n) => "★".repeat(n) + "☆".repeat(5 - n);
 
 
 
-function AskTab({ chatMsgs, chatInput, setChatInput, chatLoading, sendChat, chatEndRef }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 104px)", maxWidth: 700, margin: "0 auto" }}>
-      <div style={{ background: W, padding: "14px 20px", borderBottom: "1px solid #e0d9d0" }}>
-        <div style={{ fontFamily: F.serif, fontSize: 18, fontWeight: 600, color: BURG }}>Ask LUMÉ</div>
-        <div style={{ fontFamily: F.sans, fontSize: 12, color: "#999" }}>Policy, tricky tickets, what to write back — ask me anything.</div>
-      </div>
+// ─── ASK LUMÉ SLIDE-OVER ─────────────────────────────────────────────────────
+// Opens from anywhere (floating button, Cmd+K, Home hero) without a page
+// navigation, so agents never lose their place mid-ticket. Structured
+// answers render as cards; the copy button grabs only the customer draft.
 
-      <div style={{ flex: 1, overflowY: "auto", padding: "20px 16px", display: "flex", flexDirection: "column", gap: 14 }}>
-        {chatMsgs.map((m, i) => {
-          const isUser = m.role === "user";
-          return (
-            <div key={i} style={{ display: "flex", justifyContent: isUser ? "flex-end" : "flex-start" }}>
-              <div style={{
-                maxWidth: "80%",
-                background: isUser ? BURG : W,
-                color: isUser ? W : "#333",
-                fontFamily: F.sans,
-                fontSize: 14,
-                lineHeight: 1.6,
-                padding: "12px 16px",
-                borderRadius: isUser ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
-                border: isUser ? "none" : "1px solid #e0d9d0",
-                // Plain text for user; rendered markdown blocks handle their own
-                // layout for assistant, so we drop pre-wrap there.
-                whiteSpace: isUser ? "pre-wrap" : "normal",
-              }}>
-                {isUser ? m.content : renderChatMarkdown(m.content)}
+const ASK_CHIPS = [
+  "Refund outside 30 days?",
+  "Customer reports tingling",
+  "Wrong serums in Hair Edit box",
+  "How do I save a cancel?",
+];
+
+function AskSectionCard({ title, accent, children, actions }) {
+  return (
+    <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderLeft: "3px solid " + accent, borderRadius: 10, padding: "12px 16px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
+        <div style={{ fontFamily: F.sans, fontSize: 9, fontWeight: 800, letterSpacing: 2.5, textTransform: "uppercase", color: accent === GOLD ? GOLD : BURG }}>{title}</div>
+        {actions}
+      </div>
+      <div style={{ fontFamily: F.sans, fontSize: 13, color: INK, lineHeight: 1.6 }}>{children}</div>
+    </div>
+  );
+}
+
+function AskPanel({ open, onClose, chatMsgs, chatInput, setChatInput, chatLoading, sendChat, chatEndRef }) {
+  const [copiedIdx, setCopiedIdx] = useState(null);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (open) {
+      const id = setTimeout(() => inputRef.current?.focus(), 160);
+      return () => clearTimeout(id);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  function copyDraft(text, idx) {
+    try { navigator.clipboard.writeText(text.trim()); } catch { /* ignore */ }
+    setCopiedIdx(idx);
+    setTimeout(() => setCopiedIdx((c) => (c === idx ? null : c)), 1600);
+  }
+
+  // Strip markdown decoration from the draft so what lands in the
+  // clipboard is exactly what gets pasted to the customer.
+  function plainDraft(body) {
+    return body.replace(/\*\*([^*]+)\*\*/g, "$1").replace(/\*([^*]+)\*/g, "$1").replace(/^#{1,4}\s+/gm, "").trim();
+  }
+
+  const empty = chatMsgs.length <= 1;
+
+  function renderAssistant(m, i) {
+    const parsed = parseAskSections(m.content);
+    if (!parsed) {
+      return (
+        <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: "14px 14px 14px 4px", padding: "12px 16px", fontFamily: F.sans, fontSize: 13, lineHeight: 1.6, color: INK }}>
+          {renderChatMarkdown(m.content)}
+        </div>
+      );
+    }
+    const byKey = Object.fromEntries(parsed.sections.map((sec) => [sec.key, sec.body]));
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {parsed.intro && (
+          <div style={{ fontFamily: F.sans, fontSize: 13, color: INK, opacity: 0.8, lineHeight: 1.55 }}>{renderChatMarkdown(parsed.intro)}</div>
+        )}
+        {byKey["QUICK DECISION"] && (
+          <AskSectionCard title="Quick decision" accent={GOLD}>
+            {renderChatMarkdown(byKey["QUICK DECISION"])}
+          </AskSectionCard>
+        )}
+        {byKey["SUGGESTED REPLY"] && (
+          <AskSectionCard
+            title="Suggested reply"
+            accent={BURG}
+            actions={
+              <div style={{ display: "flex", gap: 6 }}>
+                <button
+                  onClick={() => copyDraft(plainDraft(byKey["SUGGESTED REPLY"]), i)}
+                  style={{ background: copiedIdx === i ? BURG : "transparent", color: copiedIdx === i ? CREAM : BURG, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 9, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", padding: "3px 10px", borderRadius: 99, cursor: "pointer" }}
+                >
+                  {copiedIdx === i ? "Copied" : "Copy"}
+                </button>
+                <button
+                  onClick={() => notify("Draft inserted into ticket #4821 — demo")}
+                  style={{ background: "transparent", color: BURG, border: "1px solid " + SOFT_BORDER, fontFamily: F.sans, fontSize: 9, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", padding: "3px 10px", borderRadius: 99, cursor: "pointer", whiteSpace: "nowrap" }}
+                >
+                  Insert into Gorgias
+                </button>
+              </div>
+            }
+          >
+            <div style={{ fontFamily: F.serif, fontSize: 14, lineHeight: 1.65 }}>{renderChatMarkdown(byKey["SUGGESTED REPLY"])}</div>
+          </AskSectionCard>
+        )}
+        {byKey["IF THEY PUSH BACK"] && (
+          <AskSectionCard title="If they push back" accent="#A5544A">
+            {renderChatMarkdown(byKey["IF THEY PUSH BACK"])}
+          </AskSectionCard>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {open && (
+        <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(10,10,9,0.18)", zIndex: 190 }} />
+      )}
+      <div
+        role="dialog"
+        aria-label="Ask LUMÉ"
+        style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: "min(470px, 100vw)", background: CREAM, borderLeft: "1px solid " + SOFT_BORDER, boxShadow: open ? "-16px 0 44px rgba(10,10,9,0.16)" : "none", zIndex: 200, transform: open ? "translateX(0)" : "translateX(103%)", transition: "transform 0.22s ease", display: "flex", flexDirection: "column" }}
+      >
+        <div style={{ background: W, padding: "16px 20px", borderBottom: "1px solid " + SOFT_BORDER, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontFamily: F.serif, fontSize: 19, fontWeight: 600, color: BURG }}>Ask LUMÉ</div>
+            <div style={{ fontFamily: F.sans, fontSize: 11, color: INK, opacity: 0.55 }}>Policy, tricky tickets, what to write back.</div>
+          </div>
+          <button onClick={onClose} aria-label="Close" style={{ background: "transparent", border: "1px solid " + SOFT_BORDER, color: BURG, width: 30, height: 30, borderRadius: 99, cursor: "pointer", fontFamily: F.sans, fontSize: 14, lineHeight: "26px", padding: 0 }}>×</button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: "auto", padding: "18px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
+          {chatMsgs.map((m, i) => {
+            const isUser = m.role === "user";
+            if (isUser) {
+              return (
+                <div key={i} style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <div style={{ maxWidth: "85%", background: BURG, color: CREAM, fontFamily: F.sans, fontSize: 13, lineHeight: 1.55, padding: "10px 14px", borderRadius: "14px 14px 4px 14px", whiteSpace: "pre-wrap" }}>{m.content}</div>
+                </div>
+              );
+            }
+            return <div key={i}>{renderAssistant(m, i)}</div>;
+          })}
+          {chatLoading && (
+            <div style={{ fontFamily: F.serif, fontStyle: "italic", fontSize: 13, color: INK, opacity: 0.5 }}>Thinking</div>
+          )}
+          {empty && !chatLoading && (
+            <div style={{ marginTop: 6 }}>
+              <div style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: INK, opacity: 0.5, marginBottom: 8 }}>Try one of these</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {ASK_CHIPS.map((c) => (
+                  <button key={c} onClick={() => sendChat(c)} style={{ background: W, border: "1px solid " + SOFT_BORDER, color: BURG, fontFamily: F.sans, fontSize: 12, padding: "8px 14px", borderRadius: 99, cursor: "pointer" }}>
+                    {c}
+                  </button>
+                ))}
               </div>
             </div>
-          );
-        })}
-        {chatLoading && (
-          <div style={{ display: "flex", justifyContent: "flex-start" }}>
-            <div style={{ background: W, border: "1px solid #e0d9d0", borderRadius: 16, padding: "12px 20px", fontFamily: F.sans, fontSize: 14, color: "#aaa" }}>Thinking...</div>
-          </div>
-        )}
-        <div ref={chatEndRef} />
-      </div>
+          )}
+          <div ref={chatEndRef} />
+        </div>
 
-      <div style={{ background: W, borderTop: "1px solid #e0d9d0", padding: "12px 16px", display: "flex", gap: 10 }}>
+        <div style={{ background: W, borderTop: "1px solid " + SOFT_BORDER, padding: "12px 14px", display: "flex", gap: 8 }}>
+          <input
+            ref={inputRef}
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
+            placeholder="Ask about policy, a tricky ticket, what to write back…"
+            style={{ flex: 1, fontFamily: F.sans, fontSize: 13, padding: "10px 14px", border: "1px solid " + SOFT_BORDER, borderRadius: 8, outline: "none", background: CREAM }}
+          />
+          <button onClick={() => sendChat()} disabled={chatLoading || !chatInput.trim()} style={{ background: chatLoading || !chatInput.trim() ? SOFT_BORDER : BURG, color: CREAM, fontFamily: F.sans, fontWeight: 700, fontSize: 12, letterSpacing: 1, textTransform: "uppercase", padding: "10px 18px", border: "none", borderRadius: 8, cursor: chatLoading || !chatInput.trim() ? "default" : "pointer" }}>Send</button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// Subtle floating access button — bottom right on every screen.
+function FloatingAskButton({ onClick, hidden }) {
+  if (hidden) return null;
+  return (
+    <button
+      onClick={onClick}
+      title="Ask LUMÉ (⌘K)"
+      style={{ position: "fixed", bottom: 22, right: 22, zIndex: 120, background: W, border: "1px solid " + GOLD, color: BURG, borderRadius: 99, padding: "10px 18px", fontFamily: F.serif, fontStyle: "italic", fontSize: 14, cursor: "pointer", boxShadow: "0 6px 20px rgba(10,10,9,0.12)", display: "flex", alignItems: "center", gap: 8 }}
+    >
+      <span aria-hidden="true" style={{ color: GOLD, fontStyle: "normal", fontSize: 12 }}>✳</span>
+      Ask LUMÉ
+    </button>
+  );
+}
+
+// ─── COMMAND PALETTE (Cmd+K) ─────────────────────────────────────────────────
+// Global fuzzy launcher: actions, navigation, Playbook search, and an
+// "Ask LUMÉ" fallthrough. Cream panel, serif section headers, mono keys.
+
+const PALETTE_QA = [];
+function paletteQA() {
+  if (PALETTE_QA.length === 0) {
+    for (const src of [POLICY_QA, COMMON_PRODUCT_QA, ABOUT_BRAND_QA]) {
+      for (const item of src || []) {
+        if (item?.q && item?.a) PALETTE_QA.push({ q: item.q, a: item.a });
+      }
+    }
+  }
+  return PALETTE_QA;
+}
+
+function CommandPalette({ open, onClose, role, setTab, requestLogsSub, requestPlaybookQuery, openAsk }) {
+  const [query, setQuery] = useState("");
+  const [hi, setHi] = useState(0);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (open) {
+      setQuery("");
+      setHi(0);
+      const id = setTimeout(() => inputRef.current?.focus(), 60);
+      return () => clearTimeout(id);
+    }
+  }, [open]);
+
+  const q = query.trim().toLowerCase();
+  const match = (label) => !q || label.toLowerCase().includes(q);
+
+  const canLogs = canAccessTab("Logs", role);
+  const actionItems = !canLogs ? [] : [
+    { section: "Actions", label: "Log order issue", hint: "Logs · Order Issue", run: () => { setTab("Logs"); requestLogsSub("Order Issue"); } },
+    { section: "Actions", label: "Log replacement", hint: "Logs · Replacements", run: () => { setTab("Logs"); requestLogsSub("Replacements"); } },
+    { section: "Actions", label: "Log reaction / concern", hint: "Logs · Reaction", run: () => { setTab("Logs"); requestLogsSub("Reaction/Concern"); } },
+    { section: "Actions", label: "Log feedback", hint: "Logs · Feedback", run: () => { setTab("Logs"); requestLogsSub("Feedback"); } },
+  ].filter((a) => match(a.label));
+
+  const navItems = TABS.filter((t) => canAccessTab(t, role)).map((t) => ({
+    section: "Navigate", label: "Go to " + t, hint: t, run: () => setTab(t),
+  })).filter((a) => match(a.label));
+
+  const playbookItems = q.length >= 2
+    ? paletteQA()
+        .filter((e) => e.q.toLowerCase().includes(q) || e.a.toLowerCase().includes(q))
+        .slice(0, 4)
+        .map((e) => ({
+          section: "Playbook",
+          label: e.q,
+          detail: String(e.a).replace(/\s+/g, " ").slice(0, 140) + (e.a.length > 140 ? "…" : ""),
+          run: () => { setTab("Playbook"); requestPlaybookQuery(query.trim()); },
+        }))
+    : [];
+
+  const askItems = q.length > 0
+    ? [{ section: "Ask LUMÉ", label: `Ask LUMÉ: “${query.trim()}”`, hint: "↵", run: () => openAsk(query.trim()) }]
+    : [];
+
+  const items = [...actionItems, ...playbookItems, ...navItems, ...askItems];
+  const clampedHi = Math.min(hi, Math.max(0, items.length - 1));
+
+  function runItem(item) {
+    if (!item) return;
+    onClose();
+    item.run();
+  }
+
+  useEffect(() => { setHi(0); }, [query]);
+
+  if (!open) return null;
+
+  let lastSection = null;
+  return (
+    <div onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }} style={{ position: "fixed", inset: 0, background: "rgba(10,10,9,0.28)", zIndex: 250, display: "flex", justifyContent: "center", alignItems: "flex-start", paddingTop: "12vh" }}>
+      <div style={{ width: "min(580px, 92vw)", background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 14, boxShadow: "0 24px 64px rgba(10,10,9,0.24)", overflow: "hidden" }}>
         <input
-          value={chatInput}
-          onChange={e => setChatInput(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
-          placeholder="e.g. 'Can I refund outside the 30-day window?' or 'What do I say when a customer reports a reaction?'"
-          style={{ flex: 1, fontFamily: F.sans, fontSize: 14, padding: "10px 14px", border: "1px solid #ddd", borderRadius: 8, outline: "none" }}
+          ref={inputRef}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowDown") { e.preventDefault(); setHi((h) => Math.min(h + 1, items.length - 1)); }
+            else if (e.key === "ArrowUp") { e.preventDefault(); setHi((h) => Math.max(h - 1, 0)); }
+            else if (e.key === "Enter") { e.preventDefault(); runItem(items[clampedHi]); }
+            else if (e.key === "Escape") { e.preventDefault(); onClose(); }
+          }}
+          placeholder="Type a command, search the Playbook, or ask a question…"
+          style={{ width: "100%", boxSizing: "border-box", padding: "16px 20px", border: "none", borderBottom: "1px solid " + SOFT_BORDER, background: W, fontFamily: F.sans, fontSize: 15, color: INK, outline: "none" }}
         />
-        <button onClick={sendChat} disabled={chatLoading || !chatInput.trim()} style={{ background: chatLoading || !chatInput.trim() ? "#ccc" : BURG, color: W, fontFamily: F.sans, fontWeight: 700, fontSize: 13, padding: "10px 20px", border: "none", borderRadius: 8, cursor: chatLoading || !chatInput.trim() ? "default" : "pointer" }}>Send</button>
+        <div style={{ maxHeight: "52vh", overflowY: "auto", padding: "6px 0 10px" }}>
+          {items.length === 0 && (
+            <div style={{ padding: "18px 20px", fontFamily: F.serif, fontStyle: "italic", fontSize: 14, color: INK, opacity: 0.55 }}>Nothing matches — press Enter to ask LUMÉ instead.</div>
+          )}
+          {items.map((item, i) => {
+            const showHeader = item.section !== lastSection;
+            lastSection = item.section;
+            const active = i === clampedHi;
+            return (
+              <div key={item.section + item.label + i}>
+                {showHeader && (
+                  <div style={{ fontFamily: F.serif, fontStyle: "italic", fontSize: 13, color: GOLD, padding: "10px 20px 4px" }}>{item.section}</div>
+                )}
+                <div
+                  onMouseEnter={() => setHi(i)}
+                  onMouseDown={(e) => { e.preventDefault(); runItem(item); }}
+                  style={{ padding: "9px 20px", cursor: "pointer", background: active ? CREAM : "transparent", borderLeft: active ? "2px solid " + GOLD : "2px solid transparent" }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                    <span style={{ fontFamily: F.sans, fontSize: 13.5, color: INK, fontWeight: active ? 600 : 400 }}>{item.label}</span>
+                    {item.hint && (
+                      <span style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 10, color: INK, opacity: 0.45, whiteSpace: "nowrap" }}>{item.hint}</span>
+                    )}
+                  </div>
+                  {item.detail && (
+                    <div style={{ fontFamily: F.sans, fontSize: 11.5, color: INK, opacity: 0.55, marginTop: 2, lineHeight: 1.45 }}>{item.detail}</div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ borderTop: "1px solid " + SOFT_BORDER, padding: "8px 20px", display: "flex", gap: 16, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 10, color: INK, opacity: 0.45 }}>
+          <span>↑↓ navigate</span><span>↵ select</span><span>esc close</span>
+        </div>
       </div>
     </div>
   );
