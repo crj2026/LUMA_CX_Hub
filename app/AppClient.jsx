@@ -1081,39 +1081,6 @@ function HomeTab({ displayName, setTab, role, openAsk }) {
             </div>
           </div>
 
-          {/* Ask Luma quick-launch card */}
-          <div
-            onClick={openAsk}
-            style={{
-              flex: "0 0 auto",
-              display: "inline-flex", alignItems: "center", gap: 14,
-              background: BURG, border: "1.5px solid " + BURG,
-              color: CREAM,
-              padding: "16px 22px",
-              borderRadius: 14,
-              boxShadow: "0 4px 14px rgba(10,10,9,0.18)",
-              transition: "all 0.2s",
-              cursor: "pointer",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translateY(-2px)";
-              e.currentTarget.style.boxShadow = "0 8px 22px rgba(10,10,9,0.28)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.boxShadow = "0 4px 14px rgba(10,10,9,0.18)";
-            }}
-          >
-            <span style={{ fontSize: 26, lineHeight: 1 }}>✦</span>
-            <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
-              <span style={{ fontFamily: F.serif, fontSize: 20, fontWeight: 700, letterSpacing: 0.5, lineHeight: 1, color: CREAM }}>
-                Ask LUMÉ
-              </span>
-              <span style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, letterSpacing: 2, textTransform: "uppercase", fontWeight: 700 }}>
-                AI Assistant →
-              </span>
-            </span>
-          </div>
         </div>
       </div>
 
