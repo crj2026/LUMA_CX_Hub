@@ -28,6 +28,10 @@ import {
   DEMO_LOOP, DEMO_TRENDS, DEMO_TREND,
 } from "../lib/demo-insights";
 import { sparklinePath } from "../lib/chart-utils";
+import {
+  LEDGER_RATES, LEDGER_STANCE, LEDGER_SUMMARY, LEDGER_TOP_ACTION,
+  LEDGER_TYPES, ledgerEntries,
+} from "../lib/demo-ledger";
 
 // ─── Design Tokens ───────────────────────────────────────────────────────────
 const RED  = "#B44444";
@@ -981,6 +985,260 @@ const DARK_BORDER = "#2A2A28";
 const CREAM_TXT = "#F4F0E8";
 const WARM_GRAY = "#B0AAA2";
 
+// ─── MODULE E — VALUE LEDGER ─────────────────────────────────────────────────
+// The thesis productised: every action the Hub logs gets a dollar value,
+// and the Hub keeps the receipt. ImpactHome is what Owners/Managers see
+// first; LedgerView is the receipt file under Reports · Impact.
+
+function formatLedgerMoney(v) {
+  return "$" + Number(v).toLocaleString("en-AU", { minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2 });
+}
+
+function HowWeCountPanel() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ border: "1px solid " + SOFT_BORDER, borderRadius: 12, background: W, overflow: "hidden" }}>
+      <button onClick={() => setOpen((o) => !o)} style={{ width: "100%", background: "transparent", border: "none", padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}>
+        <span style={{ fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: BURG }}>How we count</span>
+        <span style={{ color: GOLD, fontSize: 11, transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}>▼</span>
+      </button>
+      {open && (
+        <div style={{ padding: "0 20px 18px" }}>
+          <div style={{ fontFamily: F.serif, fontStyle: "italic", fontSize: 14, color: INK, opacity: 0.7, lineHeight: 1.5, marginBottom: 14 }}>{LEDGER_STANCE}</div>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: F.sans, fontSize: 12.5 }}>
+              <thead>
+                <tr style={{ background: CREAM, color: "#888", fontSize: 10, textTransform: "uppercase", letterSpacing: 1.2 }}>
+                  <th style={{ textAlign: "left", padding: "8px 12px", fontWeight: 700 }}>Event</th>
+                  <th style={{ textAlign: "left", padding: "8px 12px", fontWeight: 700 }}>What we count</th>
+                  <th style={{ textAlign: "right", padding: "8px 12px", fontWeight: 700, whiteSpace: "nowrap" }}>Demo rate</th>
+                </tr>
+              </thead>
+              <tbody>
+                {LEDGER_RATES.map((r, i) => (
+                  <tr key={i} style={{ background: i % 2 === 0 ? W : "#fdfbf9" }}>
+                    <td style={{ padding: "9px 12px", color: BURG, fontWeight: 600, whiteSpace: "nowrap", verticalAlign: "top" }}>{r.event}</td>
+                    <td style={{ padding: "9px 12px", color: INK, lineHeight: 1.5 }}>{r.counted}</td>
+                    <td style={{ padding: "9px 12px", color: GOLD, fontWeight: 700, textAlign: "right", whiteSpace: "nowrap", verticalAlign: "top" }}>{r.rate}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ImpactHome({ displayName, setTab, role, stats }) {
+  const today = new Date();
+  const firstName = (displayName?.trim()?.split(/\s+/)?.[0]) || "there";
+  const L = LEDGER_SUMMARY;
+  const maxBreak = Math.max(...L.breakdown.map((b) => b.value));
+  const celebrationsToday = eventsInWindow(TEAM, today, 0);
+  const upcoming = nextUpcomingEvents(TEAM, today, 2);
+  const quickLinks = ["Insights", "Reports", "Records", "Logs", "Team"].filter((t) => canAccessTab(t, role));
+
+  return (
+    <div style={{ background: CREAM, minHeight: "100vh" }}>
+      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "72px 24px 96px" }}>
+        <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, letterSpacing: 4, textTransform: "uppercase", fontWeight: 700, marginBottom: 14 }}>
+          LUMÉ HAIR Hub · {greetingPrefix(today.getHours())}, {firstName}
+        </div>
+
+        {/* 1 — the money leads */}
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 28, flexWrap: "wrap", marginBottom: 12 }}>
+          <div>
+            <div style={{ fontFamily: F.serif, fontSize: 52, color: BURG, fontWeight: 600, lineHeight: 1.08, letterSpacing: -1, maxWidth: 640 }}>
+              The Hub returned <span style={{ color: GOLD }}>{formatLedgerMoney(L.monthTotal)}</span> this month.
+            </div>
+            <div style={{ fontFamily: F.serif, fontStyle: "italic", fontSize: 19, color: INK, opacity: 0.7, marginTop: 12 }}>
+              against a {formatLedgerMoney(L.retainer)} retainer — <strong style={{ fontStyle: "normal", color: BURG }}>{L.multiple}× return</strong>
+            </div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <Sparkline data={L.trend} width={200} height={52} />
+            <div style={{ fontFamily: F.sans, fontSize: 10, color: INK, opacity: 0.5, letterSpacing: 1.5, textTransform: "uppercase", marginTop: 6 }}>Last 6 months</div>
+          </div>
+        </div>
+
+        {/* 2 — breakdown bars */}
+        <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 14, padding: "22px 26px", margin: "26px 0 14px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {L.breakdown.map((b) => (
+              <div key={b.key} style={{ display: "grid", gridTemplateColumns: "210px 1fr 190px", alignItems: "center", gap: 14 }}>
+                <div style={{ fontFamily: F.sans, fontSize: 12.5, color: BURG, fontWeight: 600 }}>
+                  {b.label}
+                  {b.key === "hours" && <span style={{ opacity: 0.55, fontWeight: 400 }}> · {L.hoursReclaimed}h</span>}
+                </div>
+                <div style={{ background: "#EFE9DF", borderRadius: 99, height: 8, overflow: "hidden" }}>
+                  <div style={{ background: GOLD, width: Math.max(3, Math.round((b.value / maxBreak) * 100)) + "%", height: "100%", borderRadius: 99 }} />
+                </div>
+                <div style={{ fontFamily: F.sans, fontSize: 12.5, textAlign: "right", whiteSpace: "nowrap" }}>
+                  <span style={{ color: BURG, fontWeight: 700 }}>{formatLedgerMoney(b.value)}</span>
+                  <span style={{ color: INK, opacity: 0.45, marginLeft: 8, fontSize: 11 }}>{b.detail}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <HowWeCountPanel />
+
+        {/* 3 — ops row */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, margin: "26px 0" }}>
+          <KpiTile label="Tickets" value={stats?.volume != null ? stats.volume.toLocaleString() : "—"} hint="this month" trend={DEMO_TREND.tickets} />
+          <KpiTile label="CSAT" value={stats?.csat?.average != null ? stats.csat.average.toFixed(2) : "—"} hint={stats?.csat?.count ? `${stats.csat.count} responses` : null} trend={DEMO_TREND.csat} />
+          <KpiTile label="Avg resolution" value={formatDuration(stats?.resolution?.avgSeconds)} hint={stats?.resolution?.count ? `${stats.resolution.count} closed` : null} trend={DEMO_TREND.resolution} />
+        </div>
+
+        {/* 4 — top action this month */}
+        <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderLeft: "3px solid " + GOLD, borderRadius: 12, padding: "20px 24px", marginBottom: 26 }}>
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 800, letterSpacing: 2.5, textTransform: "uppercase", color: GOLD }}>Top action this month</div>
+            <div style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: BURG }}>{LEDGER_TOP_ACTION.value}</div>
+          </div>
+          <div style={{ fontFamily: F.serif, fontSize: 20, color: BURG, fontWeight: 600, margin: "8px 0 6px" }}>{LEDGER_TOP_ACTION.title}</div>
+          <div style={{ fontFamily: F.sans, fontSize: 13, color: INK, opacity: 0.75, lineHeight: 1.6, maxWidth: 760 }}>{LEDGER_TOP_ACTION.detail}</div>
+        </div>
+
+        {/* 5 — compact celebrations strip + shortcuts */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap", borderTop: "1px solid " + SOFT_BORDER, paddingTop: 18 }}>
+          <div style={{ fontFamily: F.sans, fontSize: 12, color: INK, opacity: 0.7 }}>
+            {celebrationsToday.length > 0
+              ? celebrationsToday.map((e) => e.type === "birthday" ? `🎉 ${firstNameOf(e.person.name)}'s birthday today` : `${firstNameOf(e.person.name)} — ${e.years} year${e.years === 1 ? "" : "s"} at LUMÉ today`).join(" · ")
+              : "No celebrations today"}
+            {upcoming.length > 0 && (
+              <span style={{ opacity: 0.6 }}>
+                {" · next: "}
+                {upcoming.map((e) => `${firstNameOf(e.person.name)} ${e.type === "birthday" ? "birthday" : "anniversary"} ${formatDateShort(e.date)}`).join(", ")}
+              </span>
+            )}
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {quickLinks.map((t) => (
+              <button key={t} onClick={() => setTab(t)} style={{ background: "transparent", border: "1px solid " + SOFT_BORDER, color: BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", padding: "7px 14px", borderRadius: 99, cursor: "pointer" }}>
+                {t}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Reports · Impact — the monthly ledger table. Filterable, exportable:
+// the receipt file for renewal conversations.
+function LedgerView() {
+  const [rows] = useState(() => ledgerEntries());
+  const [typeFilter, setTypeFilter] = useState("");
+  const [search, setSearch] = useState("");
+
+  const filtered = rows.filter((r) => {
+    if (typeFilter && r.type !== typeFilter) return false;
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      return (r.reference + " " + r.detail).toLowerCase().includes(q);
+    }
+    return true;
+  });
+  const typeLabel = (t) => LEDGER_TYPES.find((x) => x.value === t)?.label ?? t;
+  const filteredTotal = filtered.reduce((a, b) => a + b.value, 0);
+
+  function downloadLedgerCSV() {
+    const esc = (v) => /[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v);
+    const header = ["Date", "Event type", "Reference", "Detail", "Value (AUD)", "Running total (AUD)"].join(",");
+    const body = [...filtered].reverse().map((r) => [
+      new Date(r.date).toISOString().slice(0, 10),
+      typeLabel(r.type), r.reference, r.detail,
+      r.value.toFixed(2), r.runningTotal.toFixed(2),
+    ].map(esc).join(",")).join("\n");
+    const blob = new Blob([header + "\n" + body], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `LUME_value_ledger_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    notify("Value ledger exported — the receipt file");
+  }
+
+  const L = LEDGER_SUMMARY;
+  return (
+    <div style={{ background: CREAM, minHeight: "100vh" }}>
+      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "40px 24px 96px" }}>
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginBottom: 8 }}>
+          <div>
+            <div style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, letterSpacing: 4, textTransform: "uppercase", fontWeight: 700, marginBottom: 8 }}>Reports · Impact</div>
+            <div style={{ fontFamily: F.serif, fontSize: 40, color: BURG, fontWeight: 600, lineHeight: 1.05 }}>Value Ledger</div>
+            <div style={{ fontFamily: F.serif, fontStyle: "italic", fontSize: 16, color: INK, opacity: 0.65, marginTop: 8, maxWidth: 640 }}>
+              Every action the Hub logs, valued in dollars — {formatLedgerMoney(L.monthTotal)} this month against a {formatLedgerMoney(L.retainer)} retainer.
+            </div>
+          </div>
+          <button onClick={downloadLedgerCSV} style={{ background: "transparent", color: BURG, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700, padding: "10px 18px", letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer", borderRadius: 99 }}>
+            Download CSV
+          </button>
+        </div>
+
+        <div style={{ margin: "18px 0" }}>
+          <HowWeCountPanel />
+        </div>
+
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 14 }}>
+          <div style={{ width: 220 }}>
+            <Combobox
+              value={typeFilter}
+              onChange={setTypeFilter}
+              options={[{ value: "", label: "All event types" }, ...LEDGER_TYPES]}
+              style={{ padding: "8px 12px", fontSize: 12 }}
+            />
+          </div>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search reference or detail…"
+            style={{ flex: "1 1 240px", maxWidth: 360, padding: "9px 14px", borderRadius: 99, border: "1px solid " + SOFT_BORDER, background: W, fontFamily: F.sans, fontSize: 13, outline: "none" }}
+          />
+          <span style={{ fontFamily: F.sans, fontSize: 11, color: INK, opacity: 0.55, marginLeft: "auto" }}>
+            {filtered.length} entries · {formatLedgerMoney(Math.round(filteredTotal))}
+          </span>
+        </div>
+
+        <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 10, overflow: "auto", maxHeight: "calc(100vh - 300px)" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: F.sans, fontSize: 12.5 }}>
+            <thead>
+              <tr>
+                {["Date", "Event", "Reference", "Detail", "Value", "Running total"].map((h, i) => (
+                  <th key={h} style={{ position: "sticky", top: 0, zIndex: 1, background: CREAM, padding: "10px 14px", textAlign: i >= 4 ? "right" : "left", fontSize: 10, fontWeight: 700, color: "#888", letterSpacing: 1.2, textTransform: "uppercase", borderBottom: "1px solid " + SOFT_BORDER, whiteSpace: "nowrap" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((r, i) => (
+                <tr key={r.id} style={{ background: i % 2 === 0 ? W : "#fdfbf9" }}>
+                  <td style={{ padding: "9px 14px", whiteSpace: "nowrap", color: INK, opacity: 0.75 }}>{new Date(r.date).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}</td>
+                  <td style={{ padding: "9px 14px", whiteSpace: "nowrap" }}>
+                    <span style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: BURG, background: CREAM, border: "1px solid " + SOFT_BORDER, borderRadius: 99, padding: "2px 10px" }}>{typeLabel(r.type)}</span>
+                  </td>
+                  <td style={{ padding: "9px 14px", whiteSpace: "nowrap", color: BURG, fontWeight: 600 }}>{r.reference}</td>
+                  <td style={{ padding: "9px 14px", color: INK, lineHeight: 1.5 }}>{r.detail}</td>
+                  <td style={{ padding: "9px 14px", textAlign: "right", whiteSpace: "nowrap", color: BURG, fontWeight: 700 }}>{formatLedgerMoney(r.value)}</td>
+                  <td style={{ padding: "9px 14px", textAlign: "right", whiteSpace: "nowrap", color: INK, opacity: 0.6 }}>{formatLedgerMoney(r.runningTotal)}</td>
+                </tr>
+              ))}
+              {filtered.length === 0 && (
+                <tr><td colSpan={6} style={{ padding: 24, textAlign: "center", fontFamily: F.serif, fontStyle: "italic", color: INK, opacity: 0.5 }}>No entries match.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function HomeTab({ displayName, setTab, role, openAsk }) {
   // Instant render: seed with the bundled demo summary, then refresh
   // silently in the background — the tiles never show a loading state.
@@ -1007,6 +1265,7 @@ function HomeTab({ displayName, setTab, role, openAsk }) {
   }, []);
 
   const isAgentTier = ["New Starter", "Agent", "Ops", "Lead Agent"].includes(role);
+  const isImpactRole = ["Manager", "Admin", "Owner"].includes(role);
   // "My day" — the agent's own picture: logs today, anything pending
   // review, and one-tap Ask LUMÉ shortcuts.
   const myDay = useMemo(() => {
@@ -1033,6 +1292,12 @@ function HomeTab({ displayName, setTab, role, openAsk }) {
 
   const eyebrow = { fontFamily: F.sans, fontSize: 10, color: GOLD, textTransform: "uppercase", letterSpacing: 4, fontWeight: 600, marginBottom: 14 };
   const sectionLabel = { fontFamily: F.sans, fontSize: 10, color: BURG, textTransform: "uppercase", letterSpacing: 4, fontWeight: 600, marginBottom: 18, opacity: 0.55 };
+
+  // 2.6/3.2 — Manager, Admin and Owner land on the Impact home: the
+  // money leads, celebrations compress to a strip.
+  if (isImpactRole) {
+    return <ImpactHome displayName={displayName} setTab={setTab} role={role} stats={stats} />;
+  }
 
   return (
     <div style={{ background: CREAM, minHeight: "100vh", color: INK }}>
@@ -1066,9 +1331,7 @@ function HomeTab({ displayName, setTab, role, openAsk }) {
         </div>
       </div>
 
-      {/* Hero — editorial cream, generous whitespace. Greeting on the
-          left, Dino launcher card on the right. Flex wraps on small
-          viewports so the card drops below the greeting cleanly. */}
+      {/* Hero greeting */}
       <div style={{ padding: "96px 24px 64px", maxWidth: 1100, margin: "0 auto" }}>
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 32, flexWrap: "wrap" }}>
           <div style={{ flex: "1 1 auto", minWidth: 0 }}>
@@ -2130,7 +2393,36 @@ function ReportsTab({ role }) {
       </div>
     );
   }
-  return <WeeklySummaryView />;
+  const canSeeImpact = ["Manager", "Admin", "Owner"].includes(role);
+  return <ReportsShell canSeeImpact={canSeeImpact} />;
+}
+
+const REPORTS_SUBTABS = ["Weekly Summary", "Impact"];
+
+function ReportsShell({ canSeeImpact }) {
+  const [sub, setSub] = useState("Weekly Summary");
+  const subtabs = canSeeImpact ? REPORTS_SUBTABS : ["Weekly Summary"];
+  return (
+    <div style={{ background: CREAM, minHeight: "100vh" }}>
+      {subtabs.length > 1 && (
+        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "28px 24px 0", display: "flex", gap: 8 }}>
+          {subtabs.map((t) => {
+            const active = t === sub;
+            return (
+              <button key={t} onClick={() => setSub(t)} style={{
+                background: active ? BURG : "transparent",
+                color: active ? CREAM : BURG,
+                border: "1px solid " + (active ? BURG : SOFT_BORDER),
+                fontFamily: F.sans, fontSize: 11, fontWeight: 700, padding: "8px 16px",
+                letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer", borderRadius: 99,
+              }}>{t}</button>
+            );
+          })}
+        </div>
+      )}
+      {sub === "Weekly Summary" ? <WeeklySummaryView /> : <LedgerView />}
+    </div>
+  );
 }
 
 const STAKEHOLDERS_KEY = "luma_report_stakeholders_v1";
