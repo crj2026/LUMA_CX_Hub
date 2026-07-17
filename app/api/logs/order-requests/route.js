@@ -1,17 +1,18 @@
 import { auth } from "@clerk/nextjs/server";
+import { orderRequestsSeed } from "../../../../lib/demo-logs";
 
 export const runtime = "nodejs";
-
-const SEED_ROWS = [
-  { id: "demo-or-001", createdAt: new Date("2026-05-23T07:50:00Z").toISOString(), type: "address-change", orderId: "#DTC-10475", customerName: "Drew Patel", country: "AU", details: "Customer moved — needs address updated before dispatch tomorrow.", status: "completed", agent: "demo" },
-  { id: "demo-or-002", createdAt: new Date("2026-05-22T14:15:00Z").toISOString(), type: "delay-request", orderId: "#DTC-10460", customerName: "Skyler Russo", country: "US", details: "Customer travelling until June 3 — requested dispatch to be held.", status: "pending", agent: "demo" },
-  { id: "demo-or-003", createdAt: new Date("2026-05-21T10:00:00Z").toISOString(), type: "cancel-before-dispatch", orderId: "#DTC-10434", customerName: "Peyton Walsh", country: "GB", details: "Customer emailed within 30 minutes of ordering. Order cancelled before fulfilment.", status: "completed", agent: "demo" },
-];
 
 export async function GET(req) {
   const { userId } = await auth();
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  return Response.json({ rows: SEED_ROWS, scope: "all" });
+  const { searchParams } = new URL(req.url);
+  const region = searchParams.get("region");
+  const unsentOnly = searchParams.get("sent") === "0";
+  let rows = orderRequestsSeed();
+  if (region) rows = rows.filter((r) => r.region === region);
+  if (unsentOnly) rows = rows.filter((r) => !r.sent);
+  return Response.json({ rows, scope: "all" });
 }
 
 export async function POST(req) {

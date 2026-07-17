@@ -1,25 +1,12 @@
 import { auth } from "@clerk/nextjs/server";
+import { DEMO_SKIO } from "../../../../lib/demo-insights";
 
 export const runtime = "nodejs";
 
-// LUMÉ demo — Skio subscription data.
-// Returns flat field names matching what the Insights and Reports
-// components expect: skio.active, skio.paused, skio.churnRate,
-// skio.cancelled, skio.created, skio.netChange, skio.failedPayments, etc.
+// LUMÉ demo data — single source of truth in lib/demo-insights.js, which
+// the client also imports directly for instant first paint.
 export async function GET(req) {
   const { userId } = await auth();
   if (!userId) return Response.json({ error: "Unauthorized" }, { status: 401 });
-
-  return Response.json({
-    active:           8432,
-    paused:           612,
-    activeAtStart:    8268,
-    churnRate:        0.018,
-    cancelled:        148,
-    created:          312,
-    netChange:        164,    // created - cancelled
-    failedPayments:   34,
-    mrr:              750448,
-    fromCache: false,
-  });
+  return Response.json(DEMO_SKIO);
 }

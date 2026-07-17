@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { UserButton } from "@clerk/nextjs";
 import {
   NON_NEGOTIABLES, VOICE_PAIRS, PRODUCTS, SHIPPING_ROWS, ESCALATION,
-  PRODUCT_CARDS, ABOUT_IM8_QA, COMMON_PRODUCT_QA, PRODUCT_QA_CHIPS,
+  PRODUCT_CARDS, ABOUT_BRAND_QA, COMMON_PRODUCT_QA, PRODUCT_QA_CHIPS,
   POLICY_QA, POLICY_QA_CHIPS, PLAYBOOK_SUBTABS_NEW,
 } from "../lib/playbook-data";
 import { AFFILIATES_DATA } from "../lib/affiliates-data";
@@ -18,6 +18,15 @@ import {
   VOICE_RULES,
   TOOLKIT,
 } from "../lib/ask-luma-knowledge";
+import { warehouseFromCountry, WAREHOUSES, dateDaysAgo } from "../lib/demo-dates";
+import {
+  issuesSeed, replacementsSeed, cancellationsSeed, feedbackSeed,
+  orderRequestsSeed, adverseReactionsSeed, cancelNoRefundSeed,
+} from "../lib/demo-logs";
+import {
+  DEMO_SUMMARY, DEMO_SHOPIFY, DEMO_SKIO, DEMO_SKIO_CANCEL_REASONS,
+  DEMO_LOOP, DEMO_TRENDS,
+} from "../lib/demo-insights";
 
 // ─── Design Tokens ───────────────────────────────────────────────────────────
 const RED  = "#B44444";
@@ -38,1514 +47,232 @@ const TABS = ["Home","Insights","Reports","Logs","Records","Ask LUMÉ","Playbook
 // Roles list mirrored from lib/auth.js — kept inline so the client bundle
 // doesn't have to pull in the server-only helpers from that module.
 const TEAM_ROLES = ["New Starter", "Agent", "Ops", "Lead Agent", "Manager", "Admin", "Owner"];
+// Hidden until those features are ready — flip individual entries to false
+// to surface them again.
+const HIDDEN_TABS = { "Ask LUMÉ": false, "Playbook": false, "Training": true, "Affiliates": true };
+// Single source of truth for tab access, shared by the tab bar filter and
+// the redirect-on-preview effect so gated content can never stay mounted
+// for a role that shouldn't see it.
+function canAccessTab(t, r) {
+  if (HIDDEN_TABS[t]) return false;
+  // Ops sees a focused view: only Home + Logs
+  if (r === "Ops") return t === "Home" || t === "Logs";
+  if (t === "Logs") return r !== "New Starter";
+  if (t === "Reports") return !!r && ["Lead Agent", "Manager", "Admin", "Owner"].includes(r);
+  if (t === "Records") return !!r && ["Manager", "Admin", "Owner"].includes(r);
+  // Affiliates playbook — Manager and above (Cherie May 22: bumped from
+  // Lead Agent+ to Manager+ while the workstream is being re-scoped).
+  if (t === "Affiliates") return !!r && ["Manager", "Admin", "Owner"].includes(r);
+  // Team management — Admin + Owner only
+  if (t === "Team") return !!r && ["Admin", "Owner"].includes(r);
+  return true;
+}
 const BC_KEY = "luma_cx_bc_v1";
 const BC_PASS = 0.75;
 
 // ─── Quiz Data ────────────────────────────────────────────────────────────────
+// LUMÉ training content. Compact placeholder set — the Training tab is
+// feature-flagged off and gets its full 30-day curriculum in Module B.
 const MODULES = [
   {
-    id:"m1", title:"Brand, Culture and Values", day:1,
-    tag:"Day 1 - Foundation", critical:false,
-    questions:[
-      {
-        q:"What does IM8 stand for?",
-        options:[
-          "I Make 8 vitamins",
-          "I AM plus 8 symbolizing infinity and balance",
-          "Integrated Medicine 8",
-          "International Minerals 8"
-        ],
-        correct:1,
-        exp:"IM equals I AM, a declaration of self-empowerment. The 8 symbolizes balance, infinity, and continuous improvement."
-      },
-      {
-        q:"Which IM8 value means going beyond the minimum to make interactions memorable?",
-        options:["Passion","Resilience","Epic","Integrity"],
-        correct:2,
-        exp:"Epic means going beyond the minimum. Look for opportunities to turn a standard interaction into a memorable, positive experience."
-      },
-      {
-        q:"Which value applies when you stay calm with an aggressive customer?",
-        options:["Transparency","Resilience","Empowerment","Selfless"],
-        correct:1,
-        exp:"Resilience means staying calm under pressure. Handle frustrated customers without losing focus or empathy."
-      },
-      {
-        q:"What is the correct ticket prioritization order?",
-        options:[
-          "Oldest first always",
-          "VIPs and escalations, then SLA deadlines, then first-time customers, then all others oldest first",
-          "Refunds first then shipping",
-          "First-time customers first"
-        ],
-        correct:1,
-        exp:"P1 VIPs and escalations. P2 SLA approaching. P3 First-time customers. P4 All others oldest first."
-      },
-      {
-        q:"The IM8 mindset includes all of these EXCEPT:",
-        options:["Intensity","Humility","Complacency","Grit"],
-        correct:2,
-        exp:"The IM8 mindset is Intensity, Humility, Ambition, Grit, Team-first. Complacency has no place here."
-      },
-      {
-        q:"Who is the IM8 customer?",
-        options:[
-          "Budget-conscious shoppers",
-          "Health-conscious, informed, proactive about well-being, expecting clear answers and fast resolution",
-          "Elderly customers only",
-          "Fitness athletes only"
-        ],
-        correct:1,
-        exp:"The IM8 user is health-conscious, informed, and proactive. They invest in long-term health and expect a premium experience."
-      },
-    ]
+    id: "m1", title: "Brand, Voice and Values", day: 1,
+    tag: "Day 1 - Foundation", critical: false,
+    questions: [
+      { q: "What is LUMÉ's brand promise?", options: ["Salon results at home", "Your hair, transformed.", "Clean beauty for everyone", "Hair science, simplified"], correct: 1, exp: "The LUMÉ promise is 'Your hair, transformed.' Every interaction should feel like a step toward that." },
+      { q: "The LUMÉ voice is best described as:", options: ["Formal and clinical", "Playful and cheeky", "Warm, knowledgeable, confident", "Apologetic and cautious"], correct: 2, exp: "Warm, knowledgeable, confident. Never clinical, never preachy. We solve — we don't apologise unnecessarily." },
+      { q: "A customer writes 'Love the serum but delivery took ages.' Do you send the Trustpilot link?", options: ["Yes — mostly positive", "Yes — delivery gripes are minor", "No — any negative means no link", "Only if they rate 5 stars"], correct: 2, exp: "Strict rule: the Trustpilot invite goes only on 100% positive messages. Any complaint, however small, disqualifies." },
+      { q: "Which sign-off is correct?", options: ["Best regards, LUMÉ Support", "Warmly, [Your first name] — LUMÉ", "Thanks, Customer Care", "Sincerely, The Team"], correct: 1, exp: "Every reply signs off: Warmly, [Your first name] — LUMÉ. Personal, consistent, on-brand." },
+    ],
   },
   {
-    id:"m2", title:"Tools, Workflow and Documentation", day:1,
-    tag:"Day 1 - Systems", critical:false,
-    questions:[
-      {
-        q:"What is Gorgias used for?",
-        options:[
-          "Warehouse management",
-          "Central hub for all customer conversations including email, live chat, and social media",
-          "Subscription management",
-          "Order tracking only"
-        ],
-        correct:1,
-        exp:"Gorgias is your primary ticketing platform, the central hub for email, live chat, and social media conversations."
-      },
-      {
-        q:"What platform manages customer subscriptions?",
-        options:["Shopify","Extensiv","Skio","Aftership"],
-        correct:2,
-        exp:"Skio is the subscription portal. Customers can pause, skip, cancel, or change frequency through it."
-      },
-      {
-        q:"What should you check FIRST at the start of every shift?",
-        options:[
-          "Your email inbox",
-          "Slack for urgent announcements or escalations then open tickets",
-          "Gorgias ticket queue",
-          "Yesterday closed tickets"
-        ],
-        correct:1,
-        exp:"Morning routine: Check Slack first especially channels you are tagged in, then review open tickets, then read daily TL notes."
-      },
-      {
-        q:"What must good internal ticket notes always include?",
-        options:[
-          "Just the customer name and order number",
-          "Summary of issue, action taken, reason for action, and next steps",
-          "Only the resolution",
-          "A copy of your response"
-        ],
-        correct:1,
-        exp:"Good notes tell a story anyone can understand in seconds: issue summary, action taken, reason such as Applied 30-Day Guarantee, and next steps."
-      },
-      {
-        q:"When should you tag a ticket?",
-        options:[
-          "Only when escalating",
-          "Always apply relevant tags like refund or shipping delay before closing every ticket",
-          "Only for refund tickets",
-          "Only when QC requests it"
-        ],
-        correct:1,
-        exp:"Always tag before closing. Tags like refund, shipping_delay, damaged_product are essential for team reporting and QC review."
-      },
-      {
-        q:"Aftership is used for:",
-        options:[
-          "Processing refunds",
-          "Subscription management",
-          "Tracking and delivery monitoring",
-          "Escalating to FedEx"
-        ],
-        correct:2,
-        exp:"Aftership is your tracking and delivery monitoring tool. Always check it before responding to any delivery query."
-      },
-    ]
+    id: "m2", title: "Products and Hair Science", day: 2,
+    tag: "Day 2 - Product Knowledge", critical: true,
+    questions: [
+      { q: "A customer reports tingling after applying Scalp Serum. What's true?", options: ["It's an adverse reaction — escalate immediately", "The peppermint tingle is expected and a sign actives are working — reassure, and flag only if it's painful", "They should stop use permanently", "Offer a refund straight away"], correct: 1, exp: "The peppermint tingle is a feature, not a fault. Reassure and educate. Pain, burning, or a rash is different — that becomes a Reaction/Concern log." },
+      { q: "When should customers expect visible results?", options: ["After 2-3 washes", "Within a week", "At 4-6 weeks of consistent use", "Only after 6 months"], correct: 2, exp: "The results timeline is 4-6 weeks of consistent use. Week-3 'no results yet' contacts get timeline education, not a refund-first response." },
+      { q: "What does The Hair Edit box cost and when does it ship?", options: ["$75/month, ships the 1st", "$89/month, ships the 15th", "$99/month, ships the 12th", "$85/month, ships the 20th"], correct: 1, exp: "The Hair Edit is $89/month and ships on the 15th. Serum swaps close on the 12th." },
+      { q: "Which serum pairs with colour-treated or bleach-damaged hair?", options: ["Smooth Serum", "Glow Serum", "Repair Serum", "Scalp Serum"], correct: 2, exp: "Repair Serum ($85) is the pick for damaged and colour-treated hair. Smooth for frizz, Glow for shine, Scalp for scalp health." },
+      { q: "A customer uses minoxidil. Can they use Scalp Serum?", options: ["No — never together", "Yes — apply at different times of day", "Only with a doctor's letter", "Yes — mix them together"], correct: 1, exp: "Yes, at different times of day (e.g. minoxidil morning, Scalp Serum evening). Never give medical advice beyond the playbook line — refer to their GP for anything further." },
+    ],
   },
   {
-    id:"m3", title:"Tone of Voice and Communication", day:2,
-    tag:"Day 2 - Voice", critical:false,
-    questions:[
-      {
-        q:"Which response best reflects IM8 tone for a shipping delay?",
-        options:[
-          "Your ticket has been received and will be processed shortly",
-          "Thanks for flagging the delay, that is not the experience we promise. I have asked our logistics team to trace the parcel within 24 hours",
-          "We apologize for the inconvenience caused by this delay in accordance with our shipping policy",
-          "I will look into your order shortly"
-        ],
-        correct:1,
-        exp:"IM8 voice is warm, direct, action-oriented. Short sentences. Own the problem. Give a clear timeline. Never corporate or passive."
-      },
-      {
-        q:"A customer is very angry. The IM8 way is to:",
-        options:[
-          "Match their energy",
-          "Apologise repeatedly",
-          "Acknowledge their frustration, stay calm, and focus on resolution",
-          "Immediately offer a refund"
-        ],
-        correct:2,
-        exp:"Acknowledge, stay calm, solve. Say: I can absolutely see how frustrating this is and I want to get this sorted for you right now."
-      },
-      {
-        q:"Which phrase is NOT IM8 voice?",
-        options:[
-          "We have got your back",
-          "Thanks for flagging that",
-          "Per our policy we cannot process this request",
-          "Here is how we will make this right"
-        ],
-        correct:2,
-        exp:"Per our policy is corporate and cold. IM8 is warm and solution-focused. Say: While this falls outside our standard policy, here is what I can do for you."
-      },
-      {
-        q:"What does Epic look like in a customer interaction?",
-        options:[
-          "Closing the ticket quickly",
-          "Doing the bare minimum to resolve the issue",
-          "Turning a standard resolution into a memorable experience such as a personal follow-up",
-          "Using all available macros"
-        ],
-        correct:2,
-        exp:"Epic means going above and beyond. A follow-up checking the replacement arrived. A personal note. Something the customer does not expect."
-      },
-      {
-        q:"The QC scorecard checks 5 areas. Which is NOT one of them?",
-        options:[
-          "Accuracy",
-          "Tone and Empathy",
-          "Response Speed",
-          "Records and Notes"
-        ],
-        correct:2,
-        exp:"The 5 QC categories are Accuracy, Tone and Empathy, Clarity, Efficiency, and Records and Notes. Response Speed is part of Efficiency, not its own category."
-      },
-    ]
-  },
-  {
-    id:"m4", title:"Daily Ultimate Essentials PRO", day:2,
-    tag:"Day 2 - Product", critical:false,
-    questions:[
-      {
-        q:"How many ingredients are in Daily Ultimate Essentials?",
-        options:["62","78","92","104"],
-        correct:2,
-        exp:"92 carefully selected premium ingredients targeting 8 key health areas: Energy, Immunity, Cognitive Function, Digestion, Cardiovascular, Hydration, Nourishment, Cellular Renewal."
-      },
-      {
-        q:"What ingredient is exclusive to PRO vs the original?",
-        options:[
-          "Extra CoQ10",
-          "Saffron Flower Extract 30mg for mood and cognitive function",
-          "Astaxanthin",
-          "Turmeric"
-        ],
-        correct:1,
-        exp:"Saffron Flower Extract 30mg is PRO exclusive. Clinically studied for mood, stress reduction, and cognitive performance."
-      },
-      {
-        q:"MSM dosage in PRO?",
-        options:["500mg","1000mg","1500mg","2000mg"],
-        correct:2,
-        exp:"1500mg in PRO, up from 1000mg in the original. This is the full clinical dosage range for joint and muscle support."
-      },
-      {
-        q:"A customer asks if Essentials breaks their intermittent fast:",
-        options:[
-          "No it is calorie-free",
-          "Essentials PRO has 20 calories and may technically break a strict fast. Best taken in the eating window.",
-          "Only if taken with food",
-          "It is fine for any fasting protocol"
-        ],
-        correct:1,
-        exp:"Be honest. Essentials PRO has 20 calories. For strict fasting recommend taking it in the eating window. Do not over-promise."
-      },
-      {
-        q:"Can Essentials replace a fish oil supplement?",
-        options:[
-          "Yes IM8 has everything",
-          "No, current products have no DHA or EPA. A separate omega-3 may still be needed.",
-          "Only with the Beckham Stack",
-          "Yes CoQ10 covers it"
-        ],
-        correct:1,
-        exp:"DHA was removed from the Longevity Powder. A dedicated omega product is planned. Be transparent and recommend a separate omega-3 for now."
-      },
-      {
-        q:"The probiotic strains in Essentials are:",
-        options:[
-          "Lactobacillus acidophilus plus Bifidobacterium",
-          "DE111 Bacillus subtilis plus BC99 Bacillus coagulans, 10B CFU, shelf-stable",
-          "L casei 327 only",
-          "Saccharomyces boulardii"
-        ],
-        correct:1,
-        exp:"DE111 and BC99, both spore-forming and shelf-stable with no refrigeration needed. FloraSMART L casei 327 is the postbiotic component."
-      },
-    ]
-  },
-  {
-    id:"m5", title:"Daily Ultimate Longevity Powder", day:2,
-    tag:"Day 2 - Product", critical:false,
-    questions:[
-      {
-        q:"How many hallmarks of aging does the Longevity Powder target?",
-        options:["6","8","10","All 12"],
-        correct:3,
-        exp:"The 5-complex system targets all 12 hallmarks of aging as defined by Cell journal 2023. First supplement to do so."
-      },
-      {
-        q:"NMN dosage per sachet?",
-        options:["100mg","200mg","300mg","500mg"],
-        correct:2,
-        exp:"300mg NMN, a direct NAD+ precursor and one step closer to NAD+ than NR which is Nicotinamide Riboside."
-      },
-      {
-        q:"The Cellular Foundation Builder complex contains:",
-        options:[
-          "NMN plus PQQ",
-          "Glycine 3g plus Taurine 2g",
-          "Resveratrol plus Quercetin",
-          "Spermidine plus Astaxanthin"
-        ],
-        correct:1,
-        exp:"3g Glycine plus 2g Taurine equals 5g total. Based on breakthrough Science journal taurine longevity research."
-      },
-      {
-        q:"Why is the Longevity Powder orange?",
-        options:[
-          "Artificial colouring",
-          "Pomegranate extract",
-          "From astaxanthin AstaPure, a natural antioxidant carotenoid. Color may vary between batches and this is normal.",
-          "Beta-carotene added separately"
-        ],
-        correct:2,
-        exp:"The orange colour comes naturally from astaxanthin. Same compound that gives salmon their colour. Natural batch variation is normal, reassure customers."
-      },
-      {
-        q:"An existing subscriber asks why they are charged $89 but the website shows $149:",
-        options:[
-          "There is a billing error",
-          "Existing subscribers are grandfathered at their original price for life as a permanent loyalty benefit",
-          "The $89 is a limited-time promotion",
-          "They need to upgrade their plan"
-        ],
-        correct:1,
-        exp:"Grandfathered pricing is permanent for existing subscribers as a thank-you for early support. For Longevity: new customers pay $149 one-time or $119/month subscription."
-      },
-      {
-        q:"Is the Longevity Powder NSF Certified for Sport?",
-        options:[
-          "Yes all IM8 products are NSF certified",
-          "No, NSF certification is PENDING. Never confirm until officially received.",
-          "Yes certified Q4 2025",
-          "Only the original capsule was certified"
-        ],
-        correct:1,
-        exp:"IMPORTANT: NSF certification for the Longevity Powder is PENDING. Never confirm certifications not yet received. This is a compliance issue."
-      },
-    ]
-  },
-  {
-    id:"m6", title:"Policies and Resolutions", day:3,
-    tag:"Day 3 - Policies", critical:false,
-    questions:[
-      {
-        q:"A first-time customer wants a refund 25 days after delivery. What applies?",
-        options:[
-          "Reject, too close to the 30-day limit",
-          "Apply the 30-day money-back guarantee, opened or unopened, first order only. Customer pays return shipping.",
-          "Offer store credit only",
-          "Approve only if unopened"
-        ],
-        correct:1,
-        exp:"30-day money-back guarantee covers first orders, opened or unopened, from date of arrival. Customer pays return shipping. Complimentary items are non-refundable."
-      },
-      {
-        q:"A customer says their package is marked delivered but has not arrived. First step?",
-        options:[
-          "Immediately send a replacement",
-          "Confirm their shipping address is correct, advise checking with neighbours, wait 24 hours",
-          "File a claim with the courier",
-          "Ask for a photo"
-        ],
-        correct:1,
-        exp:"Confirm address, advise checking with neighbours, wait 24 hours. If still missing send a free replacement. Do not jump straight to replacement."
-      },
-      {
-        q:"A customer claims a second lost package within 12 months. You:",
-        options:[
-          "Process replacement as normal",
-          "Escalate immediately, second claim within 12 months is a fraud flag",
-          "Ask them to wait longer",
-          "Offer a partial refund"
-        ],
-        correct:1,
-        exp:"Second lost package or empty box within 12 months equals escalate immediately. This is a fraud flag per the CS Handbook."
-      },
-      {
-        q:"A customer sends a photo of a damaged product. You:",
-        options:[
-          "Offer a refund immediately",
-          "Ask what happened before deciding",
-          "Thank them for the photo and process a free replacement shipping within 24 hours",
-          "Send a discount code"
-        ],
-        correct:2,
-        exp:"Damaged product plus photo evidence equals replacement. Say: I am so sorry to see this. I have processed a free replacement and it will ship within 24 hours."
-      },
-      {
-        q:"Free shipping applies to subscriptions EXCEPT which countries?",
-        options:[
-          "UK and USA",
-          "Norway and Switzerland at $15 flat rate, plus Israel, Saudi Arabia, and UAE calculated at checkout",
-          "Canada and Australia",
-          "All countries get free shipping"
-        ],
-        correct:1,
-        exp:"Free worldwide shipping on subscriptions EXCEPT Norway and Switzerland at $15 flat. Israel, Saudi Arabia, UAE calculated at checkout."
-      },
-      {
-        q:"A customer wants to pause their subscription for 2 months. You:",
-        options:[
-          "Tell them to cancel and resubscribe",
-          "Direct them to their subscription portal where they can pause, skip, change frequency, or cancel anytime",
-          "Process it manually through Skio",
-          "Tell them pausing is not available"
-        ],
-        correct:1,
-        exp:"Customers have full control via the subscription portal: pause, skip, swap, change frequency, or cancel. Empower them, do not create friction."
-      },
-    ]
-  },
-  {
-    id:"m7", title:"Shipping and Delivery", day:3,
-    tag:"Day 3 - Shipping", critical:false,
-    questions:[
-      {
-        q:"Standard US delivery takes approximately:",
-        options:[
-          "1-2 business days",
-          "3-4 business days",
-          "Around 6 calendar days",
-          "10-14 calendar days"
-        ],
-        correct:2,
-        exp:"US average delivery is around 6 calendar days from order date based on real shipping data."
-      },
-      {
-        q:"Which country has the fastest delivery time?",
-        options:[
-          "Singapore 5 days",
-          "Hong Kong 4 days",
-          "United States 6 days",
-          "Japan 6 days"
-        ],
-        correct:1,
-        exp:"Hong Kong has the fastest average delivery at around 4 calendar days. Singapore is second at around 5 days."
-      },
-      {
-        q:"A UK customer says their order has not arrived after 5 days. What do you tell them?",
-        options:[
-          "Their order is definitely lost",
-          "UK average is around 7 days so they are still within normal range. Check tracking and advise them to wait a little longer.",
-          "Immediately send a replacement",
-          "Escalate to the warehouse"
-        ],
-        correct:1,
-        exp:"UK average is around 7 calendar days. At day 5, still within normal range. Check Aftership for tracking status and reassure the customer."
-      },
-      {
-        q:"A Canadian customer asks why their order is taking so long at 12 days:",
-        options:[
-          "That is unusual, escalate immediately",
-          "Canada average is around 16 days so they are still within normal range. Reassure them.",
-          "Tell them international orders take 7-14 days",
-          "Offer a refund proactively"
-        ],
-        correct:1,
-        exp:"Canada average is around 16 calendar days. At 12 days, still within range. Reassure with accurate timeline. Never quote generic 7-14 days when you have real data."
-      },
-      {
-        q:"Norway has a flat shipping surcharge for subscription orders of:",
-        options:["$5","$10","$15","$20"],
-        correct:2,
-        exp:"Norway and Switzerland both have a $15 flat shipping rate for subscription orders, even though all other countries ship free on subscriptions."
-      },
-      {
-        q:"Which tool do you check first before responding to any delivery query?",
-        options:["Shopify","Skio","Aftership","Extensiv"],
-        correct:2,
-        exp:"Always check Aftership first before responding to any delivery query. Never guess, check the actual tracking status."
-      },
-    ]
-  },
-  {
-    id:"m8", title:"Sensitive Info and Compliance", day:4,
-    tag:"Day 4 - Critical", critical:true,
-    questions:[
-      {
-        q:"A customer asks: I have Type 2 diabetes, is IM8 safe? You:",
-        options:[
-          "Say IM8 is safe for most people",
-          "Give them the ingredient list and let them decide",
-          "Direct them to consult their healthcare professional. We cannot give medical advice. No exceptions.",
-          "Ask what medications they take and advise"
-        ],
-        correct:2,
-        exp:"CRITICAL: Any medical condition question means refer to healthcare professional. No exceptions. This is a legal liability. Never diagnose, advise, or imply safety for specific conditions."
-      },
-      {
-        q:"A customer asks for the exact mg breakdown of your proprietary blend. You:",
-        options:[
-          "Share everything from the label",
-          "Share only label-listed ingredient amounts. Proprietary blend ratios and manufacturing details are confidential.",
-          "Refuse and close the ticket",
-          "Estimate based on the formula"
-        ],
-        correct:1,
-        exp:"WITHHOLD: Proprietary formulation details, blend ratios, manufacturing processes. SAFE SHARE: individual ingredient amounts as listed on the public label."
-      },
-      {
-        q:"A customer says the energy is amazing but the taste is not for them. Include Trustpilot link?",
-        options:[
-          "Yes they mentioned a positive",
-          "No, any negative comment at all means no Trustpilot link",
-          "Only if they rate you 4 stars or above",
-          "Ask if they would like to leave a review"
-        ],
-        correct:1,
-        exp:"STRICT RULE: Any negative comment however minor means NO Trustpilot link. 100% positive with absolutely zero negatives only. Link: https://www.trustpilot.com/evaluate/im8health.com"
-      },
-      {
-        q:"A customer asks for a free sample before committing. You:",
-        options:[
-          "Send a 3-day supply",
-          "Offer a discount instead",
-          "Decline clearly, free samples are not available",
-          "Ask your team leader"
-        ],
-        correct:2,
-        exp:"RULE: Never offer free samples or complimentary products. Decline clearly. You can offer to share more product information to help them decide."
-      },
-      {
-        q:"Is the NSF Sport certification confirmed for the Longevity Powder?",
-        options:[
-          "Yes confirmed",
-          "No, PENDING. Never confirm until officially received. This is a compliance issue.",
-          "Yes confirmed Q4 2025",
-          "It was never going to be certified"
-        ],
-        correct:1,
-        exp:"NSF certification for Longevity Powder is PENDING. Confirming a certification not yet received creates a compliance and legal risk."
-      },
-      {
-        q:"A customer question might involve their specific medical condition and you are not sure what to say. You:",
-        options:[
-          "Answer your best guess",
-          "Refer to the FAQ and answer based on that",
-          "Direct to healthcare professional. When in doubt always refer. Better safe than legally liable.",
-          "Escalate to team leader before responding"
-        ],
-        correct:2,
-        exp:"When in doubt about any medical or health question refer to healthcare professional. This protects the customer, IM8, and you legally."
-      },
-    ]
-  },
-  {
-    id:"m9", title:"Escalation and Severity Triage", day:4,
-    tag:"Day 4 - Critical", critical:true,
-    questions:[
-      {
-        q:"A customer reports a serious adverse health reaction after taking IM8. This is:",
-        options:[
-          "P3, standard complaint",
-          "P2, monitor the situation",
-          "P1, escalate immediately to Head of CX within 1-2 hours",
-          "Only P1 if they threaten legal action"
-        ],
-        correct:2,
-        exp:"P1 CRITICAL: Any adverse health reaction means immediate escalation to Head of CX. 1-2 hour response. Health and legal risk. Do not delay."
-      },
-      {
-        q:"Moderate social media backlash with some traction but not viral. This is:",
-        options:[
-          "P1, immediate crisis",
-          "P2, 2-4 hour initiation, investigate, PR alignment needed",
-          "P3, standard complaint handling",
-          "Ignore until it goes viral"
-        ],
-        correct:1,
-        exp:"P2: Social media backlash with moderate traction. 2-4 hour response initiation, 24-48 hour full resolution. Needs fact-based response and PR alignment."
-      },
-      {
-        q:"Standard delivery delay complaint from a regular customer. This is:",
-        options:["P1","P2","P3, SOP-driven, 0-2 hour response","Not a priority"],
-        correct:2,
-        exp:"P3: Contained, low-risk. Handle via standard SOP. 0-2 hour response. Do not over-escalate standard complaints."
-      },
-      {
-        q:"A customer is threatening legal action. You:",
-        options:[
-          "Calmly explain your policy",
-          "P1, escalate immediately. Do not respond substantively without guidance from Head of CX and legal team.",
-          "Ask them to clarify their complaint",
-          "Try to resolve it yourself first"
-        ],
-        correct:1,
-        exp:"P1 CRITICAL: Legal threats mean immediate cross-functional escalation. Use the escalation script: I have shared this with our specialist team and I will personally monitor and keep you updated."
-      },
-      {
-        q:"A regulatory inquiry arrives for example from FDA or Health Canada:",
-        options:[
-          "P3, respond using standard templates",
-          "P2, medium risk, respond carefully",
-          "P1, escalate immediately. Never respond independently.",
-          "Ask your team leader if it seems serious"
-        ],
-        correct:2,
-        exp:"P1 CRITICAL: Any regulatory inquiry requires immediate escalation. Never respond independently. This carries legal and compliance risk."
-      },
-      {
-        q:"The approved escalation script to use with customers is:",
-        options:[
-          "I need to transfer you to another team.",
-          "I have shared this with our specialist team so we can get you the best possible answer. I will personally monitor this and keep you updated on our progress.",
-          "This issue is above my pay grade.",
-          "Please wait while I investigate."
-        ],
-        correct:1,
-        exp:"Use the approved escalation script. It is confident, personal, and reassures the customer without making promises you cannot keep."
-      },
-    ]
-  },
-  {
-    id:"m10", title:"Final Assessment", day:5,
-    tag:"Day 5 - Graduation", critical:false,
-    questions:[
-      {
-        q:"A pregnant customer asks if IM8 is safe. Best response?",
-        options:[
-          "Say IM8 is allergen-free so it should be fine",
-          "Refer her to her OB-GYN. Every pregnancy is unique and we cannot give medical advice.",
-          "Share the ingredients list and let her decide",
-          "Tell her to stop taking it immediately"
-        ],
-        correct:1,
-        exp:"Pregnancy is a medical question. Always refer to healthcare professional. Say: Congrats on your pregnancy! While our products are free from common allergens please share our ingredients list with your OB-GYN and follow their guidance."
-      },
-      {
-        q:"A new subscriber is upset their first order took 19 days to arrive in Ireland. You:",
-        options:[
-          "Apologise and offer a refund",
-          "Acknowledge their frustration. Ireland average is around 19 days so this is within normal range. Explain and reassure.",
-          "Tell them international shipping is unpredictable",
-          "Escalate to the warehouse team"
-        ],
-        correct:1,
-        exp:"Ireland average is around 19 calendar days, within normal range. Acknowledge frustration, explain the timeline accurately, and reassure them."
-      },
-      {
-        q:"A customer says IM8 has changed their life and they tell everyone about it. You:",
-        options:[
-          "Thank them and close the ticket",
-          "Thank them warmly and include the Trustpilot link. This is a 100% positive response.",
-          "Thank them and offer a discount code",
-          "Close with a standard template"
-        ],
-        correct:1,
-        exp:"100% positive with zero negatives means Trustpilot eligible. Thank them genuinely and invite them to share at https://www.trustpilot.com/evaluate/im8health.com"
-      },
-      {
-        q:"A customer asks about IM8 vs AG1. Best approach?",
-        options:[
-          "Say AG1 is inferior without details",
-          "Focus on IM8 unique value: 92 ingredients, NSF Certified for Sport, CRT8 technology, clinical dosages, 12 hallmarks coverage",
-          "Say they are basically the same",
-          "Refuse to discuss competitors"
-        ],
-        correct:1,
-        exp:"Never trash competitors. Focus on IM8 differentiators: 92 ingredients, NSF Certified, clinical trial results, CRT8 technology, science-backed formulation. Let the facts speak."
-      },
-      {
-        q:"Which QC score means meets expectations with very minor issues?",
-        options:["5 Excellent","4 Good","3 Fair","2 Poor"],
-        correct:1,
-        exp:"QC scoring: 5 Excellent exceeds with no errors, 4 Good meets expectations with very minor issues, 3 Fair acceptable with improvements needed, 2 Poor frequent mistakes, 1 Unsatisfactory."
-      },
-      {
-        q:"A customer reports that IM8 made them feel dizzy and nauseous. You:",
-        options:[
-          "Suggest they take it with food",
-          "Apologise and offer a refund",
-          "P1, escalate immediately to Head of CX. Adverse health reaction. Do not delay.",
-          "Ask them how much they took"
-        ],
-        correct:2,
-        exp:"Any adverse health reaction means P1 immediate escalation. Do not troubleshoot, do not delay, do not offer solutions. This is a safety and legal issue."
-      },
-    ]
+    id: "m3", title: "Policy and Escalation", day: 3,
+    tag: "Day 3 - Playbook", critical: true,
+    questions: [
+      { q: "What is LUMÉ's guarantee window?", options: ["14 days from order", "30 days from delivery", "60 days from delivery", "90 days from order"], correct: 1, exp: "30 days from delivery, opened or unopened. Outside the window: education first, then store credit at your discretion — cash refunds outside 30 days escalate to a Lead." },
+      { q: "A customer reports a painful reaction with a rash. Your first move?", options: ["Offer 20% off their next order", "Log a Reaction/Concern record verbatim, process the refund, and escalate within 1 hour", "Ask for photos and wait", "Suggest they use less product"], correct: 1, exp: "Adverse reactions are compliance events: capture the customer's words verbatim, refund, and escalate within the hour. No save attempts." },
+      { q: "Tracking says delivered but nothing arrived. The flow is:", options: ["Refund immediately", "Confirm address, ask them to check neighbours/building, wait 24h, then send a free replacement", "Tell them to contact the courier", "Open a fraud investigation"], correct: 1, exp: "Confirm the address, check neighbours and safe spots, allow 24 hours for late scans — then a free replacement. Log it so the Parcelline claim can be filed." },
+      { q: "A subscriber wants to cancel because they have too much product. Best save play?", options: ["Offer 40% off", "Offer to skip a month or move to bi-monthly shipping", "Process the cancellation immediately", "Transfer to a Manager"], correct: 1, exp: "Excess product is the highest-save category: skip a month, pause, or drop to bi-monthly. One genuine save attempt, then respect the decision." },
+      { q: "How many save attempts per cancellation?", options: ["As many as it takes", "Two, then escalate", "One genuine attempt, then cancel respectfully if declined", "None — always cancel instantly"], correct: 2, exp: "One save attempt maximum. Push twice and you've traded a customer's trust for a month of revenue." },
+    ],
   },
 ];
 
-// ─── Scenario Data ─────────────────────────────────────────────────────────────
+// ─── Simulate Data ───────────────────────────────────────────────────────────
 const SCENARIOS = [
-  { id:"s1",  label:"Too Expensive",          difficulty:"Medium", customerMsg:"I looked at the price and $89 a month is way too much. I can buy separate supplements cheaper." },
-  { id:"s2",  label:"Switching from AG1",     difficulty:"Hard",   customerMsg:"I have been using AG1 for years and I am happy with it. Why would I switch to IM8?" },
-  { id:"s3",  label:"Just a Celebrity Brand", difficulty:"Hard",   customerMsg:"This is just David Beckham slapping his name on a product to make money. There is no real science here." },
-  { id:"s4",  label:"Taste Issue",            difficulty:"Easy",   customerMsg:"Hi, why does IM8 taste so bad? I really do not enjoy drinking it." },
-  { id:"s5",  label:"Health Condition",       difficulty:"Medium", customerMsg:"Hi, I have Type 2 diabetes. Is IM8 safe for me to take with my medication?" },
-  { id:"s6",  label:"Drug Testing Concern",   difficulty:"Easy",   customerMsg:"I am a professional athlete and I cannot risk taking anything that might show up on a drug test." },
-  { id:"s7",  label:"Pregnant Customer",      difficulty:"Medium", customerMsg:"Hi, I am 8 weeks pregnant. Is IM8 safe to take during pregnancy?" },
-  { id:"s8",  label:"Subscription Cancel",    difficulty:"Easy",   customerMsg:"Hi, it seems really difficult to stop my subscription. How do I cancel?" },
-  { id:"s10", label:"Free Sample Request",    difficulty:"Medium", customerMsg:"I would love to try IM8 before I commit to a full order. Can you send me a free sample?" },
-  { id:"s11", label:"Not Seeing Results",     difficulty:"Hard",   customerMsg:"I have been taking IM8 for 3 weeks and I do not see any difference. I want a refund." },
-  { id:"s12", label:"Lost Package",           difficulty:"Medium", customerMsg:"My tracking says delivered but there is nothing here. Where is my order?" },
+  { id: "s1",  label: "Tingling + Refund Ask",   difficulty: "Medium", customerMsg: "My scalp tingles every time I use the Scalp Serum. That can't be normal. I want a refund." },
+  { id: "s2",  label: "No Results — Week 3",     difficulty: "Hard",   customerMsg: "I've used the Repair Serum every day for 3 weeks and my hair looks exactly the same. It's not working." },
+  { id: "s3",  label: "Wrong Serums in Edit Box", difficulty: "Medium", customerMsg: "My Hair Edit box came with serums for fine hair. My profile clearly says my hair is coily. Did anyone even look?" },
+  { id: "s4",  label: "Cancel — Formula Swap Save", difficulty: "Hard", customerMsg: "I want to cancel my subscription. The serums just aren't right for my hair since I got a keratin treatment." },
+  { id: "s5",  label: "Adverse Reaction",        difficulty: "Hard",   customerMsg: "I've come out in a rash along my hairline after using the Glow Serum. It's itchy and red and I'm honestly upset." },
+  { id: "s6",  label: "Affiliate Code Failure",  difficulty: "Easy",   customerMsg: "My friend's creator code LUMEJESS didn't apply at checkout and I got charged full price. Can you fix it?" },
+  { id: "s7",  label: "Damaged Gift Order",      difficulty: "Medium", customerMsg: "The box arrived crushed and it was meant to be a birthday gift for my sister this weekend. I'm gutted." },
+  { id: "s8",  label: "Skip vs Pause vs Cancel", difficulty: "Easy",   customerMsg: "I still have two full bottles left. It seems really hard to stop deliveries — how do I cancel?" },
+  { id: "s9",  label: "Refund Outside 30 Days",  difficulty: "Medium", customerMsg: "I bought the Smooth Serum 45 days ago and it's not for me. I'd like my money back please." },
+  { id: "s10", label: "Chargeback Threat",       difficulty: "Hard",   customerMsg: "If I don't get a refund today I'm calling my bank and disputing the charge. Your choice." },
 ];
 
 // ─── Compare Data ─────────────────────────────────────────────────────────────
+// Serum-by-serum comparison for the Training compare matrix.
 const COMPARE_ROWS = [
-  { label:"Format",          essPro:"Stick packs (30/pack)", longevity:"Stick packs (30/pack)", origEss:"Powder",       longevityCap:"Capsule" },
-  { label:"Serving",         essPro:"13.6g",                longevity:"7.8g",                  origEss:"11.8g",        longevityCap:"1 cap" },
-  { label:"Calories",        essPro:"40",                   longevity:"15",                    origEss:"20",           longevityCap:"none" },
-  { label:"Ingredients",     essPro:"92",                   longevity:"5 complexes",           origEss:"92",           longevityCap:"limited" },
-  { label:"CoQ10",           essPro:"100mg",                longevity:"none",                  origEss:"100mg",        longevityCap:"none" },
-  { label:"MSM",             essPro:"1500mg increased",     longevity:"none",                  origEss:"1000mg",       longevityCap:"none" },
-  { label:"Saffron",         essPro:"30mg exclusive",       longevity:"none",                  origEss:"none",         longevityCap:"none" },
-  { label:"CRT8",            essPro:"100mg increased",      longevity:"none",                  origEss:"25mg",         longevityCap:"25mg" },
-  { label:"NMN",             essPro:"none",                 longevity:"300mg",                 origEss:"none",         longevityCap:"none" },
-  { label:"Senolytics",      essPro:"none",                 longevity:"600mg triple",          origEss:"none",         longevityCap:"none" },
-  { label:"Glycine+Taurine", essPro:"none",                 longevity:"5g",                    origEss:"none",         longevityCap:"none" },
-  { label:"NAD Approach",    essPro:"none",                 longevity:"Direct NMN",            origEss:"none",         longevityCap:"NAD3 blend" },
-  { label:"DHA",             essPro:"none",                 longevity:"removed",               origEss:"none",         longevityCap:"200mg algal" },
-  { label:"Probiotics",      essPro:"10B CFU",              longevity:"none",                  origEss:"10B CFU",      longevityCap:"none" },
-  { label:"Hallmarks",       essPro:"Some",                 longevity:"All 12",                origEss:"Some",         longevityCap:"Some" },
-  { label:"NSF Sport",       essPro:"confirmed",            longevity:"pending",               origEss:"confirmed",    longevityCap:"none" },
-  { label:"Price (OTP)",     essPro:"$112",                 longevity:"$149",                  origEss:"disc.",        longevityCap:"disc." },
-  { label:"Price (monthly)", essPro:"$89/mo",               longevity:"$89 legacy / $119 new", origEss:"disc.",        longevityCap:"disc." },
-  { label:"Price (quarter)", essPro:"$235/qtr",             longevity:"$312/qtr",              origEss:"disc.",        longevityCap:"disc." },
-  { label:"Flavors",         essPro:"Acai+Berry / Mango+Passionfruit / Lemon+Orange / Variety Pack", longevity:"Single flavor (no variants)", origEss:"Acai Berry",   longevityCap:"Neutral" },
+  { label: "Best for",         smooth: "Frizz + flyaways",        repair: "Damage + colour-treated",  scalp: "Scalp health + growth",    glow: "Shine + dullness" },
+  { label: "Hero ingredient",  smooth: "Argan + keratin complex", repair: "Bond-repair peptides",     scalp: "Peppermint + niacinamide", glow: "Camellia oil + vitamin E" },
+  { label: "Texture",          smooth: "Silky cream-serum",       repair: "Rich leave-in",            scalp: "Lightweight dropper",      glow: "Weightless oil mist" },
+  { label: "Apply to",         smooth: "Damp hair, mid-to-ends",  repair: "Damp hair, ends first",    scalp: "Dry or damp scalp",        glow: "Dry hair, finishing" },
+  { label: "What to expect",   smooth: "Smoother from first use", repair: "Strength visible ~6 weeks", scalp: "Expected tingle (peppermint)", glow: "Instant gloss" },
+  { label: "Results timeline", smooth: "1-2 weeks",               repair: "4-6 weeks",                scalp: "4-6 weeks",                glow: "Immediate" },
+  { label: "Price (AUD)",      smooth: "$79",                     repair: "$85",                      scalp: "$89",                      glow: "$75" },
+  { label: "Hair Edit pairing", smooth: "Fine + straight profiles", repair: "Damaged + coloured profiles", scalp: "Thinning + scalp-first profiles", glow: "All profiles (finisher)" },
 ];
 
 // ─── Bootcamp Data ────────────────────────────────────────────────────────────
+// Four compact days — one per week of the 30-day path. Module B replaces
+// this with the full curriculum.
 const BOOTCAMP_DAYS = [
-  // ─── DAY 1 ───────────────────────────────────────────────────────────────────
   {
-    day:1, title:"Identity & Standards",
-    subtitle:"Understand who IM8 is, how we speak, and how you will be measured every day", duration:"3-4 hrs",
-    lessons:[
+    day: 1, title: "Week 1 — Foundations",
+    subtitle: "Meet LUMÉ, learn the voice, and get product-fluent", duration: "2-3 hrs",
+    lessons: [
       {
-        id:"d1l0", title:"The IM8 DNA & Values",
-        content:[
-          {t:"video", label:"🎬 TO RECORD: Welcome to the IM8 CX Team (2-3 min)", dur:"TBD", url:""},
-          {t:"video", label:"Intro Part 1 — Team & Tone of Voice", dur:"", url:"/videos/Intro - Part 1 (Team & Tone of Voice).mp4"},
-          {t:"h",v:"Welcome to the IM8 Customer Experience Team"},
-          {t:"p",v:"We are the voice of the brand and the champions of our customers. Every interaction you handle shapes how people experience IM8. Your work is guided by the IM8 DNA and the Prenetics culture — these are not aspirational statements. They are behavioral standards that define how you show up, solve problems, and treat customers and teammates."},
-          {t:"h",v:"The 9 IM8 Values — What They Mean on the Floor"},
-          {t:"kv",pairs:[
-            ["Passion","You bring energy and care to every interaction. You genuinely want to help and take pride in finding the right solution."],
-            ["Resilience","You stay calm under pressure. You handle frustrated customers, high volumes, and complex issues without losing focus or empathy."],
-            ["Empowerment","You take ownership. You do not wait to be told — when you see a problem, you help solve it and support your teammates."],
-            ["Integrity","You do the right thing, even when no one is watching. You follow through on commitments and act in the best interest of the customer and IM8."],
-            ["Epic","You go beyond the minimum. You look for opportunities to turn a standard interaction into a memorable, positive experience."],
-            ["Transparency","You communicate honestly and clearly. You set realistic expectations and raise issues early with your team."],
-            ["Ingenuity","You think critically and adapt quickly. When the answer is not obvious, you find a smart, practical way forward."],
-            ["Communication","You communicate with clarity, empathy, and professionalism. You listen first and respond in a way customers can understand and trust."],
-            ["Selfless","You put the team and the mission first. You take on tough cases, share knowledge, and support others to ensure team success."],
+        id: "d1l0", title: "Meet LUMÉ",
+        content: [
+          { t: "h", v: "Welcome to the LUMÉ CX team" },
+          { t: "p", v: "LUMÉ is a premium DTC haircare brand — four serums and The Hair Edit subscription box, shipped from Sydney, Los Angeles and London. Our promise is simple: your hair, transformed. You are the voice of that promise on every ticket." },
+          { t: "kv", pairs: [
+            ["Smooth Serum — $79", "Frizz and flyaways. Silky cream-serum for damp hair, mid-lengths to ends."],
+            ["Repair Serum — $85", "Damage and colour-treated hair. Bond-repair peptides; strength shows at 4-6 weeks."],
+            ["Scalp Serum — $89", "Scalp health. The peppermint tingle is expected — it's the actives working, not a reaction."],
+            ["Glow Serum — $75", "Shine. Weightless finishing oil, instant gloss."],
+            ["The Hair Edit — $89/month", "Curated serum pairing by hair profile. Ships the 15th; swaps close on the 12th."],
           ]},
-          {t:"h",v:"The IM8 Mindset"},
-          {t:"kv",pairs:[
-            ["Intensity","We stay focused and fully engaged. We move with urgency and give our best effort on every interaction."],
-            ["Humility","We lead with respect and self-awareness. We listen, stay open to feedback, and put learning ahead of ego."],
-            ["Ambition","We take on tough challenges and look for better ways to solve them. We are motivated to improve outcomes for both customers and the business."],
-            ["Grit","We do not back down when things get difficult. We remain steady under pressure and follow issues through to resolution."],
-            ["Team-first","We act in service of the team and the broader IM8 mission. We support one another and make decisions that benefit the collective."],
-          ]},
-          {t:"h",v:"The IM8 Customer"},
-          {t:"p",v:"The IM8 customer is health-conscious, informed, and proactive about their well-being. They are investing in long-term health and expect clear answers, fast resolution, and a customer experience that reflects the premium nature of the brand. Every interaction must live up to that standard."},
-          {t:"h",v:"Your 3 Guiding Principles"},
-          {t:"kv",pairs:[
-            ["1. Empathetic Ownership","Own the customer's problem until it is resolved. Understand their emotional state throughout. Measured by: CSAT, NPS, Trustpilot Reviews."],
-            ["2. Effortless Resolution","Solve quickly and completely with as little back-and-forth as possible. Measured by: volume and resolution composite."],
-            ["3. Root Cause Mindset","Cancellation is often a sign of dissatisfaction, not the real goal. Identify the underlying issue and solve that first. Measured by: Retention Rate and saved cancellation tags."],
-          ]},
-          {t:"warn",v:"These values are behavioral standards — not a wall poster. You will be evaluated on them in QC scoring every week. Start applying them from your very first ticket."},
-          {t:"tip",v:"Integrity means doing the right thing even when no one is watching. When you are unsure what to do — whether to escalate, offer a refund, or push back — ask yourself: what would a person of integrity do here? That question cuts through every ambiguous situation."},
-          {t:"scenario",customer:"I have been a customer for 6 months and I am really unhappy with how my last complaint was handled. Nobody followed up and I feel completely ignored.",hint:"Which values apply here? How do you embody Empathy, Integrity, and Epic in a single response? You cannot undo what happened — what do you do now?",response:"I completely understand your frustration, and I am so sorry that fell through the cracks — you deserved a follow-up and you did not get one. That is on us. I am picking this up personally right now and I am not closing this ticket until your situation is fully resolved. Can you tell me what happened so I can make it right? With health, [Name] - IM8 Customer Experience"},
-          {t:"summary",items:["9 IM8 Values: Passion, Resilience, Empowerment, Integrity, Epic, Transparency, Ingenuity, Communication, Selfless — behavioral standards, not aspirations","IM8 Mindset: Intensity, Humility, Ambition, Grit, Team-first — how high performers show up every day","The IM8 customer is health-conscious and premium — they expect a CX experience that matches the brand","3 Guiding Principles: Empathetic Ownership (CSAT/NPS), Effortless Resolution, Root Cause Mindset","You are evaluated on these values every week through QC scoring — apply them from ticket one"]},
+          { t: "warn", v: "Two facts prevent most refunds: results take 4-6 weeks of consistent use, and the Scalp Serum tingle is a feature. Educate first, always." },
+          { t: "tip", v: "Voice check before every send: warm, knowledgeable, confident. Never clinical, never preachy. We solve — we don't apologise unnecessarily." },
+          { t: "scenario", customer: "Just started the Scalp Serum and my scalp tingles for a few minutes after. Is that meant to happen?", hint: "Reassure with the science, keep the door open for anything beyond a tingle.", response: "Yes — and it's actually a good sign. That gentle tingle is the peppermint and actives getting to work on your scalp; it settles within a few minutes and eases off as your scalp adjusts over the first week or two. If it ever tips into burning, itching, or irritation, stop use and tell me straight away and we'll sort it together. Warmly, [Name] — LUMÉ" },
+          { t: "summary", items: ["Four serums + The Hair Edit — know prices and pairings cold", "Results at 4-6 weeks; tingle is expected", "Voice: warm, knowledgeable, confident", "Sign-off: Warmly, [Name] — LUMÉ"] },
         ],
-        check:[
-          {q:"Which IM8 value means taking ownership without being asked — when you see a problem, you help solve it?",options:["Integrity","Empowerment","Selfless","Resilience"],correct:1,exp:"Empowerment: you take ownership of your work. You do not wait to be told — when you see a problem, you help solve it and support your teammates."},
-          {q:"What is Guiding Principle 3 (Root Cause Mindset)?",options:["Process all cancellations immediately","Cancellation is often a symptom of dissatisfaction — identify the real issue first","Always offer a discount before cancelling","Escalate every cancellation to the CS Lead"],correct:1,exp:"Root Cause Mindset: cancellation is often a sign of dissatisfaction, not the real goal. Identify the underlying issue and solve that first. Measured by Retention Rate and saved cancellation tags."},
-          {q:"The IM8 values are best described as:",options:["Aspirational goals for the company","Behavioral standards that define how you show up and are evaluated","Optional guidelines for senior agents","Marketing language for customers"],correct:1,exp:"The values are behavioral standards — not aspirational statements. They define how you show up, solve problems, and treat customers. You are evaluated on them weekly through QC scoring."},
-        ]
-      },
-      {
-        id:"d1l1", title:"The IM8 Voice",
-        content:[
-          {t:"h",v:"How IM8 Sounds"},
-          {t:"p",v:"IM8's tone of voice is human, confident, and supportive — never scripted or transactional. Every message should feel personal, show genuine care, and focus on achieving the best outcome for the customer. Customers should leave each interaction feeling heard, respected, and supported."},
-          {t:"compare",pairs:[
-            ["Robotic & Scripted","Warm & Friendly"],
-            ["Corporate & Vague","Clear & Direct"],
-            ["Defensive & Unsure","Confident & In Control"],
-            ["Over-Apologetic & Dismissive","Empathetic & Understanding"],
-          ]},
-          {t:"h",v:"The IM8 Voice in Action — Before & After"},
-          {t:"compare",pairs:[
-            ["Thank you for contacting us. Your ticket has been received.","Thanks so much for reaching out! I have received your message and I am looking into this for you right now."],
-            ["Per our policy, we cannot issue a refund.","While our policy does not allow for a refund in this case, I can offer you a full store credit or an exchange for a product that might be a better fit."],
-            ["I understand you are frustrated.","I can absolutely see how frustrating this situation is, and I want to get this sorted for you immediately."],
-            ["You have to log in to your account to change your address.","You can update your address right from your account! Just head to this link and follow these two simple steps. Let me know if you run into any trouble."],
-          ]},
-          {t:"rule",v:"Always close every customer response with: With health, [Your first name] - IM8 Customer Experience"},
-          {t:"h",v:"The 6 Ticket Categories"},
-          {t:"kv",pairs:[
-            ["Safety","Adverse reactions, GI issues, medical conditions, athletes, pregnancy"],
-            ["Product","Timing/dosage, quality, taste, ingredients, certifications, stacking"],
-            ["Results","Not feeling effects, bloodwork concerns, under/over 90 days"],
-            ["Value","Price concerns, competitor comparisons"],
-            ["Shipping","Delays, wrong address, missing, damaged, inquiries"],
-            ["Subscription","Excess product, pause/change/cancel, inquiries"],
-          ]},
-          {t:"h",v:"Rules You Cannot Break"},
-          {t:"warn",v:"NEVER offer free samples. If asked: 'We do not offer free samples currently, but I am happy to share more about the product to help you decide.'"},
-          {t:"warn",v:"NEVER apologize for a delayed reply. It draws attention to something negative. Instead say: 'Thanks for your patience — here is your answer.'"},
-          {t:"warn",v:"NEVER proactively mention refunds. Only discuss if the customer raises it or the situation clearly qualifies."},
-          {t:"h",v:"The Trustpilot Rule"},
-          {t:"rule",v:"Include the Trustpilot link ONLY when the message is 100% positive with ZERO negatives. Any comment about taste, packaging, price, shipping, or any negative — even minor — disqualifies the link."},
-          {t:"h",v:"Medical Advice — Zero Exceptions"},
-          {t:"warn",v:"NEVER give medical advice, diagnose, or suggest treatments. For ANY medical or medication question, refer to their personal physician. Share the ingredient list so their doctor can review it."},
-          {t:"tip",v:"Keep the before/after examples from this lesson next to you during your first week. You will catch yourself reaching for corporate language — these examples are your fastest reset. The IM8 voice is a habit, not a natural instinct for most people. Build it deliberately."},
-          {t:"spot",label:"Spot the Problem — Tone",ticket:"Thank you for contacting IM8. We apologize for any inconvenience caused. A member of our team will review your case and respond to you as soon as possible. Kind regards, The IM8 Customer Service Team",problems:["'Thank you for contacting IM8' — robotic opener that adds nothing. The customer knows we know they contacted us.","'Apologize for any inconvenience' — apologizing before knowing the issue. Also draws attention to a negative.","'A member of our team will review your case' — passive, impersonal. No name, no ownership, no urgency.","'As soon as possible' — meaningless. Give a real commitment or say nothing.","Sign-off is completely wrong — must be: 'With health, [First name] - IM8 Customer Experience'"],fixed:"I have your message and I am on this right now. [Resolution in this same message.] With health, [Name] - IM8 Customer Experience"},
-          {t:"spot",label:"Spot the Problem — Medical Advice",ticket:"Hi! Great question — IM8 is generally very safe and well-tolerated. Most people on blood pressure medication are absolutely fine taking it. Just drink plenty of water and take it with food. Hope that helps! With health, [Name] - IM8 Customer Experience",problems:["'Generally very safe' — you are clearing a medication interaction. That is medical advice.","'Most people on blood pressure medication are absolutely fine' — this is medical advice. It is also legally dangerous.","Did not provide the ingredient list — that is the required step.","Did not refer to their prescribing physician — that is the required step.","This response creates real liability for IM8 if something goes wrong."],fixed:"Great question to ask before starting — please share the full ingredient list with your doctor or prescribing physician so they can advise based on your specific medication. Here is the full list: [ingredient list link]. They are best placed to give you a clear answer. With health, [Name] - IM8 Customer Experience"},
-          {t:"scenario",customer:"I am absolutely furious. I have been waiting 10 days for my order and nobody has responded to my two previous emails. This is completely unacceptable.",hint:"De-escalation first. Acknowledge the emotion and take ownership. Do NOT apologize for the delayed reply — that draws attention to something negative. Write the IM8 voice response.",response:"I hear you completely, and you are right to be frustrated — 10 days is too long and you deserved a response sooner. I am taking care of this right now. Can you share your order number so I can check exactly where your shipment is and make this right for you today? With health, [Name] - IM8 Customer Experience"},
-          {t:"summary",items:["IM8 voice: human, confident, supportive — never scripted, corporate, or transactional","We are: Warm & Friendly, Clear & Direct, Confident & In Control, Empathetic & Understanding","We are NOT: Robotic, Corporate, Defensive, Over-Apologetic","Sign-off: With health, [First name] - IM8 Customer Experience — every single time","3 non-negotiables: never offer free samples, never apologize for a delayed reply, never proactively mention refunds","Trustpilot link: 100% positive, zero negatives — any complaint at all disqualifies it"]},
+        check: [
+          { q: "The Scalp Serum tingle is:", options: ["An adverse reaction", "Expected — the actives working", "A sign to stop use", "A packaging fault"], correct: 1, exp: "Expected and temporary. Pain or a rash is different — that's a Reaction/Concern log." },
+          { q: "When do results show?", options: ["First wash", "4-6 weeks", "3 days", "6 months"], correct: 1, exp: "4-6 weeks of consistent use — the anchor for every 'no results yet' conversation." },
         ],
-        check:[
-          {q:"A customer says 'IM8 has genuinely changed my life and I recommend it to everyone!' Do you include the Trustpilot link?",options:["No — never include links","Yes — 100% positive with zero negatives","Only if they ask","Only for subscribers"],correct:1,exp:"100% positive + zero negatives = Trustpilot eligible. Include the link to invite them to leave a review."},
-          {q:"A customer asks 'Can I take IM8 with my blood pressure medication?' You:",options:["Tell them IM8 is generally safe","Say the ingredients should be fine","Provide the ingredient list and advise them to check with their prescribing physician","Escalate to TL"],correct:2,exp:"For ANY medical or medication question: share the ingredient list and refer to their personal physician. Never clear or deny use based on a medical condition."},
-          {q:"The correct IM8 sign-off is:",options:["Best regards, IM8 Support","Kind regards, Customer Service","With health, [Your first name] - IM8 Customer Experience","Thanks, [Name] - IM8"],correct:2,exp:"Always close with: With health, [Your first name] - IM8 Customer Experience — on every single response."},
-        ]
-      },
-      {
-        id:"d1l2", title:"The QC Scorecard — Know Your Standard",
-        content:[
-          {t:"h",v:"Why This Matters on Day 1"},
-          {t:"p",v:"Everything you learn this week — voice, policies, tools, de-escalation — will be evaluated against one standard: the QC Scorecard. You need to know this framework before your first ticket, not after your first QC review. Understanding how you are measured from day one changes how you approach every interaction."},
-          {t:"h",v:"The 5 QC Categories"},
-          {t:"kv",pairs:[
-            ["1. Accuracy","Correct application of policies. Factually correct product and shipping information. No made-up or guessed details."],
-            ["2. Tone & Empathy","Brand-appropriate IM8 voice. Genuine empathy and understanding. Warm, direct, human — never scripted or corporate."],
-            ["3. Clarity","Clear, easy-to-understand language. No typos, jargon, or confusing structure. Customer can act on what you wrote."],
-            ["4. Efficiency","Resolved within SLAs with no unnecessary back-and-forth. One clear answer that anticipates the customer's next question."],
-            ["5. Records & Notes","Internal notes are complete and accurate. Correct tags applied before closing. Tells the story anyone needs to pick up where you left off."],
-          ]},
-          {t:"h",v:"The Scoring Scale"},
-          {t:"kv",pairs:[
-            ["5 — Excellent","Exceeds expectations. No errors. Could be used as a training example."],
-            ["4 — Good","Meets expectations. Very minor issues that do not affect the outcome."],
-            ["3 — Fair","Acceptable, but multiple small improvements needed. Would not embarrass IM8, but not our standard."],
-            ["2 — Poor","Frequent mistakes. Requires coaching. Would leave a customer frustrated or confused."],
-            ["1 — Unsatisfactory","Major errors. Unacceptable response. Compliance or brand risk."],
-          ]},
-          {t:"rule",v:"Your target is 20+ out of 25. That means scoring mostly 4s across all five categories. This is the standard for Weeks 2-4. Strive to exceed it — not just meet it."},
-          {t:"scorecard",context:"Active US subscriber. Order is 7 business days in transit with no update.",ticket:"Hi, I'm sorry for the delay! There can sometimes be delays with carriers. I'll look into this and get back to you. Thanks, IM8 Support",scores:[{cat:"Accuracy",score:2,why:"No tracking check performed. Policy requires a compensation offer at 4-6 BD for active subscribers — a complimentary 6-pack should have been offered. Policy not applied."},{cat:"Tone & Empathy",score:2,why:"'I'm sorry for the delay' draws attention to the negative. No genuine acknowledgment of frustration. Vague and impersonal."},{cat:"Clarity",score:2,why:"'I'll look into this' means nothing. No action stated, no timeline given, customer has no idea what happens next."},{cat:"Efficiency",score:1,why:"Zero resolution. Forces the customer to contact again. Re-contact is the worst outcome and inflates ticket volume."},{cat:"Records & Notes",score:1,why:"No mention of tagging the ticket as Shipping Delay. No documentation of what action was taken. Anyone picking this up is flying blind."}],total:8,fixed:"I can see your order is still in transit after 7 days and that is longer than it should be — I am checking Aftership right now. I am also adding a complimentary 6-pack of Essentials to your next order right away, because you should not have to wait this long without something to make it right. I will follow up with a full tracking update within the next 24 hours and I am not closing this ticket until this is resolved. With health, [Name] - IM8 Customer Experience"},
-          {t:"tip",v:"Before sending any response, run it through the 5 categories in your head in 10 seconds: Is this accurate? Is this warm and on-brand? Is this clear? Did I resolve everything in one message? Did I tag and document this correctly? That 10-second habit separates 4s from 2s."},
-          {t:"scenario",customer:"Hi, I just wanted to say that I have been taking IM8 for 3 months and my energy levels are incredible. Best supplement I have ever taken by far.",hint:"This is 100% positive with zero negatives. Score your ideal response across the 5 QC categories. What do you include and why?",response:"That is absolutely incredible to hear — three months is when the real magic happens and it sounds like you are right in the middle of it! Thank you so much for taking the time to share this with us. Messages like yours are what drives our whole team. If you have a moment and would like to share your experience, we would love to read it on Trustpilot. With health, [Name] - IM8 Customer Experience [QC self-score: Accuracy 5, Tone 5, Clarity 5, Efficiency 5 — one message, complete, Trustpilot eligible]"},
-          {t:"summary",items:["5 QC categories: Accuracy, Tone & Empathy, Clarity, Efficiency, Records & Notes — each scored 1-5","Target: 20+/25 — mostly 4s across all categories by Weeks 2-4","5=Excellent (training example quality), 4=Good, 3=Fair (improvements needed), 2=Poor (coaching required), 1=Unsatisfactory","10-second pre-send check: accurate? warm? clear? resolved in one go? tagged and noted?","You receive QC feedback weekly — review it, ask questions, and focus on the categories where you lose points"]},
-        ],
-        check:[
-          {q:"What is the target QC score for Weeks 2-4?",options:["15 out of 25","18 out of 25","20 out of 25","25 out of 25"],correct:2,exp:"Your target is 20+ out of 25. This means scoring mostly 4s (Good) across all five categories. Treat it as a floor, not a ceiling."},
-          {q:"Which QC category covers whether internal notes and ticket tags are complete?",options:["Accuracy","Tone & Empathy","Efficiency","Records & Notes"],correct:3,exp:"Records & Notes is the category that covers internal note quality, tagging completeness, and documentation before closing."},
-          {q:"A QC score of 3 means:",options:["Excellent — could be a training example","Good — minor issues only","Fair — acceptable but multiple improvements needed","Poor — requires coaching"],correct:2,exp:"3=Fair: acceptable, but multiple small improvements needed. Would not embarrass IM8, but it is not our standard. Aim for 4s consistently."},
-        ]
       },
     ],
-    quiz:[
-      {q:"Which IM8 value means taking ownership and solving problems without being told?",options:["Integrity","Empowerment","Selfless","Resilience"],correct:1,exp:"Empowerment: you take ownership. You do not wait to be told — when you see a problem, you help solve it and support your teammates."},
-      {q:"What does Guiding Principle 3 (Root Cause Mindset) mean?",options:["Process all cancellations immediately","Cancellation is often a symptom of dissatisfaction — identify the real issue first","Always offer a discount before cancelling","Escalate every cancellation"],correct:1,exp:"Root Cause Mindset: cancellation is often a sign of dissatisfaction, not the real goal. Identify the underlying issue and solve that first."},
-      {q:"IM8's tone of voice is best described as:",options:["Formal and professional","Human, confident, and supportive — never scripted or transactional","Empathetic but corporate","Friendly but cautious"],correct:1,exp:"IM8 voice is human, confident, and supportive. Never scripted or transactional. Warm and direct, not corporate or vague."},
-      {q:"A customer says 'Great product but the shipping was really slow.' Do you include the Trustpilot link?",options:["Yes — mostly positive","Yes — shipping feedback is minor","No — any negative means no link","Only if they rate 5 stars"],correct:2,exp:"STRICT RULE: Any negative at all — even 'shipping was slow' — means no Trustpilot link. 100% positive with zero negatives only."},
-      {q:"What is the correct IM8 sign-off?",options:["Best regards, IM8 Support","Kind regards, Customer Service","With health, [Your first name] - IM8 Customer Experience","Thanks, [Name] - IM8"],correct:2,exp:"Always: With health, [Your first name] - IM8 Customer Experience. Every single response."},
-      {q:"What is the QC score target for Weeks 2-4?",options:["15/25","18/25","20/25","25/25"],correct:2,exp:"Target: 20+ out of 25. Mostly 4s across all five categories. Treat this as the floor, not the ceiling."},
-      {q:"Which QC category covers whether the policy was correctly applied?",options:["Tone & Empathy","Clarity","Accuracy","Efficiency"],correct:2,exp:"Accuracy covers correct application of policies and factually correct product and shipping information."},
-      {q:"The QC category measuring whether the issue was resolved without unnecessary back-and-forth is:",options:["Clarity","Efficiency","Records & Notes","Tone & Empathy"],correct:1,exp:"Efficiency: resolved within SLAs with no unnecessary back-and-forth. One clear answer that anticipates the next question."},
+    quiz: [
+      { q: "What ships on the 15th of every month?", options: ["All serum orders", "The Hair Edit box", "Replacement orders", "Nothing — shipping is daily"], correct: 1, exp: "The Hair Edit ships the 15th; swap requests close on the 12th." },
+      { q: "Which serum is the finisher for all hair profiles?", options: ["Smooth", "Repair", "Scalp", "Glow"], correct: 3, exp: "Glow Serum is the universal finisher — instant shine on dry hair." },
+      { q: "The correct sign-off is:", options: ["Warmly, [Name] — LUMÉ", "Regards, LUMÉ CX", "With love, LUMÉ", "Cheers, [Name]"], correct: 0, exp: "Warmly, [first name] — LUMÉ. Every reply." },
     ],
+    writing: {
+      scenario: "Hi, I started the Repair Serum about three weeks ago and I honestly can't see any difference yet. My hair is still snapping when I brush it. Should I just give up?",
+      prompt: "You are a LUMÉ CX quality coach reviewing a trainee reply. Customer message: [CUSTOMER]. Trainee response: [RESPONSE]. Check: (1) warm acknowledgement without over-apologising, (2) 4-6 week timeline education, (3) a routine check (damp hair, ends first), (4) confidence and an open door — no premature refund offer. Grade against the QC rubric (Tone 25, Policy accuracy 25, Resolution completeness 25, Proactivity 25). Start with SCORE: X/100 on its own line, then 3-4 sentences on what worked and the single biggest improvement." },
   },
-  // ─── DAY 2 ───────────────────────────────────────────────────────────────────
   {
-    day:2, title:"Products & Tools",
-    subtitle:"Know every product and every system you will use on every shift", duration:"3-4 hrs",
-    lessons:[
+    day: 2, title: "Week 2 — The Playbook",
+    subtitle: "Policies, edge cases, and knowing when to escalate", duration: "2-3 hrs",
+    lessons: [
       {
-        id:"d2l0", title:"Product Knowledge",
-        content:[
-          {t:"video", label:"Intro Part 2 — Product Knowledge", dur:"", url:"/videos/Intro - Part 2 (Product).mp4"},
-          {t:"video", label:"Section 2 — Detailed Product Deep Dive", dur:"", url:"/videos/Section 2.mp4"},
-          {t:"h",v:"The Three Product Lines"},
-          {t:"kv",pairs:[
-            ["Daily Ultimate Essentials PRO","The core daily supplement — stick packs, 30 per pack"],
-            ["Daily Ultimate Longevity","Longevity-focused formula — stick packs, 30 per pack"],
-            ["The Beckham Stack","Bundled offering: Essentials PRO + Longevity Set together"],
+        id: "d2l0", title: "Policy edge cases",
+        content: [
+          { t: "h", v: "The 30-day guarantee and its edges" },
+          { t: "p", v: "30 days from delivery, opened or unopened. Inside the window: refund without friction. Outside it: educate first, then store credit at your discretion — cash refunds outside 30 days escalate to a Lead." },
+          { t: "kv", pairs: [
+            ["Lost package", "Confirm address → neighbours/safe spots → 24h wait → free replacement. Log it for the Parcelline claim."],
+            ["Damaged arrival", "Photo evidence → free replacement, no return. Gift orders get gift-ready packaging and a handwritten note."],
+            ["Reaction / concern", "Verbatim record, refund, escalate within 1 hour. Compliance record — thoroughness is the feature."],
+            ["Chargeback threat", "Stay calm, never match the energy. Resolve the underlying issue on policy; a threat doesn't change the answer."],
           ]},
-          {t:"h",v:"Daily Ultimate Essentials PRO"},
-          {t:"kv",pairs:[
-            ["Format","Stick packs (sachet packs), 30 per pack — no pouches or capsules"],
-            ["Serving","92 premium ingredients, 13.6g per serving, 20 calories"],
-            ["Key highlights","MSM 1500mg, Saffron 30mg (PRO exclusive), CRT8 100mg, CoQ10 100mg, 10B CFU probiotics"],
-            ["Sweetener","Reb M (natural, zero glycemic impact)"],
-            ["Certification","NSF Certified for Sport"],
-            ["One-time purchase","$112"],
-            ["Monthly subscription (30-day)","$89/month"],
-            ["Quarterly subscription (90-day)","$235/quarter"],
+          { t: "rule", v: "One save attempt per cancellation. Reactions and medical concerns get zero save attempts — cancel and care." },
+          { t: "compare", pairs: [
+            ["Unfortunately our policy states that we cannot refund after 30 days.", "You're just outside our 30-day window, so here's what I can do instead — store credit toward your next box, applied right now."],
+            ["Sorry for the inconvenience caused.", "That box should have arrived looking perfect — here's how I'm fixing it today."],
           ]},
-          {t:"h",v:"Essentials PRO Flavors"},
-          {t:"kv",pairs:[
-            ["Acai + Berry","Original flavor"],
-            ["Mango + Passionfruit","New flavor"],
-            ["Lemon + Orange","New flavor"],
-            ["Variety Pack","Mix of all three flavors — perfect for trying before committing to one"],
-          ]},
-          {t:"rule",v:"Flavor options are ONLY available for Daily Ultimate Essentials PRO. The Longevity component has no flavor variants — it is a single offering."},
-          {t:"rule",v:"Saffron Flower Extract 30mg is PRO exclusive — clinically studied for mood, stress reduction, and cognitive performance. It does NOT exist in the original Essentials formula."},
-          {t:"h",v:"Daily Ultimate Longevity"},
-          {t:"kv",pairs:[
-            ["Format","Stick packs (sachet packs), 30 per pack — single flavor, no variants"],
-            ["Key ingredients","NMN 300mg, Glycine 3g, Taurine 2g, Resveratrol 250mg, Quercetin 250mg, Fisetin 100mg, Dihydroberberine 100mg, Spermidine 3mg, PQQ 10mg"],
-            ["Science","First supplement targeting all 12 hallmarks of aging (Cell journal 2023)"],
-            ["One-time purchase","$149"],
-            ["Monthly subscription (30-day)","$119/month (new) OR $89/month (grandfathered — permanent)"],
-            ["Quarterly subscription (90-day)","$312/quarter (new subscribers)"],
-          ]},
-          {t:"warn",v:"CRITICAL: NSF Certified for Sport status for the Longevity Powder is PENDING. Never confirm it. Confirming a certification not yet received is a legal and compliance risk."},
-          {t:"rule",v:"Existing subscribers are permanently grandfathered at $89/month as a loyalty benefit. New subscribers pay $119/month. Never tell a grandfathered customer they must pay more."},
-          {t:"h",v:"The Beckham Stack"},
-          {t:"p",v:"The Beckham Stack is a bundled offering combining Essentials PRO and the Longevity Set. Both can be mixed in the same glass. This is the most complete daily routine IM8 offers."},
-          {t:"kv",pairs:[
-            ["One-time purchase","$261"],
-            ["Monthly subscription (30-day)","$208/month"],
-            ["Quarterly subscription (90-day)","$548/quarter"],
-          ]},
-          {t:"h",v:"Discontinued Products"},
-          {t:"warn",v:"Original Daily Ultimate Essentials (V1), Longevity Capsules, and pouch/capsule formats are DISCONTINUED. The only current format is stick packs (30 per pack). Never suggest discontinued formats or products."},
-          {t:"rule",v:"No DHA or EPA in current products. If a customer asks if IM8 replaces their fish oil: be honest. Recommend a separate omega-3."},
-          {t:"tip",v:"When a customer asks what makes Essentials PRO different from the original formula: lead with the upgrades — MSM increased to 1500mg, Saffron added exclusively, CRT8 boosted from 25mg to 100mg. Never apologize for discontinuing the old version — position the change as a significant upgrade."},
-          {t:"scenario",customer:"I used to take the original Essentials and loved it. Is the PRO version the same thing, or should I upgrade?",hint:"Product knowledge — this is a positive opportunity. What are the 3 key improvements in PRO vs the original? Be confident and enthusiastic.",response:"Great news — Essentials PRO is a major upgrade from the original formula. We increased MSM from 1000mg to 1500mg for even better joint and tissue support, added Saffron Flower Extract 30mg exclusively (clinically studied for mood and cognitive performance), and boosted CRT8 from 25mg to 100mg. The core formula you already loved is still there — just significantly more powerful. With health, [Name] - IM8 Customer Experience"},
-          {t:"scenario",customer:"What flavors does Essentials PRO come in? I'm not sure I like the Acai Berry one.",hint:"Flavor question — you have great news to share. Three flavors plus a Variety Pack.",response:"We actually just launched two brand-new flavors for Essentials PRO — Mango + Passionfruit and Lemon + Orange, alongside our original Acai + Berry. If you'd like to try them all before committing, we also have a Variety Pack that includes all three. The Variety Pack is a great way to find your favourite before going all-in on one flavour. With health, [Name] - IM8 Customer Experience"},
-          {t:"summary",items:["Three product lines: Daily Ultimate Essentials PRO, Daily Ultimate Longevity, The Beckham Stack (bundled)","Essentials PRO flavors: Acai+Berry (original), Mango+Passionfruit, Lemon+Orange, Variety Pack — flavor options for Essentials PRO only","Format: stick packs only (30 per pack) — no pouches or capsules available","Subscriptions: 30-day or 90-day, or one-time purchase","Longevity Powder: targets all 12 hallmarks of aging — NSF Sport certification PENDING (never confirm it)","Grandfathered subscribers: $89/month permanently protected — never tell them to pay more","Saffron 30mg is PRO EXCLUSIVE — does not exist in any other IM8 product","Beckham Stack = Essentials PRO + Longevity Set — can be mixed in the same glass"]},
         ],
-        check:[
-          {q:"How many ingredients does Essentials PRO contain?",options:["72","82","92","102"],correct:2,exp:"Essentials PRO contains 92 premium ingredients in a 13.6g serving (20 calories)."},
-          {q:"What is the NSF Certified for Sport status of the Longevity Powder?",options:["Fully certified since launch","Pending — never confirm it","Certified in the US only","Not applicable"],correct:1,exp:"NSF certification for the Longevity Powder is PENDING. Never confirm it. This is a legal and compliance risk."},
-          {q:"Which products offer flavor options?",options:["Both Essentials PRO and Longevity","Longevity only","Essentials PRO only — Longevity has no flavor variants","The Beckham Stack only"],correct:2,exp:"Flavor options (Acai+Berry, Mango+Passionfruit, Lemon+Orange, Variety Pack) are available for Daily Ultimate Essentials PRO only. Longevity is a single offering with no flavor variants."},
-          {q:"What pack format do current IM8 products come in?",options:["Pouches and capsules","Capsules only","Pouches only","Stick packs / sachet packs (30 per pack)"],correct:3,exp:"The only current format is stick packs (sachet packs), 30 per pack. Pouches and capsules are discontinued."},
-        ]
-      },
-      {
-        id:"d2l1", title:"Your Toolkit — Gorgias, Shopify & All Systems",
-        content:[
-          {t:"video", label:"Intro Part 4 — Main Platforms Used", dur:"", url:"/videos/Intro - Part 4 - Main Platforms Used.mp4"},
-          {t:"video", label:"Part 1 — Platform, Tools & Slack Channels", dur:"", url:"/videos/Part 1 - Platform, Tools, and Slack Channels.mp4"},
-          {t:"video", label:"Intro Part 3 — Warehouses", dur:"", url:"/videos/Intro - Part 3 (Warehouses).mp4"},
-          {t:"video", label:"🎬 TO RECORD: Looking Up an Order (3 min screen recording)", dur:"TBD", url:""},
-          {t:"h",v:"Gorgias — Your Ticketing Home"},
-          {t:"p",v:"Gorgias is the central hub for all customer conversations — email, live chat, and social media messages. Every ticket arrives in Gorgias. You will spend most of your working day here."},
-          {t:"h",v:"The Ticket Workflow"},
-          {t:"list",items:["1. Check Slack first — read any updates from TL before opening Gorgias","2. Open Gorgias — work tickets from OLDEST to NEWEST","3. Identify the segment using the Decision Tree Master","4. Apply the correct tag before responding","5. Write your response, personalize any macro used","6. Add an internal note: issue summary, action taken, reason, next steps","7. Close the ticket — never close without tags and notes","8. Inbox must be zero by end of shift"]},
-          {t:"rule",v:"Work tickets from OLDEST to NEWEST. Clear your inbox to zero every shift. This is non-negotiable."},
-          {t:"h",v:"Shopify — Order Management"},
-          {t:"p",v:"Shopify is where all customer orders are recorded. Use it to look up order history, verify delivery addresses, check order status, and process refunds."},
-          {t:"kv",pairs:[
-            ["Access","Request login from Michelle"],
-            ["Use for","Order lookup, address verification, refund processing, order history"],
-          ]},
-          {t:"h",v:"Skio — Subscription Portal"},
-          {t:"p",v:"Skio manages all subscription orders. Customers can pause, skip, cancel, or change their subscription frequency. Use Skio to manage all subscription changes."},
-          {t:"kv",pairs:[
-            ["Access","Request login from Michelle"],
-            ["Use for","Subscription lookup, pause/skip/cancel, frequency changes, next order date"],
-          ]},
-          {t:"h",v:"Warehouse Systems"},
-          {t:"kv",pairs:[
-            ["Extensiv (Europa/HK)","ID: im8.cs@prenetics.com — For HK and European warehouse orders"],
-            ["OMS GPS UK","ID: IM8-UK — UK orders only"],
-            ["OMS GPS US","ID: im8-cs — US, CA, UAE, FR and other regions"],
-            ["Stord","Email: im8.cs@prenetics.com — Stord warehouse platform"],
-            ["FedEx Support Hub","ID: im8.cs@prenetics.com — For FedEx escalations"],
-          ]},
-          {t:"warn",v:"These are shared team credentials. Never share them outside the CS team. Keep them secure."},
-          {t:"h",v:"Aftership — Tracking"},
-          {t:"p",v:"Use Aftership to check tracking status on any order before responding to a delivery question. Never guess a delivery status — always check Aftership first."},
-          {t:"h",v:"The 30-Second Order Lookup Flow"},
-          {t:"list",items:["1. Open the Gorgias ticket and note the customer email","2. Search for the customer in Shopify — verify order history and address","3. Check Skio if subscription-related — subscription status, next order date, pricing tier","4. Check Aftership for live tracking status if a delivery question","5. Check the relevant warehouse system (GPS US/UK/Extensiv) if the order may be in fulfillment","6. Now you have the full picture — respond once with everything resolved"]},
-          {t:"h",v:"Other Tools"},
-          {t:"kv",pairs:[
-            ["Slack","Internal communication and escalations — check every morning before Gorgias"],
-            ["ChatGPT","Drafting and brainstorming support — never send AI-generated text verbatim as a final response"],
-            ["Lark/Feishu","Communication with the GPS CS team — request access from William via Michelle"],
-          ]},
-          {t:"tip",v:"Before processing any subscription change, check BOTH Shopify AND Skio. Sometimes a customer has a paused subscription they forgot about, or there is a charge coming in 2 days that explains their request. Always read the full picture before acting."},
-          {t:"scenario",customer:"Hi, I was charged for my subscription today but I have not seen anything shipped yet. Can you check what is going on?",hint:"You need to check multiple systems. What is your exact lookup sequence — Shopify, Skio, warehouse — and what do you say while you investigate?",response:"Hi [Name], I am on this right now. Let me pull up your account in Shopify to confirm the charge and check fulfillment status in our warehouse system. If the order has not been picked and packed within our standard 1-2 business day window, I will flag it immediately with our team. I will come back to you with a clear status update shortly. With health, [Name] - IM8 Customer Experience"},
-          {t:"summary",items:["Gorgias = your main hub: email, live chat, Instagram, Facebook — all in one place","30-second lookup sequence: Gorgias ticket → Shopify (order/history) → Skio (subscription) → Aftership (tracking) → Warehouse (fulfillment)","Shopify: order history, address verification, refund processing — access via Michelle","Skio: subscription portal — pause, skip, cancel, frequency changes, next order date","Warehouse systems: Extensiv (HK/EU), GPS UK (UK), GPS US (US/CA/UAE/FR), Stord, FedEx Hub","Aftership: ALWAYS check before responding to any delivery question — never guess a delivery status"]},
+        check: [
+          { q: "Refund request at day 45. You:", options: ["Refuse outright", "Educate, then offer store credit; cash refund needs a Lead", "Refund in full", "Ignore the date"], correct: 1, exp: "Outside 30 days: education + store credit at your discretion; cash escalates to a Lead." },
+          { q: "How many save attempts on an adverse-reaction cancellation?", options: ["One", "Two", "Zero", "Three"], correct: 2, exp: "Zero. Reactions cancel with care, never a pitch." },
         ],
-        check:[
-          {q:"In what order should you work through tickets?",options:["Newest to oldest","By ticket priority only","Oldest to newest","Random, as assigned by TL"],correct:2,exp:"Always work oldest to newest. Clear your inbox to zero every shift. This is non-negotiable."},
-          {q:"Which system do you use to manage a customer subscription pause request?",options:["Shopify","Extensiv","Skio","Aftership"],correct:2,exp:"Skio is the subscription portal. Use it to pause, skip, cancel, or change subscription frequency."},
-          {q:"Before responding to any delivery question, you should ALWAYS:",options:["Check Shopify order history","Check Aftership for real tracking status","Contact the warehouse directly","Ask the customer to check their tracking email"],correct:1,exp:"Always check Aftership first before responding to any delivery question. Never guess a delivery status."},
-        ]
-      },
-      {
-        id:"d2l2", title:"Daily Workflow & Documentation Standards",
-        content:[
-          {t:"video", label:"Part 2 — Daily Sheets Used", dur:"", url:"/videos/Part 2 - Daily Sheets Used.mp4"},
-          {t:"h",v:"Morning Routine (First 30 Mins)"},
-          {t:"list",items:["1. Check Slack for urgent announcements or escalations from your TL","2. Review your open tickets and prioritize them","3. Read daily TL notes before opening any ticket"]},
-          {t:"h",v:"Ticket Prioritization Order"},
-          {t:"kv",pairs:[
-            ["Priority 1","VIPs, influencers, and escalations — handle first, every time"],
-            ["Priority 2","Tickets approaching their SLA deadline — time-sensitive"],
-            ["Priority 3","First-time customer inquiries — first impressions matter"],
-            ["Priority 4","All other tickets, oldest first"],
-          ]},
-          {t:"h",v:"End-of-Day Checklist (Last 15 Mins)"},
-          {t:"list",items:["1. Ensure all urgent tickets have a response","2. Update notes on any complex open cases","3. Share a screenshot of your inbox + snoozed tickets in the asai Slack channel","4. Post 'Finished shift, going out soon' in asai","5. Log out of all systems"]},
-          {t:"h",v:"Key Slack Channels"},
-          {t:"kv",pairs:[
-            ["im8-cs","Draft responses or inquiries needing review by Sam and/or Michelle/Adrian"],
-            ["im8-peace-love-escalations","All CS escalations — post with ticket link and brief summary"],
-            ["asai","Internal CS agent chat — shift check-ins, questions, updates"],
-            ["asai-important-info","Important team updates — check regularly"],
-            ["im8-cs-hkops","HK Warehouse inquiries — tag Suki and Carman"],
-            ["im8-shopify-integrations","Tech-related queries — tag Ajay, Adrian Chan, and Leon Woo"],
-          ]},
-          {t:"rule",v:"Every morning, check Slack BEFORE opening Gorgias. Your TL may have posted urgent updates you need to know before handling tickets."},
-          {t:"h",v:"Documentation Standards — What Good Notes Look Like"},
-          {t:"p",v:"Clear internal notes are essential for team alignment and QC. Your notes should tell a story that anyone can understand in seconds. This is how the team picks up where you left off without reading the entire conversation."},
-          {t:"h",v:"Good Notes Include"},
-          {t:"list",items:["A brief summary of the customer's issue","The action you took","The reason for your action (e.g. 'Applied 30-Day Guarantee')","Any next steps for the customer or the team"]},
-          {t:"rule",v:"Example of good notes: 'Customer order delayed 8 days. Per Shipping Delay Policy, issued a 100% refund. Informed customer and confirmed no cancellation needed. Ticket closed.'"},
-          {t:"h",v:"Tagging Standards"},
-          {t:"warn",v:"Always apply relevant tags (e.g. refund, shipping_delay, damaged_product) before closing a ticket. An untagged, closed ticket is an incomplete ticket."},
-          {t:"h",v:"Shift Routine"},
-          {t:"list",items:[
-            "Start of shift: post 'In' in the asai channel",
-            "Taking a break: post 'Taking a break' + when you will be back (breaks are 5-10 minutes)",
-            "Questions during shift: post in im8-cs with the ticket link and exactly what you need help with",
-            "End of shift: post 'Finished shift, going out soon' + inbox screenshot in asai",
-            "Weeks 1-3: stay on Zep or Meet for your full shift — a senior reviews responses before they send",
-          ]},
-          {t:"tip",v:"The Slack check-in is not optional admin — it is how your TL spots problems before they become serious. Post your start, breaks, questions, and end-of-shift status. The more visible you are, the more support you get. This is Selfless and Transparency in practice."},
-          {t:"scenario",customer:"I sent an email 3 days ago and have not heard back. I am starting to think nobody actually reads these.",hint:"This customer has been waiting 3 days. Do NOT apologize for the delay. What do you say and what do you commit to?",response:"Hi [Name], I have your message right in front of me and I am taking care of this now. I want to make sure I resolve this completely for you today — can you give me just a moment to pull up your account? With health, [Name] - IM8 Customer Experience [Internal note: customer contacted 3 days ago, prior response not sent. Responding now. Redirected to resolution per policy — no apology for delay.]"},
-          {t:"summary",items:["Morning routine: Slack first, then open Gorgias — check for TL updates before touching any ticket","Ticket priority: VIP/escalations first, then SLA-approaching, then first-timers, then oldest first","Internal note format: issue summary + action taken + reason + next steps — tells the story in 2-3 lines","Always tag tickets before closing — untagged closed tickets fail the Records & Notes QC category","Weeks 1-3: stay on Zep/Meet for full shift — senior reviews your responses before they are sent"]},
-        ],
-        check:[
-          {q:"Which Slack channel do you post in at the start and end of your shift?",options:["im8-cs","im8-peace-love-escalations","asai","im8-cs-hkops"],correct:2,exp:"Post 'In' at start and 'Finished shift, going out soon' at end in the asai channel. Also share your inbox screenshot at end of shift."},
-          {q:"A VIP ticket and a ticket approaching its SLA deadline both need attention. Which do you handle first?",options:["SLA deadline — time-sensitive","VIP — always Priority 1","Ask TL","Handle both at once"],correct:1,exp:"VIPs, influencers, and escalations are always Priority 1. SLA-approaching tickets are Priority 2."},
-          {q:"What must every internal note in a ticket include?",options:["Just the resolution","Summary, action taken, reason, next steps","Customer name and order number only","Just a tag"],correct:1,exp:"Every internal note: (1) Summary of issue, (2) Action taken, (3) Reason for action, (4) Next steps. This directly affects your Records & Notes QC score."},
-        ]
       },
     ],
-    quiz:[
-      {q:"How many ingredients does Essentials PRO contain?",options:["72","82","92","102"],correct:2,exp:"Essentials PRO contains 92 premium ingredients in a 13.6g serving (20 calories)."},
-      {q:"NSF Certified for Sport status for the Longevity Powder is:",options:["Fully confirmed","Pending — never confirm it","Certified in the US only","Not applicable"],correct:1,exp:"NSF certification for the Longevity Powder is PENDING. Never confirm it. This is a legal and compliance risk."},
-      {q:"An existing subscriber's monthly price for the Longevity Powder is:",options:["$149","$119","$99","$89"],correct:3,exp:"Grandfathered/existing subscribers pay $89/month permanently. New subscribers pay $119/month."},
-      {q:"In what order do you work tickets?",options:["Newest to oldest","By tag only","Oldest to newest","As assigned by TL"],correct:2,exp:"Always work oldest to newest. Inbox must be zero by end of shift."},
-      {q:"Which system manages customer subscription pause and skip requests?",options:["Shopify","Extensiv","Skio","Aftership"],correct:2,exp:"Skio is the subscription portal for pausing, skipping, cancelling, and adjusting subscription frequency."},
-      {q:"Which warehouse system handles UK orders?",options:["Extensiv","OMS GPS US","Stord","OMS GPS UK"],correct:3,exp:"OMS GPS UK is for UK orders only. GPS US handles other regions (US, CA, UAE, FR, etc.)."},
-      {q:"What does every internal note require?",options:["Just the resolution applied","Summary, action taken, reason, next steps","Customer name and order number only","A link to the relevant macro"],correct:1,exp:"Every internal note: (1) Summary of issue, (2) Action taken, (3) Reason for action, (4) Next steps."},
-      {q:"Ticket priority order — which comes first?",options:["Oldest tickets first","First-time customers","VIPs, influencers, and escalations","Tickets approaching SLA deadline"],correct:2,exp:"Priority 1: VIPs, influencers, and escalations. Priority 2: SLA-approaching. Priority 3: First-time customers. Priority 4: All others, oldest first."},
+    quiz: [
+      { q: "The guarantee window runs from:", options: ["Order date", "Delivery date", "Dispatch date", "First use"], correct: 1, exp: "30 days from delivery." },
+      { q: "Damaged product resolution requires:", options: ["Return shipping", "Photo evidence, then free replacement", "Manager approval", "Store credit only"], correct: 1, exp: "Photo first, replacement free, no return needed." },
+      { q: "A reaction report must be escalated within:", options: ["24 hours", "1 hour", "1 week", "Same shift"], correct: 1, exp: "One hour. It's a compliance clock, not a service target." },
     ],
+    writing: {
+      scenario: "My order says delivered but there's nothing here. I've looked everywhere. This is the second time a parcel has gone missing on your courier. Fix it.",
+      prompt: "You are a LUMÉ CX quality coach reviewing a trainee reply. Customer message: [CUSTOMER]. Trainee response: [RESPONSE]. Check: (1) calm ownership without blaming the courier, (2) the lost-package flow (address confirm, safe spots, 24h, replacement), (3) acknowledges the repeat frustration, (4) logs for the Parcelline claim. Grade against the QC rubric (Tone 25, Policy 25, Resolution 25, Proactivity 25). Start with SCORE: X/100, then 3-4 sentences." },
   },
-  // ─── DAY 3 ───────────────────────────────────────────────────────────────────
   {
-    day:3, title:"Policies",
-    subtitle:"Master every policy and apply the correct decision on your first attempt every time", duration:"3-4 hrs",
-    lessons:[
+    day: 3, title: "Week 3 — Scenario Library",
+    subtitle: "Graded practice against the QC rubric", duration: "3-4 hrs",
+    lessons: [
       {
-        id:"d3l0", title:"The Policy Decision Tree",
-        content:[
-          {t:"video", label:"Part 1 — SOP Sheet", dur:"", url:"/videos/Part 1 - SOP Sheet.mp4"},
-          {t:"video", label:"🎬 TO RECORD: Handling a Refund Request End-to-End (8-10 min)", dur:"TBD", url:""},
-          {t:"h",v:"The 29 Ticket Segments"},
-          {t:"p",v:"Every customer ticket falls into one of 29 segments across 6 categories. Once you identify the segment using the Decision Tree Master, you know: whether to escalate, the replacement/refund policy, your first response approach, and which macro to use."},
-          {t:"h",v:"The 6 Categories at a Glance"},
-          {t:"kv",pairs:[
-            ["Safety (Seg 1-5)","Adverse reactions, GI adjustment, athletes, medical conditions, pregnancy/age"],
-            ["Product Quality (Seg 6-9)","Safety concern, texture, damage, cosmetic"],
-            ["Product Questions (Seg 10-15)","Timing/dosage, certifications, stacking, interactions, ingredients, taste"],
-            ["Results (Seg 16-17)","Under 90 days, over 90 days"],
-            ["Value (Seg 18-19)","Price, competitors"],
-            ["Shipping (Seg 20-24)","Wrong address, delays, missing/damaged, wrong order, inquiry"],
+        id: "d3l0", title: "How you're scored",
+        content: [
+          { t: "h", v: "The QC rubric — 100 points" },
+          { t: "kv", pairs: [
+            ["Tone & voice — 25", "Warm, confident, on-brand. No corporate filler, no over-apologising."],
+            ["Policy accuracy — 25", "Right policy, right numbers, right escalation path."],
+            ["Resolution completeness — 25", "The customer's actual problem is solved, not just answered."],
+            ["Proactivity / save attempt — 25", "Root cause addressed; one genuine save where appropriate."],
           ]},
-          {t:"h",v:"Escalation Levels"},
-          {t:"kv",pairs:[
-            ["VP Ops","Adverse reactions (Segment 1) — highest priority, escalate immediately"],
-            ["CS Manager","Product quality safety concern (Segment 6)"],
-            ["CS Lead","Texture issues, over-90-day results, excess product, all cancellations, medical conditions, partnerships"],
-            ["Any agent","All other segments"],
-          ]},
-          {t:"rule",v:"When you escalate, post in im8-peace-love-escalations with the Gorgias ticket link and a brief summary. Then STOP communicating with the customer — the escalation owner takes over completely."},
-          {t:"h",v:"Quick Reference: Policy Decision Tree"},
-          {t:"kv",pairs:[
-            ["Adverse reaction / negative health effect?","Follow Adverse Reaction Policy — escalate immediately to Head of CX"],
-            ["First-time customer, refund within 30 days of delivery?","Follow 30-Day Money Back Guarantee"],
-            ["Order delayed?","Follow Shipping Delay Refunds policy"],
-            ["Product damaged or defective?","Follow Damaged or Defective Product policy — photo evidence required"],
-            ["Package lost or stolen?","Follow Lost or Stolen Packages policy"],
-            ["Refund requested for prohibited reason?","Follow Prohibited Refunds policy — deny, offer alternative"],
-          ]},
-          {t:"tip",v:"When you are unsure which segment a ticket belongs to: pick the more cautious one. If it could be Safety or Product, choose Safety. If it could be Results or Value, choose Results. Being over-cautious costs nothing. Missing a safety trigger can cost everything."},
-          {t:"scenario",customer:"Hi, I take IM8 daily but lately I have been feeling dizzy after my morning serving. It started about 2 weeks ago. Could IM8 be causing this?",hint:"This is ambiguous — could be Segment 1 (adverse reaction) or could be unrelated dizziness. Which segment do you choose and why? What are your exact steps?",response:"Thank you for letting us know right away — your safety is our absolute priority. I have refunded your most recent order immediately. Please stop taking the product for now and speak with your doctor as soon as possible — they are the best person to assess what is happening. We take all reports like this very seriously. [Internal: escalate to VP Ops via Slack, log in Adverse Reaction Report, stop all further communication on this ticket]"},
-          {t:"summary",items:["29 segments across 6 categories: Safety (1-5), Product Quality (6-9), Product Questions (10-15), Results (16-17), Value (18-19), Shipping (20-24)","Siena Automate YES = AI handles first response. NO = you must respond manually","Escalation levels: VP Ops (adverse reactions), CS Manager (quality safety), CS Lead (medical/results/cancellations)","When escalating: post in im8-peace-love-escalations with link and summary, then STOP all communication","When in doubt: always choose the more cautious segment"]},
+          { t: "rule", v: "Pass mark is 80. Run the Simulate tab scenarios until your coach scores stop dipping below it." },
+          { t: "tip", v: "The highest-scoring replies always open with the customer's situation, never with the policy." },
         ],
-        check:[
-          {q:"How many ticket segments does the Decision Tree Master cover?",options:["15","22","29","36"],correct:2,exp:"The Decision Tree Master covers 29 segments across 6 categories."},
-          {q:"When you escalate a ticket, you should:",options:["Continue helping the customer until the escalation owner responds","Post in im8-peace-love-escalations with the ticket link and stop communicating","Update the customer and continue helping","Wait for the escalation owner to contact you first"],correct:1,exp:"Post in im8-peace-love-escalations with the ticket link and summary. Then stop communicating with the customer — the escalation owner takes over completely."},
-          {q:"A customer's issue could be either a Safety or a Product ticket. You should:",options:["Default to Product — it is less serious","Default to Safety — always choose the more cautious segment","Ask the TL before deciding","Send to Siena Automate"],correct:1,exp:"When in doubt: always choose the more cautious segment. If it could be Safety or Product, choose Safety. Being over-cautious costs nothing — missing a safety trigger can cost everything."},
-        ]
-      },
-      {
-        id:"d3l1", title:"Refunds, Shipping & Product Policies",
-        content:[
-          {t:"h",v:"The 30-Day Money-Back Guarantee"},
-          {t:"kv",pairs:[
-            ["Who qualifies","First-time customers only — their first order ever with IM8"],
-            ["Condition","Opened or unopened product accepted"],
-            ["Time limit","Within 30 calendar days of the delivery date"],
-            ["Return shipping","Customer pays return shipping"],
-            ["Complimentary items","Non-refundable"],
-          ]},
-          {t:"h",v:"The Refund Procedure"},
-          {t:"list",items:[
-            "1. Verify it is their first order ever with IM8",
-            "2. Confirm delivery date via carrier tracking — calculate days passed",
-            "3. Days 1-30: eligible. Proceed to save attempt per Cancellation Policy, then process 100% refund",
-            "4. Days 31-60: NOT automatically eligible. Escalate to CS Lead (50% or 100% at their discretion)",
-            "5. Days 61+: ineligible. Use the 30day_Refund_Ineligible Gorgias macro",
-            "6. Document: reason for refund, delivery date, and date of request in the Refund Sheet",
-          ]},
-          {t:"rule",v:"The 30-day guarantee covers FIRST ORDERS ONLY. A returning customer's second or third order does not qualify automatically. Always verify before processing."},
-          {t:"h",v:"Shipping Delay Policy — Compensation Triggers"},
-          {t:"kv",pairs:[
-            ["US Domestic","Compensation trigger after 4-6 business days from fulfillment"],
-            ["UK","Compensation trigger after 5-7 business days from fulfillment"],
-            ["APAC","Compensation trigger after 6-8 business days from fulfillment"],
-            ["Europe/International","Compensation trigger after 15-17 business days from fulfillment"],
-          ]},
-          {t:"h",v:"Active Subscriber Delay Resolution"},
-          {t:"list",items:["First touch: Add a free 6-pack of Essentials with next order. Ask them to wait until early following week.","If still unsatisfied: give 25% refund.","Following week — no tracking movement: issue a replacement. If still upset, give additional 25% (total 50%).","Following week — tracking shows movement: advise contacting local courier. If still upset, offer additional 25% (total 50%)."]},
-          {t:"h",v:"One-Time Purchase Delay Resolution"},
-          {t:"list",items:["First touch: Give 10% refund. Ask them to wait until early following week.","If still unsatisfied: give 15% refund (25% total).","Following week: if still not delivered, issue a replacement."]},
-          {t:"h",v:"Missing and Damaged Packages"},
-          {t:"kv",pairs:[
-            ["Missing — steps","1. Confirm address correct. 2. Ask to check neighbors/building office. 3. Advise 24hr wait. 4. If still missing: free replacement."],
-            ["Damaged — steps","Request photo evidence. Once received: process free replacement immediately. No return needed."],
-          ]},
-          {t:"warn",v:"FRAUD FLAG: A second lost package claim within 12 months must be escalated immediately to Head of CX. Do not process a replacement independently."},
-          {t:"h",v:"Fulfilment Delay Refund"},
-          {t:"kv",pairs:[
-            ["4-6 business days unfulfilled","Process 50% refund of the product. Do not cancel unless requested."],
-            ["7+ business days unfulfilled","Process 100% refund of total order value. Do not cancel unless requested."],
-          ]},
-          {t:"h",v:"Shipping Times & Free Shipping"},
-          {t:"kv",pairs:[
-            ["Delivery times","US 6 days, UK 7 days, SG 5 days, HK 4 days, AU 7 days, CA 16 days"],
-            ["Free shipping","Free worldwide on subscriptions — EXCEPT Norway/Switzerland ($15 flat)"],
-            ["Guarantee timing","30-day guarantee starts from DELIVERY DATE, not order date"],
-          ]},
-          {t:"rule",v:"Always quote actual average delivery times for the customer's country. Never give a generic range. The 30-day guarantee starts from the delivery date — shipping delays do not reduce the trial period."},
-          {t:"tip",v:"Before processing any refund: verify two things. (1) Is this their first ever order? (2) How many calendar days since tracking showed delivered? These two checks prevent 80% of policy errors. Build this as a habit before touching the refund button."},
-          {t:"scenario",customer:"I ordered IM8 two months ago as a first-time customer and tried it for 4 weeks. I did not feel anything and stopped using it. I would now like a refund please.",hint:"First order + approximately 2 months since ordering. What window applies — 30-day guarantee, 31-60 days, or ineligible? What do you do?",response:"Hi [Name], thank you for reaching out. I want to be transparent with you: our 30-day money-back guarantee runs from the delivery date, and with approximately 2 months having passed since your order arrived, we are outside the automatic guarantee window. I am escalating this to our CS Lead who can review your situation — they have discretion to offer a 50% or 100% refund in cases like yours. I will come back to you as soon as I hear from them. Thank you for your patience. With health, [Name] - IM8 Customer Experience"},
-          {t:"summary",items:["30-day guarantee: FIRST orders ONLY, opened or unopened, within 30 calendar days of delivery date","Days 1-30: eligible — save attempt first, then 100% refund. Days 31-60: escalate CS Lead. Days 61+: ineligible macro","Active subscriber delay first touch: free 6-pack Essentials + ask to wait. OTP first touch: 10% refund + ask to wait","Missing package: check Aftership → ask to check neighbors → 24-hour wait → free replacement","Second lost package claim within 12 months: FRAUD FLAG — escalate Head of CX immediately","Unfulfilled 4-6 BD: 50% refund. 7+ BD: 100% refund (verify with warehouse first)"]},
+        check: [
+          { q: "Pass mark on the QC rubric:", options: ["70", "75", "80", "90"], correct: 2, exp: "80 out of 100, weighted evenly across the four categories." },
+          { q: "High-scoring replies open with:", options: ["The policy", "The customer's situation", "An apology", "A discount"], correct: 1, exp: "Acknowledge first; policy comes second." },
         ],
-        check:[
-          {q:"The 30-day guarantee applies to:",options:["All orders within 30 days","First orders only, opened or unopened, within 30 days of delivery date","All orders if the product is unopened","Any order if the customer is unhappy"],correct:1,exp:"First orders only, opened or unopened, within 30 calendar days from the delivery date. Customer pays return shipping."},
-          {q:"An active subscriber reports a 6-day delay in the US. Your first offer is:",options:["A 25% refund","A full replacement","A free 6-pack of Essentials added to their next order, ask them to wait","A 10% refund"],correct:2,exp:"Active subscriber first touch for delay: add a free 6-pack of Essentials with next order and ask them to wait until early the following week."},
-          {q:"A customer's second shipment is reported lost within 12 months. You:",options:["Process a free replacement as standard","Offer a refund instead of replacement","Escalate immediately to Head of CX — do not process a replacement independently","Ask for more evidence before deciding"],correct:2,exp:"FRAUD FLAG: A second lost package claim within 12 months must be escalated immediately to Head of CX. Do not process a replacement independently."},
-        ]
-      },
-      {
-        id:"d3l2", title:"Subscriptions & Cancellations",
-        content:[
-          {t:"video", label:"Section 5 — Templates & Scripts", dur:"", url:"/videos/Section 5.mp4"},
-          {t:"h",v:"How Subscriptions Work"},
-          {t:"list",items:[
-            "Customers manage their subscription via the Skio portal",
-            "They can: pause, skip next order, change frequency, update address, cancel",
-            "Grandfathered subscribers: existing pricing is protected permanently — if they cancel and resubscribe, they lose it forever",
-            "Essentials PRO: $112 one-time, $89/month (30-day sub), $235/quarter (90-day sub)",
-            "Longevity: $149 one-time, $119/month (30-day sub), $312/quarter (90-day sub) — or $89/month grandfathered",
-            "Beckham Stack: $261 one-time, $208/month, $548/quarter",
-            "Subscription includes free worldwide shipping (except Norway/Switzerland at $15)",
-          ]},
-          {t:"rule",v:"For ALL subscription adjustment requests: offer skip, pause, or frequency change BEFORE discussing cancellation. Only after all options are offered and declined should you proceed to cancel."},
-          {t:"h",v:"Subscription Tickets — Segments 25-27"},
-          {t:"kv",pairs:[
-            ["Segment 25 — Excess Product","Too much product stacked up. Escalate CS Lead. Offer skip, pause, or extend frequency. Only cancel if all options declined."],
-            ["Segment 26 — Change/Pause/Upgrade","High-leverage save. Always offer pause/frequency change first. Only cancel if they clearly insist after all options explained."],
-            ["Segment 27 — Inquiry","Neutral question about subscription management. Answer directly — explain Skio portal, no upsell pressure."],
-          ]},
-          {t:"h",v:"SEGMENT 28: The Cancellation Decision Tree"},
-          {t:"warn",v:"MANDATORY: Before processing any cancellation, you MUST check the order date and ask for the reason. Use the cancellation macro. Only after understanding the reason do you proceed to the Cancellation Decision Tree."},
-          {t:"h",v:"Cancellation Decision by Reason"},
-          {t:"kv",pairs:[
-            ["Safety - adverse reactions","No save. Cancel immediately. Safety over revenue every time."],
-            ["Safety - medical conditions","No save attempt. Cancel immediately."],
-            ["Safety - GI adjustment (soft tone)","Can save: normalize GI, offer timing tweaks. Cancel if save refused."],
-            ["Results - under 90 days (soft tone)","Can save: normalize adaptation curve, encourage full 90 days."],
-            ["Results - over 90 days / firm/angry","Validate, cancel politely, no push."],
-            ["Value - price (soft/exploratory)","Strong save: reframe value, offer downgrade or lower frequency."],
-            ["Value - competitor switch","One short save attempt (value framing). Cancel if still decided."],
-            ["Subscription - excess product","High save: skip, pause, extend frequency. Cancel only if all options refused."],
-          ]},
-          {t:"h",v:"Golden Rules of Cancellation"},
-          {t:"list",items:[
-            "ALWAYS ask for the reason before cancelling",
-            "NEVER make cancellation difficult or frustrating — respect the customer's right to cancel",
-            "NEVER use guilt, pressure, or desperation in save attempts",
-            "ONE save attempt maximum per reason category — never repeat after it is declined",
-            "Cancel immediately for: adverse reactions, medical conditions, pregnancy concerns",
-            "Always tag the ticket with the cancellation reason for team learning",
-          ]},
-          {t:"tip",v:"One question saves approximately 20% of cancellations: 'Before I process that, can I ask what prompted this decision today?' It is genuine curiosity, not a delay tactic. The reason the customer gives determines everything — which save attempt applies, how firm to be, and what you tag."},
-          {t:"scenario",customer:"Hi, I would like to cancel my subscription please. Thank you.",hint:"A cancellation with zero context. What is your MANDATORY first step? What exactly do you ask and how do you phrase it so it does not feel like a sales pitch?",response:"Of course, I can take care of that for you. Before I process it, could I ask what has prompted this decision today? I want to make sure I handle this the right way for you — and if there is anything I can do, I want to know. With health, [Name] - IM8 Customer Experience [Internal: waiting for reason — do not cancel until reason is known. Use Cancellation DT once reason is provided.]"},
-          {t:"summary",items:["Offer save options in this order: skip → pause → frequency change → cancel. NEVER jump straight to cancel","MANDATORY before any cancellation: check order date + ask for the reason using the cancellation macro","No save attempts ever for: adverse reactions, medical conditions, pregnancy — safety above retention always","ONE save attempt maximum per reason — never repeat after it has been declined once","Cancel immediately and politely when the customer insists — never make it difficult or guilt-laden","Grandfathered customers: warn them that cancelling loses their $89/month rate permanently before processing"]},
-        ],
-        check:[
-          {q:"What is MANDATORY before processing any cancellation?",options:["Process the cancellation first, then ask why","Check the order date and ask for the reason before proceeding","Offer a 10% discount immediately","Escalate to CS Lead"],correct:1,exp:"MANDATORY: Check the order date and ask for the reason before processing any cancellation. Use the cancellation macro. Only then proceed to the Cancellation Decision Tree."},
-          {q:"A customer says they want to cancel because they have too much product. Your first response is:",options:["Process the cancellation immediately","Offer to pause or extend the frequency of their subscription so they keep their pricing","Escalate to CS Lead without responding","Ask what size bag they prefer for their next order"],correct:1,exp:"Excess product = offer skip, pause, or frequency extension first — high save opportunity. Only cancel if they decline all options and explicitly request cancellation."},
-          {q:"A customer reports a severe rash and wants to cancel. You:",options:["Attempt a save — the rash could be unrelated to IM8","Offer a replacement product that might agree with them better","Cancel immediately with no save attempt — safety over revenue. Follow adverse reaction escalation protocol.","Ask them to wait 1-2 weeks to see if symptoms subside"],correct:2,exp:"Adverse reactions: no save attempt ever. Cancel immediately. Safety is always above revenue. Follow full adverse reaction escalation protocol."},
-        ]
       },
     ],
-    quiz:[
-      {q:"The 30-day guarantee applies to which orders?",options:["All orders within 30 days","First orders only, opened or unopened, within 30 days of delivery","All orders if the product is unopened","Any order if the customer is unhappy"],correct:1,exp:"First orders only, opened or unopened, within 30 calendar days from delivery date. Customer pays return shipping."},
-      {q:"An order has not been fulfilled for 8 business days. After verifying with warehouse, you process:",options:["A 50% refund","A 100% refund of the total order value","A free replacement","An escalation to CS Lead"],correct:1,exp:"7+ business days unfulfilled = 100% refund of total order value (after verifying with warehouse that it is truly unfulfilled)."},
-      {q:"A customer reports 'tracking says delivered' but they received nothing. After checking Aftership, you:",options:["Send a replacement immediately","Ask customer to check neighbors/mailroom, advise 24-hour wait — if still missing, send free replacement","Escalate to Head of CX","Contact the carrier and wait for their investigation"],correct:1,exp:"Check Aftership > ask customer to check neighbors/mailroom > advise 24-hour wait. If still missing after 24 hours: send free replacement."},
-      {q:"A second lost package claim within 12 months:",options:["Process replacement as standard","Offer refund instead","Escalate immediately to Head of CX — fraud flag","Ask for additional photo evidence"],correct:2,exp:"FRAUD FLAG: A second lost package claim within 12 months must be escalated immediately to Head of CX. Do not process independently."},
-      {q:"What is MANDATORY before processing any cancellation?",options:["Offer a discount first","Check order date and ask for the reason using the cancellation macro","Cancel first, then ask why","Escalate to CS Lead"],correct:1,exp:"MANDATORY: Check the order date and ask for the reason before processing any cancellation. Use the cancellation macro. Only then proceed to the Cancellation Decision Tree."},
-      {q:"A customer says 'just cancel my subscription' after you explain save options. You:",options:["Try one more save attempt","Escalate to CS Lead","Cancel politely and tag the cancellation reason — never make cancellation difficult","Put the ticket on hold"],correct:2,exp:"If a customer clearly insists after options are explained: cancel politely, no additional push. Always tag the cancellation reason."},
-      {q:"For subscription change requests, what do you offer BEFORE discussing cancellation?",options:["A 10% discount","Pause, skip, or frequency change","Escalation to CS Lead","A free product replacement"],correct:1,exp:"For ALL subscription tickets: offer pause, skip, or frequency change before discussing cancellation. Only cancel after all options are offered and declined."},
-      {q:"A one-time purchase customer reports a 5-day delay in the US. Your first offer is:",options:["A free 6-pack of Essentials","A full replacement","A 10% refund, ask them to wait until early next week","A 25% refund"],correct:2,exp:"OTP/inactive subscriber first touch: 10% refund + ask to wait. Active subscribers get the free 6-pack of Essentials instead."},
+    quiz: [
+      { q: "The four rubric categories are:", options: ["Speed, tone, grammar, upsells", "Tone, policy accuracy, resolution completeness, proactivity", "CSAT, NPS, QC, saves", "Empathy, apology, refund, close"], correct: 1, exp: "Tone 25 · Policy 25 · Resolution 25 · Proactivity 25." },
+      { q: "Where do you practise the scenario library?", options: ["Live tickets", "The Simulate tab", "Slack", "Email drafts"], correct: 1, exp: "Simulate runs the ten scenarios with an AI customer and coach feedback." },
+      { q: "A save attempt is worth points when it:", options: ["Happens on every ticket", "Addresses the root cause once, genuinely", "Offers the biggest discount", "Delays the cancellation"], correct: 1, exp: "One genuine, root-cause save. Pressure scores zero." },
     ],
-    writing:{
-      scenario:"Hi, I ordered IM8 two weeks ago and my package has not arrived. I have sent two emails already and nobody has replied. I am really disappointed with this service.",
-      prompt:"You are an IM8 CS quality coach. A trainee agent responded to this customer message: [CUSTOMER]. Their response was: [RESPONSE]. Grade out of 10 across: IM8 Voice (warm, direct, no corporate jargon), Empathy (acknowledged frustration genuinely), Accuracy (correct Aftership-first protocol and delay compensation applied), Completeness (clear next step given). Start with SCORE: X/10 on its own line, then 3-4 sentences: what they did well, one concrete improvement, and one specific IM8 policy they should reference next time."
-    }
+    writing: {
+      scenario: "My Hair Edit box came with the wrong serums AGAIN. My profile says coily hair. If this is what a 'curated' box looks like I'd rather just cancel the whole thing.",
+      prompt: "You are a LUMÉ CX quality coach reviewing a trainee reply. Customer message: [CUSTOMER]. Trainee response: [RESPONSE]. Check: (1) owns the curation miss without excuses, (2) fixes the box (correct serums out now), (3) one genuine save addressing the root cause (profile audit + next-box guarantee), (4) respectful exit if declined. Grade against the QC rubric (Tone 25, Policy 25, Resolution 25, Proactivity 25). Start with SCORE: X/100, then 3-4 sentences." },
   },
-  // ─── DAY 4 ───────────────────────────────────────────────────────────────────
   {
-    day:4, title:"Difficult Conversations",
-    subtitle:"Build the resilience, empathy, and judgment to handle the hardest situations confidently", duration:"3-4 hrs",
-    lessons:[
+    day: 4, title: "Week 4 — Live with Training Wheels",
+    subtitle: "Supervised tickets, capstone, and promotion to Agent", duration: "Full week",
+    lessons: [
       {
-        id:"d4l0", title:"De-escalation & Resilience",
-        content:[
-          {t:"video", label:"🎬 TO RECORD: De-escalation in Action (4-5 min)", dur:"TBD", url:""},
-          {t:"h",v:"Why This Is a Skill, Not an Instinct"},
-          {t:"p",v:"When a customer is angry, frustrated, or distressed, the human instinct is to become defensive, over-apologize, or shut down. None of those responses help. De-escalation is a learnable skill — a specific sequence of moves that consistently turns difficult interactions into resolutions. It requires Resilience and Empathetic Communication from the IM8 DNA, applied deliberately."},
-          {t:"h",v:"The 3-Step De-escalation Framework"},
-          {t:"kv",pairs:[
-            ["Step 1: Acknowledge","Name what the customer is feeling before you say anything else. This is not about agreeing with them — it is about showing you heard them. 'I can absolutely see how frustrating this is.' This alone reduces emotional intensity significantly."],
-            ["Step 2: Empathize","Connect their feeling to the specific situation. 'Waiting this long for an order you were excited about is genuinely disappointing.' Specific empathy lands harder than generic empathy. Never use 'I understand your frustration' — it sounds scripted."],
-            ["Step 3: Resolve","Take clear, immediate ownership. 'Here is what I am doing right now.' Give one concrete action. Do not give options at this stage — act first, then offer choices once they are calm."],
+        id: "d4l0", title: "Going live",
+        content: [
+          { t: "h", v: "Your first live week" },
+          { t: "p", v: "You take real tickets with a Lead reviewing every send before it goes out. By Thursday the training wheels loosen — standard tickets go out unreviewed, edge cases still get a second pair of eyes." },
+          { t: "list", items: [
+            "Log everything — issues, replacements, feedback — in under 30 seconds per entry",
+            "Ask LUMÉ before you ask a human; bring the answer to your Lead to confirm, not the question",
+            "Escalations: reactions within the hour, refunds outside 30 days to a Lead, anything legal to a Manager",
           ]},
-          {t:"h",v:"What NOT to Do"},
-          {t:"warn",v:"NEVER say 'I understand your frustration' — customers know it is scripted and it makes things worse. Say something specific about their situation instead."},
-          {t:"warn",v:"NEVER become defensive or justify the company's position when a customer is emotional. Acknowledge first, always."},
-          {t:"warn",v:"NEVER over-apologize — excessive apologies focus on the problem, not the solution. One genuine acknowledgment is enough. Then move to action."},
-          {t:"warn",v:"NEVER match their tone. Calm, confident, and caring — always. The customer's emotional temperature will drop to meet yours if you hold the frame."},
-          {t:"h",v:"De-escalation in Practice — Four Scenarios"},
-          {t:"kv",pairs:[
-            ["Angry refund denial","Acknowledge anger first. Check policy. Offer a solution even if it is not a full refund: 'I completely understand your frustration. While a refund is not possible under our policy here, I absolutely want to make this right — I can offer you a full store credit or an exchange.'"],
-            ["Shipping frustration","'I can see how concerning it is — you were expecting this by now and it has not arrived. I am checking Aftership right now and I will not close this ticket until I have an answer for you.'"],
-            ["Policy denial","'Our policy does not allow for a refund in this specific situation, but I do not want you to walk away without a resolution. Let me see what I can offer you.' Never say 'per our policy' as an opener — it sounds like a wall going up."],
-            ["Demanding an exception","Listen first. Acknowledge why they think an exception is reasonable. Explain clearly what you can and cannot do. 'I cannot do X, but I can do Y right now.'"],
-          ]},
-          {t:"h",v:"Resilience Under Pressure"},
-          {t:"p",v:"IM8 agents handle frustrated customers, high volumes, and complex issues every shift. Resilience is not the absence of stress — it is the ability to stay focused and empathetic under pressure. Your emotional state is visible in your writing. If you are frustrated, customers feel it. Take 10 seconds before responding to a difficult ticket. Breathe. Reset. Then write."},
-          {t:"tip",v:"The fastest way to de-escalate any interaction is to make the customer feel like you are on their side — not on the company's side. You are. Your job is to solve their problem. Acknowledge that truth in your first sentence and the emotional temperature drops immediately."},
-          {t:"scenario",customer:"This is absolutely ridiculous. I have spent $200 on your product and it has been sitting in transit for 3 weeks with no update. Your customer service is a joke and I want a full refund immediately.",hint:"High emotion, long delay, refund demand. Apply the 3-step framework: Acknowledge → Empathize → Resolve. Do not jump to policy first. What do you write?",response:"I completely understand your frustration — three weeks with no tracking update on a $200 order is absolutely not acceptable, and I am sorry this happened. I am checking your shipment status right now and I am not closing this ticket until this is resolved. If your order has been lost, I will process a full replacement immediately — no questions asked. Can you confirm your shipping address so I can investigate right now? With health, [Name] - IM8 Customer Experience"},
-          {t:"summary",items:["3-step de-escalation: Acknowledge (name the feeling) → Empathize (connect to their specific situation) → Resolve (one clear action)","Never say 'I understand your frustration' — it is scripted and makes things worse. Be specific.","Never become defensive, never over-apologize, never match their angry tone — stay calm, confident, and caring","Policy denials: never open with 'per our policy' — acknowledge first, then explain what you can offer instead","Resilience: take 10 seconds before responding to a difficult ticket — your emotional state shows in your writing"]},
+          { t: "warn", v: "The capstone: a full shift at QC 80+, logged cleanly, with at least one genuine save attempt. Pass it and you're promoted to Agent automatically." },
         ],
-        check:[
-          {q:"What is the correct first step when a customer sends an angry message?",options:["Explain the relevant policy immediately","Acknowledge what the customer is feeling before saying anything else","Offer a refund to defuse the situation","Escalate to TL"],correct:1,exp:"Step 1: Acknowledge. Name what the customer is feeling before anything else. This reduces emotional intensity and shows you heard them."},
-          {q:"Which phrase should you NEVER use when de-escalating?",options:["'I can absolutely see how frustrating this is'","'I understand your frustration'","'Here is what I am doing right now'","'Let me check this for you immediately'"],correct:1,exp:"'I understand your frustration' sounds scripted and customers know it. Say something specific about their situation instead."},
-          {q:"A customer is extremely angry about a policy denial. You should:",options:["Explain the policy clearly and stand firm","Acknowledge their frustration first, then explain what you CAN offer as an alternative","Over-apologize and offer a full exception","Match their urgent tone to show you take it seriously"],correct:1,exp:"Acknowledge first, always. Then explain what you can and cannot do. Never open with 'per our policy' — it sounds like a wall. Offer an alternative where possible."},
-        ]
-      },
-      {
-        id:"d4l1", title:"Results, Value & Product Tickets",
-        content:[
-          {t:"h",v:"SEGMENT 16: Results — Under 90 Days"},
-          {t:"kv",pairs:[
-            ["Example","'I do not feel anything yet' / 'Not sure it is working' / 'Thinking of cancelling — no results'"],
-            ["Siena Automate","YES"],
-            ["Escalate?","No — any agent can handle"],
-            ["Approach","Educate on the 90-day curve using clinical trial results. Normalize. Ask how consistent they have been."],
-          ]},
-          {t:"rule",v:"NEVER promise specific outcomes or timelines. Sub-90-days with soft tone: one save attempt (encourage full 90 days). Over 90 days or firm/angry: validate, cancel politely, no push."},
-          {t:"flowchart",id:"results-tree"},
-          {t:"h",v:"SEGMENT 17: Results — Over 90 Days"},
-          {t:"kv",pairs:[
-            ["Example","'I have used it for 4+ months and it is not working'"],
-            ["Escalate?","YES — escalate to CS Lead"],
-            ["Approach","Validate their experience. Escalate. Never argue. If they insist on cancelling, cancel politely."],
-          ]},
-          {t:"h",v:"SEGMENT 18: Value — Price"},
-          {t:"kv",pairs:[
-            ["Example","'It is too expensive' / 'I cannot afford this long term'"],
-            ["Approach","Frame IM8 as replacing many separate supplements. Propose lower-cost options: Essentials only, longer frequency, or reduced quantity."],
-            ["Save guidance","Soft/exploratory: strong save via downgrade or frequency change. Serious financial hardship or 'just cancel': cancel quickly with empathy, no hard save."],
-          ]},
-          {t:"h",v:"SEGMENT 19: Value — Competitors"},
-          {t:"kv",pairs:[
-            ["Example","'AG1 is cheaper/better' / 'Why choose IM8 instead of X?'"],
-            ["Approach","Explain differentiation — Beckham Stack, longevity focus, all 12 hallmarks of aging, clinical data, NSF cert — without attacking competitors."],
-            ["Save guidance","Just comparing: educate only. Explicitly cancelling to switch: one short save attempt. If still decided: cancel and tag as competitor churn."],
-          ]},
-          {t:"h",v:"SEGMENT 6-9: Product Quality Tickets"},
-          {t:"kv",pairs:[
-            ["Segment 6 — Quality Safety (foreign object)","Escalate CS Manager. Request photo + batch number. 100% refund + free replacement."],
-            ["Segment 7 — Texture (clumpy)","Escalate CS Lead. Free replacement always. Advise discard."],
-            ["Segment 8 — Damage (broken sachets)","Request photo evidence. Free replacement immediately. Partial or full refund depending on severity."],
-            ["Segment 9 — Cosmetic (color variation)","Explain natural variation (orange from astaxanthin — same compound that makes salmon orange). Offer replacement if still uncomfortable."],
-          ]},
-          {t:"h",v:"SEGMENTS 10-15: Product Question Tickets"},
-          {t:"kv",pairs:[
-            ["Segment 10 — Timing/Dosage","ONE clear default: once daily in the morning with water. Never overwhelm with multiple protocols."],
-            ["Segment 11 — Certifications","Reassure with NSF Certified for Sport, 3rd-party testing. Link to Science page."],
-            ["Segment 12 — Stacking","Most take both together as the Beckham Stack. Emphasize simplicity and flexibility."],
-            ["Segment 13 — Interactions with prescriptions","Reclassify immediately as Segment 4 (medical conditions). Direct to doctor."],
-            ["Segment 15 — Taste","Normalize. Offer mixing tips: more water, colder water, juice or smoothie, frother. Remind of 30-day guarantee if within window."],
-          ]},
-          {t:"tip",v:"The Results ticket is where your patience pays off. A customer 'feeling nothing' at week 6 is a real save opportunity. Educate first, validate second, ask about their routine. Rushing to offer refunds loses the customer and teaches them that asking always gets money back."},
-          {t:"scenario",customer:"I love the idea of IM8 and I have been consistent for 8 weeks, but I do not notice any difference in energy or focus. My friend takes AG1 and swears by it. Starting to wonder if I should switch.",hint:"Two things at once: results concern (Segment 16) AND competitor comparison (Segment 19). How do you address both without being pushy or attacking AG1?",response:"Eight weeks is real commitment and I respect that. The cellular-level changes IM8 drives — NAD+ pathway support, gut microbiome development — are foundational. Many people notice the shift between weeks 8-12. As for AG1: it is a greens powder with a very different focus. IM8 is the only supplement targeting all 12 hallmarks of aging with clinical backing. Two more weeks and a quick routine check could make all the difference — would you like to take a look at how you are currently taking it? With health, [Name] - IM8 Customer Experience"},
-          {t:"summary",items:["Sub-90 days + soft tone = strong save opportunity. Educate on 90-day clinical curve, one save attempt maximum","Over-90 days results: escalate CS Lead, validate, cancel if firm — do not argue","Value/price soft tone: reframe value, offer downgrade to Essentials only or lower frequency","Competitors: differentiate using 12 hallmarks of aging, NSF cert, clinical data — never attack competitors","Product quality safety (Seg 6): escalate CS Manager, photo + batch number, 100% refund + replacement","For prescription drug questions in Segment 13: reclassify immediately to Segment 4 (medical conditions)"]},
+        check: [
+          { q: "Thursday of live week, standard tickets are:", options: ["Still fully reviewed", "Sent unreviewed; edge cases still reviewed", "Handled by your Lead", "Paused"], correct: 1, exp: "Training wheels loosen mid-week — standard traffic flows, edge cases stay supervised." },
+          { q: "The capstone requires:", options: ["50 tickets in a day", "A full shift at QC 80+ with clean logging and a genuine save attempt", "Zero escalations", "A written exam"], correct: 1, exp: "Quality over volume: QC 80+, clean logs, one real save." },
         ],
-        check:[
-          {q:"A customer has been taking IM8 for 5 weeks and says they feel nothing. Your response is:",options:["Offer a refund immediately","Tell them to increase the dosage","Educate on the 90-day clinical curve, normalize the timeline, one save attempt","Escalate to CS Lead"],correct:2,exp:"Sub-90 days + soft tone: educate on the 90-day curve, normalize, encourage full trial. One save attempt maximum."},
-          {q:"A customer has been taking IM8 for 5 months and says it has done nothing. You:",options:["Educate them on the 90-day curve","Offer a free replacement","Validate their experience and escalate to CS Lead","Immediately process a full refund"],correct:2,exp:"Over-90-day results ticket: validate their experience and escalate to CS Lead. Do not argue or push save attempts."},
-          {q:"A customer mentions they take a prescription drug and asks about interactions. You:",options:["Reclassify to Segment 4 (medical conditions) and direct to their prescribing doctor","Use stacking/interaction macros as for basic supplement combos","Escalate to CS Lead","Tell them IM8 is generally safe"],correct:0,exp:"Prescription drug mentions: reclassify immediately to Segment 4 (medical conditions). Provide ingredient list, direct to prescribing doctor. Never clear or deny use."},
-        ]
-      },
-      {
-        id:"d4l2", title:"Safety Tickets & Escalation Protocol",
-        content:[
-          {t:"video", label:"🎬 TO RECORD: Adverse Reaction Protocol (3 min)", dur:"TBD", url:""},
-          {t:"h",v:"SEGMENT 1: Safety — Adverse Reactions"},
-          {t:"kv",pairs:[
-            ["Example","Allergic reaction, rash, hives, dizziness, unwell after taking IM8"],
-            ["Siena Automate","NO"],
-            ["Escalate?","YES — escalate to VP Ops immediately"],
-            ["Refund","YES — 100% immediately, no questions asked"],
-            ["Replacement","No"],
-          ]},
-          {t:"warn",v:"STOP all conversation with the customer immediately. Escalate to VP Ops via Slack with the ticket link. Process 100% refund of most recent order. Log in the Adverse Reaction Report. Do not communicate further — the escalation owner takes over."},
-          {t:"compare",pairs:[
-            ["I understand, it sounds like IM8 might have caused your reaction.","I am so sorry to hear you are not feeling well. I have refunded your most recent order immediately. Please stop use of the product and consult your doctor — they are the best person to advise you."],
-            ["IM8 is safe and well-tested so it is unlikely this is from our product.","We take all reports of this nature very seriously. Your safety is our absolute priority."],
-          ]},
-          {t:"rule",v:"NEVER say or imply the product caused or did not cause the reaction. NEVER give medical advice. NEVER minimize their experience. NEVER tell them to keep taking the product while symptomatic."},
-          {t:"h",v:"SEGMENTS 2-5: Other Safety Tickets"},
-          {t:"kv",pairs:[
-            ["Segment 2 — GI Adjustment","'Is this normal?' — digestive discomfort. Educate on probiotics/enzymes, normalize mild discomfort, suggest monitoring. Any agent can handle."],
-            ["Segment 3 — Athletes","Drug-tested athlete concern. Reassure with NSF Certified for Sport. Siena Automate YES."],
-            ["Segment 4 — Medical Conditions","Customer mentions medications or conditions. Provide ingredient list, direct to prescribing doctor. Escalate CS Lead."],
-            ["Segment 5 — Pregnancy/Age","Young customer or pregnant. Provide ingredient list, direct to healthcare provider. Never clear or deny use. Escalate CS Lead."],
-          ]},
-          {t:"h",v:"Escalation Protocol — When to Ask for Help"},
-          {t:"p",v:"Escalating the right issue at the right time protects both the customer and IM8. When in doubt, escalate. Your team is here to support you."},
-          {t:"h",v:"Escalate Immediately For:"},
-          {t:"kv",pairs:[
-            ["Adverse health reactions","Any negative physiological effect — escalate to VP Ops immediately, no exceptions"],
-            ["Legal threats","Customer threatening legal action — escalate to Head of CX"],
-            ["Abusive language","Customer using abusive or hateful language — escalate, do not engage"],
-            ["Regulatory inquiries","FDA, TGA, Health Canada, etc. — escalate immediately"],
-            ["GDPR / data privacy requests","Any data deletion or privacy request — escalate immediately"],
-            ["VIPs and influencers","Known VIP or influencer — escalate to CS Lead"],
-            ["Refund significantly outside policy","Escalate to CS Lead for discretionary decision"],
-            ["Repeat lost package claims","Second claim within 12 months — escalate to Head of CX (fraud flag)"],
-            ["Technical issues affecting many customers","Multiple customers reporting same issue — escalate to CS Lead immediately"],
-          ]},
-          {t:"rule",v:"Escalation script for the customer: 'I have shared this with our specialist team so we can get you the best possible answer. I will personally monitor this and keep you updated on our progress.'"},
-          {t:"h",v:"How to Escalate"},
-          {t:"list",items:[
-            "1. Post in im8-peace-love-escalations with the Gorgias ticket link and a brief summary of the issue",
-            "2. STOP all communication with the customer — the escalation owner takes over completely",
-            "3. Do NOT close the ticket — leave it open for the escalation owner",
-            "4. Use confident and clear language when communicating the escalation to the customer",
-          ]},
-          {t:"tip",v:"Escalating is not a sign of weakness — it is Integrity in action. Recognizing the limits of your authority and protecting the customer (and IM8) by involving the right person is exactly what the handbook asks of you. The agents who never escalate are the ones who make costly mistakes."},
-          {t:"scenario",customer:"Hi, I take IM8 daily and I have noticed some heart palpitations over the last week. I also have a heart condition and take medication for it. Should I continue taking it?",hint:"This has TWO escalation triggers: potential adverse reaction AND medical condition with prescription medication. What are your exact steps? What do you say and what do you never say?",response:"Thank you for telling us this right away — your health is our absolute priority. Please stop taking the product for now and speak with your doctor as soon as possible — they are the best person to assess what is happening. I have processed a full refund of your most recent order immediately. [Internal: Segment 1 adverse reaction + Segment 4 medical condition — escalate to VP Ops immediately via Slack. Log in Adverse Reaction Report. Stop all communication on this ticket. Do not state product caused or did not cause palpitations. Do not give any medical advice.]"},
-          {t:"summary",items:["Segment 1 (adverse reactions): STOP, escalate VP Ops, 100% refund, log Adverse Reaction Report, stop all communication","NEVER: imply product caused/did not cause reaction, give medical advice, minimize, tell them to keep taking it","Escalation triggers: adverse reactions, legal threats, abusive language, regulatory inquiries, GDPR, VIPs, repeat lost packages","Escalation steps: post in im8-peace-love-escalations with link + summary → stop communicating → leave ticket open","Escalation script: 'I have shared this with our specialist team. I will personally monitor this and keep you updated.'","When in doubt about escalating: escalate. Protecting the customer and IM8 is always the right call"]},
-        ],
-        check:[
-          {q:"A customer reports hives and a rash after taking IM8. Your immediate action is:",options:["Send the GI adjustment macro","Ask for photos and advise them to monitor","Escalate to VP Ops, process 100% refund, stop all conversation, log in Adverse Reaction Report","Reassure them it is likely a detox reaction"],correct:2,exp:"Adverse reactions are P1. Escalate to VP Ops. 100% refund. Stop all conversation. Log in Adverse Reaction Report."},
-          {q:"A customer threatens legal action. You:",options:["Handle it yourself using the policy macros","Politely explain the refund policy and close the ticket","Escalate to Head of CX immediately — legal threats are an immediate escalation trigger","Offer a full refund to resolve the situation"],correct:2,exp:"Legal threats are an immediate escalation trigger. Escalate to Head of CX. Do not negotiate or promise outcomes."},
-          {q:"After posting an escalation in im8-peace-love-escalations, you should:",options:["Continue monitoring and responding in case the escalation owner needs help","Use the escalation script with the customer, then stop communicating — the escalation owner takes over","Ask the customer to wait 48 hours","Close the ticket and flag to TL verbally"],correct:1,exp:"Use the escalation script to communicate to the customer, then stop communicating — the escalation owner takes over completely. Do not close the ticket."},
-        ]
       },
     ],
-    quiz:[
-      {q:"What is the first step of the de-escalation framework?",options:["Explain the relevant policy","Offer a refund","Acknowledge what the customer is feeling before anything else","Ask clarifying questions"],correct:2,exp:"Step 1: Acknowledge. Name what the customer is feeling before anything else. This reduces emotional intensity and shows you heard them."},
-      {q:"A customer reports feeling dizzy after taking IM8. Your immediate action is:",options:["Send the GI adjustment macro","Ask for photos of any visible symptoms","Escalate to VP Ops, process 100% refund, stop all conversation, log in Adverse Reaction Report","Reassure them it is likely a detox reaction"],correct:2,exp:"Any negative physiological effect = adverse reaction. Escalate to VP Ops immediately. 100% refund. Stop all conversation. Log in Adverse Reaction Report."},
-      {q:"A customer has been on IM8 for 6 weeks with no noticeable results. Your approach is:",options:["Offer an immediate refund","Escalate to CS Lead as an over-90-day results ticket","Educate on the 90-day clinical curve, offer a routine check, one save attempt","Process a replacement as a goodwill gesture"],correct:2,exp:"Sub-90 days + soft tone: educate on the 90-day curve, normalize, encourage full trial. One save attempt."},
-      {q:"A customer says they want to cancel because IM8 is too expensive. They seem open to alternatives. You:",options:["Cancel immediately","Suggest downgrading to Essentials only ($89/month) or a lower frequency option","Tell them to come back when they can afford it","Offer a 10% discount"],correct:1,exp:"Value/price with soft/exploratory tone = strong save opportunity. Reframe value, offer downgrade to Essentials only, suggest lower frequency."},
-      {q:"A customer mentions they take a prescription heart medication and asks about interactions. You:",options:["Use stacking interaction macros — basic combos are fine","Reclassify immediately to Segment 4 (medical conditions) and direct to their prescribing doctor","Reassure them IM8 is safe for most people","Escalate to VP Ops"],correct:1,exp:"Prescription drug mentions: reclassify to Segment 4 (medical conditions). Provide ingredient list, direct to prescribing doctor. Never clear or deny use."},
-      {q:"When de-escalating, you should NEVER:",options:["Acknowledge the customer's frustration specifically","Take clear immediate ownership","Say 'I understand your frustration'","Offer a concrete action in your first response"],correct:2,exp:"'I understand your frustration' sounds scripted. Say something specific to their situation instead — specific empathy lands much harder than generic."},
-      {q:"A legal threat from a customer is:",options:["An opportunity to explain the refund policy clearly","Handled with the standard escalation macro","An immediate escalation trigger — escalate to Head of CX","Resolved by offering a full refund"],correct:2,exp:"Legal threats are an immediate escalation trigger. Escalate to Head of CX. Do not negotiate or promise outcomes."},
-      {q:"A customer with over-90-day results is unhappy and firmly wants to cancel. You:",options:["Educate them on the 90-day curve","Offer a save attempt — maybe price is the real issue","Validate their experience and escalate to CS Lead — cancel if they insist, no additional push","Offer a 50% refund as a compromise"],correct:2,exp:"Over-90-day results + firm/angry: validate, escalate CS Lead, cancel politely if they insist. Do not argue or make additional save attempts."},
+    quiz: [
+      { q: "Every log entry should take:", options: ["Under 30 seconds", "2-3 minutes", "5 minutes", "As long as needed"], correct: 0, exp: "The hub is built for sub-30-second logging — keyboard first." },
+      { q: "Passing the capstone means:", options: ["Another month of review", "Automatic promotion to Agent", "A pay review", "Moving to the Ops team"], correct: 1, exp: "Capstone pass → Agent, automatically." },
+      { q: "Before asking a Lead a policy question, you should:", options: ["Guess", "Check Ask LUMÉ and bring the answer to confirm", "Skip the ticket", "Email the customer to wait"], correct: 1, exp: "Ask LUMÉ first — bring answers to confirm, not questions to outsource." },
     ],
-    writing:{
-      scenario:"Hi, I have been taking IM8 for 2 weeks and I have noticed some heart palpitations. Could this be from IM8? I also have a heart condition and take medication. Should I continue taking it?",
-      prompt:"You are an IM8 CS quality coach reviewing a compliance-critical interaction. Customer message: [CUSTOMER]. Trainee response: [RESPONSE]. This involves BOTH a potential adverse health reaction AND a disclosed medical condition with prescription medication — both are immediate escalation triggers. Grade out of 10 across: Compliance (did they refer to a healthcare professional immediately?), Safety (did they appropriately handle the adverse reaction?), Escalation Awareness (did they flag or escalate appropriately?), Tone (empathetic and calm, not dismissive?). Start with SCORE: X/10 on its own line, then 3-4 sentences covering what they did correctly and what they MUST do differently for compliance and safety."
-    }
-  },
-  // ─── DAY 5 ───────────────────────────────────────────────────────────────────
-  {
-    day:5, title:"Graduation",
-    subtitle:"Prove you are ready. Understand your performance targets. Go live.", duration:"3-4 hrs",
-    lessons:[
-      {
-        id:"d5l0", title:"Final Simulation Assessment",
-        content:[
-          {t:"h",v:"You Have Made It to Graduation Day"},
-          {t:"p",v:"Today is not about learning new policies. Today is about proving you can apply everything from Days 1-4 in real situations. You will handle five full ticket scenarios, write complete responses, and score yourself against the QC Scorecard before checking the ideal answers."},
-          {t:"h",v:"How to Use This Assessment"},
-          {t:"list",items:[
-            "Read each scenario carefully — identify the segment and category first",
-            "Write your full response as if sending to a real customer",
-            "Self-score: rate yourself 1-5 on Accuracy, Tone, Clarity, Efficiency, Records & Notes",
-            "Then reveal the ideal approach and compare — where did you lose points?",
-            "Target: 20+/25 on each scenario",
-          ]},
-          {t:"h",v:"Scenario 1 — The Refund Request"},
-          {t:"ex",c:"I ordered IM8 for the first time 3 weeks ago and I am not happy with the results. Can I get a refund?",a:"Hi [Name], thank you for getting in touch. You are absolutely within your 30-day window, so I am happy to process a full refund for you. Before I do — I want to make sure we have given IM8 every opportunity to work for you. Noticeable results often build over 60-90 days as the ingredients accumulate. That said, if you have made up your mind, I completely respect that. To proceed, simply send the product back to us — you cover return shipping — and I will process your refund as soon as we receive it. Let me send you the return address now. With health, [Name] - IM8 Customer Experience [QC: Accuracy 5 — 30-day eligible, save attempt made. Tone 5 — warm and respectful. Clarity 5 — clear next step. Efficiency 5 — resolved in one message. Records: must tag refund_30day and document in Refund Sheet.]"},
-          {t:"h",v:"Scenario 2 — The Angry Delay"},
-          {t:"ex",c:"I have been waiting 3 weeks for my order. My tracking has shown the same status for 10 days. I have emailed twice and nobody has responded. I am absolutely furious and I want this resolved TODAY.",a:"I completely understand your frustration — three weeks with no tracking update and no response is absolutely not the experience we want to give you, and I am sorry. I am checking your shipment status right now. If your order has been lost, I will send a free replacement immediately — no waiting, no conditions. Can you confirm your shipping address is still current so I can act on this now? With health, [Name] - IM8 Customer Experience [QC: Tone 5 — acknowledge anger first, no defensive language. Accuracy 5 — lost package protocol referenced. Efficiency 5 — one clear action, commitment to resolution today. Do NOT apologize for delayed reply — redirect to resolution.]"},
-          {t:"h",v:"Scenario 3 — The Cancellation"},
-          {t:"ex",c:"Hi, I would like to cancel my subscription. I have too much product at home and I just cannot keep up with it.",a:"Of course, I can help you with that. Before I process it — it sounds like you are staying consistent, which is great! The good news is you do not need to cancel to solve this. I can push your next order out by 6-8 weeks so you can work through what you have at home, and you keep all your existing pricing benefits. Would that work for you? With health, [Name] - IM8 Customer Experience [QC: This is Segment 25 (excess product) — save attempt with skip/delay is correct. If they decline, cancel immediately. ONE save attempt maximum. Tag: subscription_excess_product.]"},
-          {t:"h",v:"Scenario 4 — The Product Safety Concern"},
-          {t:"ex",c:"Hi, I found what looks like a small piece of plastic in my powder. I am really concerned.",a:"I am so sorry to see this — this is absolutely not what we want you to find, and I completely understand your concern. Thank you for letting us know immediately. Could you please send a photo of what you found along with your batch number (on the bag or box)? I am escalating this to our quality team right away and will arrange a free replacement for you as soon as I receive the image. Please do not use the remaining product until we have investigated. With health, [Name] - IM8 Customer Experience [QC: Segment 6 — product quality safety concern. Photo + batch number required. Escalate CS Manager. 100% refund + replacement. Never process quality claim without photo except in hazardous situations.]"},
-          {t:"h",v:"Scenario 5 — The Medical Question"},
-          {t:"ex",c:"I take Warfarin for a heart condition. Is it safe to take IM8 alongside my medication?",a:"Thank you for checking before starting — that is exactly the right thing to do. I am not able to advise on medication interactions, but I would be happy to share our full ingredient list so your prescribing physician can review it and give you a definitive answer. I will send that over right now. With health, [Name] - IM8 Customer Experience [QC: Segment 4 — medical conditions (Warfarin is a prescription drug). Provide ingredient list. Direct to prescribing doctor. Never clear or deny use. Escalate CS Lead. Zero medical advice given.]"},
-          {t:"tip",v:"Notice what all five ideal responses have in common: they start with the customer's situation, not the policy. Policy comes after empathy, not before it. That sequencing — acknowledge, empathize, then act — is the pattern in every high-scoring IM8 response."},
-          {t:"summary",items:["Every scenario follows the QC framework: Accuracy, Tone, Clarity, Efficiency, Records & Notes","Identify the segment first — it tells you the escalation level, policy, and macro to use","Refund check: (1) first order? (2) days since delivery? These two questions prevent 80% of policy errors","Adverse reactions and medical conditions with prescriptions: escalate, provide ingredient list, zero medical advice","Cancellation: always ask for the reason first. Always offer skip/pause/frequency before cancelling."]},
-        ],
-        check:[
-          {q:"In the assessment, what should you do BEFORE writing your response?",options:["Open the macros document","Identify the segment and category using the Decision Tree Master","Check the customer's order history","Send a standard acknowledgment"],correct:1,exp:"Identify the segment first — it tells you the escalation level, which policy applies, and which macro to reference. Never write a response without knowing the segment."},
-          {q:"What do all five ideal assessment responses have in common?",options:["They all offer a full refund","They all start by citing the relevant policy","They start with the customer's situation before the policy — acknowledge first, then act","They are all under 100 words"],correct:2,exp:"All high-scoring IM8 responses start with the customer's situation — acknowledge, empathize, then act. Policy comes after empathy, never before it."},
-          {q:"A customer mentions they take Warfarin (a blood thinner). You:",options:["Tell them IM8 is generally safe","Use the stacking macro for supplement combos","Reclassify to Segment 4 (medical conditions). Provide ingredient list and direct to their prescribing physician. Escalate CS Lead.","Escalate to VP Ops as a safety issue"],correct:2,exp:"Warfarin is a prescription drug. Reclassify to Segment 4 (medical conditions). Provide ingredient list. Direct to prescribing physician. Escalate CS Lead. Never clear or deny use."},
-        ]
-      },
-      {
-        id:"d5l1", title:"Performance Expectations & Going Live",
-        content:[
-          {t:"video", label:"Part 2 & Section 6 — Probation KPI & Training Activities", dur:"", url:"/videos/Part 2 & Section 6 - Probation KPI & Training Activities.mp4"},
-          {t:"video", label:"Part 2 — Schedule for Month 1 & 2", dur:"", url:"/videos/Part 2 - Schedule for Month 1 & 2.mp4"},
-          {t:"video", label:"Part 3 — PIC Tasks & Roster", dur:"", url:"/videos/Part 3 - PIC Tasks & Roster.mp4"},
-          {t:"h",v:"Your Performance Timeline"},
-          {t:"kv",pairs:[
-            ["Week 1 goal","Answer 60-70% of standard product and policy questions using templates and knowledge base. Pass your final assessment."],
-            ["Week 2-3 goal","85% accuracy in product knowledge. Handle standard tickets independently — escalate only complex cases."],
-            ["Week 4-6 goal","All standard and moderately complex tickets independently. Consistent quality and full adherence to tone."],
-            ["Ongoing","Maintain quality, adapt to updates, stay current with new FAQs and policy changes."],
-          ]},
-          {t:"rule",v:"Your QC target is 20+ out of 25. This means scoring mostly 4s (Good) across all five categories. This is the standard for Weeks 2-4. Treat it as the floor, not the ceiling."},
-          {t:"h",v:"Probation KPI Targets"},
-          {t:"list",items:[
-            "Fill in your Daily Sheet on every working day (Aina shares it with you on Slack)",
-            "Inbox must be zero by end of every shift",
-            "Work tickets oldest to newest",
-            "Complete 4 short quizzes per day during training: start of shift, before lunch, after lunch, before end of shift",
-            "Save all macros in your own Google Docs template organized by keywords",
-            "Create your own SOP notes after going through the SOP sheet and training videos",
-          ]},
-          {t:"h",v:"Weeks 4-8: PIC Task Progression"},
-          {t:"kv",pairs:[
-            ["Week 4-5","UA Chat, IG and FB comments, IG DM, FB Messenger, FB review, Skio SMS folder"],
-            ["Week 6-7","Week 4-5 tasks + RTS emails, New Shop App Subscription, HK Ops message in Slack"],
-            ["Week 8+","Full PIC task list"],
-          ]},
-          {t:"h",v:"Shadowing"},
-          {t:"list",items:["Each new hire observes a senior agent on real tickets","Duration: 30 minutes per session","Frequency: 2 sessions per new hire","Ask your TL to schedule this in your first week — do not wait to be asked"]},
-          {t:"h",v:"Your Growth & Feedback"},
-          {t:"p",v:"You will receive QC feedback weekly. Review it, ask questions, and focus on the improvement areas identified in your 1-on-1s. Your growth is a partnership between you and your leaders. Do not just close tickets — solve problems."},
-          {t:"tip",v:"The Probation KPIs are not a ceiling — they are the minimum. Agents who treat them as the target usually just barely meet them. Agents who treat them as the floor usually exceed them and get promoted faster. Start with the mindset of exceeding, not just completing."},
-          {t:"scenario",customer:"Hi, I left a 1-star Trustpilot review because my order was delayed and nobody responded. Now my order has arrived and I actually love the product. I am still a bit frustrated but mostly over it.",hint:"You cannot delete a Trustpilot review. The customer has softened. What is your response and what is the right way to acknowledge the review without pushing them?",response:"Hi [Name], I am genuinely glad your order arrived and that you are loving the product — that means everything to us. I completely understand the frustration with the delay and the lack of response, and I am sorry we let you down at that moment. We read every review and take all feedback seriously. If your experience with the product continues to be positive and you ever feel differently about it, we always appreciate honest updated reviews. But most importantly, we are here whenever you need us. With health, [Name] - IM8 Customer Experience"},
-          {t:"summary",items:["Week 1: 60-70% standard questions with templates. Weeks 2-3: 85% accuracy, standard tickets independently","QC target: 20+/25 — treat it as the floor, not the ceiling. Mostly 4s across all 5 categories.","Daily habits: Daily Sheet every day, inbox zero every shift, 4 short quizzes per day during training","PIC task progression: Week 4-5 basics, Weeks 6-7 expanded, Week 8+ full task list","Schedule two shadowing sessions in your first week — ask your TL, do not wait to be invited","QC feedback is weekly — review it, ask questions, focus on the categories where you lose points"]},
-        ],
-        check:[
-          {q:"What is the expected mastery level by end of Week 1?",options:["Handle all tickets independently","85% accuracy in product knowledge","60-70% of standard questions using templates and knowledge base — and pass your final assessment","Full PIC task list"],correct:2,exp:"Week 1 goal: answer 60-70% of standard product and policy questions using templates and the knowledge base. And pass your final assessment."},
-          {q:"A QC score of 4 means:",options:["Exceeds expectations with no errors","Meets expectations with very minor issues","Acceptable but improvements needed","Frequent mistakes"],correct:1,exp:"QC 5=Excellent (no errors), 4=Good (minor issues), 3=Fair (improvements needed), 2=Poor (frequent mistakes), 1=Unsatisfactory."},
-          {q:"How often do you fill in your Daily Sheet?",options:["Only when you handle escalations","Every working day","Once a week","Only during probation period quizzes"],correct:1,exp:"Fill in your Daily Sheet every working day. Aina shares it with you on Slack."},
-        ]
-      },
-      {
-        id:"d5l2", title:"Your First 30 Days",
-        content:[
-          {t:"h",v:"Week 1 — Learn Fast"},
-          {t:"p",v:"Your first week is about building the foundations that everything else runs on. Lean into the intensity. The pace is fast by design — the best way to learn this job is to do it, make mistakes in a supervised environment, and correct them quickly."},
-          {t:"list",items:[
-            "Lean into the intensity — this week is the hardest, it gets easier",
-            "Ask questions openly and often — no question is too basic in Week 1",
-            "Attend all shadowing sessions — watch how senior agents think through tickets",
-            "Pass your final assessment — the bootcamp ends when you have proven you are ready",
-            "Create your own SOP notes — writing it in your own words locks it in",
-          ]},
-          {t:"h",v:"Weeks 2-4 — Execute Consistently"},
-          {t:"p",v:"By Week 2, you are handling real tickets with progressively less supervision. Consistency is the skill being built here. Not doing great work once — doing good work on every ticket, every shift."},
-          {t:"list",items:[
-            "Attend check-ins and 1-on-1s prepared — bring your questions and your QC feedback",
-            "Your goal is to reach 20+ out of 25 for QC scores — mostly 4s across all categories",
-            "Do not just close tickets — solve problems. There is a difference.",
-            "Review your QC feedback weekly — focus on the specific categories where you lose points",
-            "If you are unsure: ask first, act second. One Slack message now saves one mistake later.",
-          ]},
-          {t:"h",v:"The Team-First Mindset in Practice"},
-          {t:"p",v:"Selfless is one of the IM8 values for a reason. This job is not solo work. When you know something useful, share it in the asai channel. When you see a teammate struggling, offer to help. When a tough ticket comes in that you could handle, volunteer. That is how this team wins together."},
-          {t:"h",v:"What Good Looks Like at 30 Days"},
-          {t:"kv",pairs:[
-            ["Ticket handling","Standard tickets resolved independently. Complex cases escalated correctly and promptly."],
-            ["QC score","Consistently 20+/25. Identified weak categories improving week over week."],
-            ["Documentation","Every ticket tagged correctly, internal notes complete, Refund Sheet updated."],
-            ["Communication","Proactive on Slack. Shift check-ins consistent. Questions asked before mistakes are made."],
-            ["Attitude","Humble, curious, team-first. Learning from feedback, not defending against it."],
-          ]},
-          {t:"rule",v:"By completing this bootcamp you have covered the full SOP, every ticket segment, all policies, and the IM8 voice. You know what to do. Trust your training, use your tools, ask for help when unsure, and go make customers feel great."},
-          {t:"tip",v:"The agents who thrive at IM8 are not the ones who know the most on Day 1. They are the ones who stay curious, take feedback seriously, and care genuinely about the person on the other side of every ticket. You already have everything you need. Go use it."},
-          {t:"scenario",customer:"This is my first order and I am not sure how to mix it. Do I just add water? And how much? I am kind of nervous to get it wrong.",hint:"New customer, simple product question, but they are revealing some anxiety. How do you make them feel confident and welcomed into the IM8 community?",response:"Welcome to the IM8 family — we are so excited for you to start! Mixing it is super simple: add one scoop to 12-16oz of cold water, shake or stir for a few seconds, and you are ready to go. The chocolate acai berry flavor tastes best cold, so feel free to add some ice too. Take it in the morning with or without food — whatever fits your routine. You really cannot get it wrong! Feel free to reach out any time you have questions — we are always here. With health, [Name] - IM8 Customer Experience"},
-          {t:"summary",items:["Week 1: lean into the intensity, ask questions, attend shadowing, pass final assessment, create your own SOP notes","Weeks 2-4: consistent 20+/25 QC, standard tickets independently, review weekly feedback, escalate when unsure","Team-first: share knowledge in asai, support teammates, volunteer for tough tickets — this is Selfless in practice","30-day standard: independent on standard tickets, consistent QC, correct documentation, proactive communication","Trust your training. Use your tools. Ask for help when unsure. Go make customers feel great."]},
-        ],
-        check:[
-          {q:"What is the most important thing to do in Week 1?",options:["Handle all tickets independently with no supervision","Ask questions openly and often — no question is too basic in Week 1","Focus only on passing the final assessment","Avoid escalating so you learn from handling tough tickets"],correct:1,exp:"Week 1: lean into the intensity, ask questions openly, attend shadowing sessions, and pass your final assessment. The best way to learn is to do it in a supervised environment."},
-          {q:"'Do not just close tickets — solve problems' means:",options:["Take longer on every ticket to be thorough","Process every refund request even if outside policy","Identify the real issue behind a ticket, not just the surface request — and address that","Escalate all tickets to be safe"],correct:2,exp:"Solving problems means addressing the real issue behind the ticket, not just completing a transaction. A customer who says they want to cancel might actually need a subscription pause. Find what they actually need."},
-          {q:"The agents who thrive at IM8 are:",options:["The ones who know the most on Day 1","The ones who never need to escalate","The ones who stay curious, take feedback seriously, and genuinely care about the customer","The ones who handle the most tickets per shift"],correct:2,exp:"The best agents are curious, coachable, and genuinely care about the person on the other side of every ticket. Empathy and growth mindset matter more than knowledge on Day 1."},
-        ]
-      },
-    ],
-    quiz:[
-      {q:"On Graduation Day, what is the primary goal?",options:["Learn the subscription cancellation policy","Prove you can apply Days 1-4 knowledge in real situations","Receive your full ticket load for the first time","Memorize all 29 ticket segments"],correct:1,exp:"Graduation Day is about proving you can apply everything from Days 1-4. No new policy content — it is assessment and coaching."},
-      {q:"What is the QC target for Weeks 2-4?",options:["15/25","18/25","20/25","25/25"],correct:2,exp:"Target: 20+ out of 25. Mostly 4s across all five categories. Treat it as the floor, not the ceiling."},
-      {q:"How often do you fill in your Daily Sheet?",options:["Only when you handle escalations","Every working day","Once a week","Only during probation quizzes"],correct:1,exp:"Fill in your Daily Sheet every working day. Aina shares it with you on Slack."},
-      {q:"By the end of Week 3, you should be able to:",options:["Handle all tickets with zero supervision","Answer 60-70% of standard questions","Handle standard tickets independently with 85% product knowledge accuracy; escalate complex cases","Run the full PIC task list"],correct:2,exp:"End of Week 3: 85% accuracy in product knowledge. Handle standard tickets independently. Escalate only complex or edge cases."},
-      {q:"What do all five ideal Graduation Day scenarios have in common?",options:["They all offer a full refund","They all open by citing the relevant policy","They start with the customer's situation — acknowledge first, then policy, then action","They are all under 100 words"],correct:2,exp:"All high-scoring IM8 responses start with the customer's situation. Policy comes after empathy, never before it."},
-      {q:"'Do not just close tickets — solve problems' means:",options:["Take longer on every ticket","Process all refund requests","Identify the real issue behind the ticket and address that, not just the surface request","Escalate all complex tickets"],correct:2,exp:"Solving problems means finding the real issue. A customer saying 'cancel' might actually need a subscription pause. Look beneath the surface."},
-      {q:"What should you do if you are unsure how to handle a ticket in your first weeks?",options:["Guess and act — learn by doing","Ask in im8-cs or asai with the ticket link before acting","Close the ticket and ask your TL to reassign it","Handle it and review the QC feedback after"],correct:1,exp:"When unsure: ask first, act second. Post in im8-cs with the ticket link and clearly state what you need help with. One Slack message now prevents one mistake later."},
-      {q:"Shadowing sessions in your first week should be:",options:["Scheduled by your TL when they are available","Two sessions per new hire — you should ask your TL to schedule them, do not wait","Optional, only if you feel unprepared","One session only, at the start of your first day"],correct:1,exp:"Two shadowing sessions per new hire. Ask your TL to schedule them in your first week — do not wait to be invited."},
-    ],
-    writing:{
-      scenario:"Hi, I have been a customer for 8 months. I take both Essentials and Longevity every day. My subscription renews in 3 days and I actually want to cancel because I feel like the products are not doing anything for me anymore. I have given it a really fair shot.",
-      prompt:"You are an IM8 CS quality coach reviewing a cancellation handling response. Customer message: [CUSTOMER]. Trainee response: [RESPONSE]. This is an over-90-day results ticket with a cancellation request. Mandatory elements to check: (1) Did they ask for the reason? (2) Did they validate the customer genuinely before any save attempt? (3) Was there only ONE save attempt or did they push multiple times? (4) If the customer seemed firm, did they cancel respectfully without guilt? Grade out of 10. Start with SCORE: X/10 on its own line, then 3-4 sentences covering what they did well and what they must improve, referencing the Cancellation Decision Tree."
-    }
+    writing: {
+      scenario: "I want to cancel. Money's tight this month and $89 is a lot. I do love the products though, this isn't about quality.",
+      prompt: "You are a LUMÉ CX quality coach reviewing a trainee reply. Customer message: [CUSTOMER]. Trainee response: [RESPONSE]. This is a price-driven cancellation from a happy customer. Check: (1) genuine empathy for the budget squeeze, (2) one save attempt matched to the root cause (skip a month / bi-monthly / pause — not a discount reflex), (3) respectful immediate cancellation if declined, (4) warm exit that leaves the door open. Grade against the QC rubric (Tone 25, Policy 25, Resolution 25, Proactivity 25). Start with SCORE: X/100, then 3-4 sentences." },
   },
 ];
 
@@ -1567,169 +294,18 @@ async function callClaude(systemPrompt, messages, maxTokens = 600) {
 // ─── System Prompts ───────────────────────────────────────────────────────────
 const ASK_SYSTEM = buildAskLumaSystem();
 
-// eslint-disable-next-line no-unused-vars
-const ASK_SYSTEM_LEGACY = [
-  "You are an expert CX training assistant. Help new agents learn to handle every type of customer ticket correctly.",
-  "Always teach using real SOPs. When showing example responses, write in the LUMÉ HAIR voice: warm, confident, direct, short sentences, human empathy, no corporate jargon.",
-  "Sign every example response with: [Agent name] - LUMÉ HAIR",
-
-  "=== 3 GUIDING PRINCIPLES ===",
-  "1. Empathetic Ownership: own the problem until resolved, measured by CSAT/NPS/Trustpilot.",
-  "2. Effortless Resolution: solve quickly and completely with minimal back and forth.",
-  "3. Root Cause Mindset: cancellation is often dissatisfaction not the real goal — find the underlying issue first.",
-
-  "=== PRODUCTS ===",
-  "THREE PRODUCT LINES: (1) Daily Ultimate Essentials PRO, (2) Daily Ultimate Longevity, (3) The Beckham Stack (bundled: Essentials PRO + Longevity Set).",
-  "FORMAT: Stick packs / sachet packs ONLY, 30 per pack. No pouches or capsules — discontinued.",
-  "SUBSCRIPTIONS: 30-day or 90-day subscription, or one-time purchase.",
-  "Essentials PRO: stick packs 92 ingredients 13.6g 20cal, MSM 1500mg Saffron 30mg (PRO EXCLUSIVE), CRT8 100mg CoQ10 100mg Vitamin K2 100mcg 10B CFU probiotics, NSF Certified for Sport. Pricing: $112 OTP, $89/month (30-day sub), $235/quarter (90-day sub).",
-  "Essentials PRO dietary attributes: Vegan, Gluten-Free, Soy-Free, Dairy-Free, No Artificial Sweeteners, Non-GMO.",
-  "Essentials PRO FLAVORS (Essentials PRO only — Longevity has no flavor variants): Acai+Berry (original), Mango+Passionfruit (new), Lemon+Orange (new), Variety Pack (all three).",
-  "Essentials PRO approved structure/function claims (ONLY say these — never go beyond): Supports Joint Comfort and Mobility | Promotes a Positive Mood and Cognitive Function | Supports Healthy Energy Levels and Performance | Aids in Exercise Recovery | Supports a Healthy Immune System | Supports Digestive Health | Provides Antioxidant Support | Supports Bone and Cardiovascular Health | Supports Healthy Skin, Hair, and Nails.",
-  "Longevity: stick packs 7.8g 15cal, NMN 300mg Glycine 3g Taurine 2g Resveratrol 250mg Quercetin 250mg Fisetin 100mg Dihydroberberine 100mg Spermidine 3mg PQQ 10mg, single flavor (no variants), targets all 12 hallmarks of aging.",
-  "Longevity pricing: $149 OTP, $119/month (30-day new sub), $312/quarter (90-day new sub), $89/month grandfathered (existing subs — protected permanently).",
-  "Beckham Stack pricing: $261 OTP, $208/month (30-day sub), $548/quarter (90-day sub).",
-  "NSF Sport for Longevity Powder: PENDING — NEVER confirm it. This is a legal risk.",
-  "Beckham Stack: Essentials PRO + Longevity Set bundled — both can be mixed in same glass. Discontinued: Original Essentials V1, Longevity Capsules, pouch/capsule formats.",
-  "No DHA/EPA in any current products — recommend separate omega-3 if asked.",
-
-  "=== CRITICAL RULES — NEVER BREAK ===",
-  "NEVER give medical advice, diagnose, or suggest treatments. For any medical/medication question: share ingredient list and refer to their prescribing physician.",
-  "NEVER offer free samples. Decline clearly: we do not offer free samples currently.",
-  "NEVER apologize for a delayed reply — start with the answer directly.",
-  "NEVER proactively mention refunds — only discuss if customer raises it.",
-  "Trustpilot link: ONLY when message is 100% positive with zero negatives. Any complaint disqualifies.",
-
-  "=== ESCALATION RULES ===",
-  "VP Ops: adverse reactions (any negative health effect — stop all chat, 100% refund, log in Adverse Reaction Report).",
-  "CS Manager: product quality safety concern (foreign objects, contamination).",
-  "CS Lead: medical conditions, over-90-day results, texture quality, excess product, all cancellations, partnerships.",
-  "Do NOT give medical advice for adverse reactions — only stop use, express empathy, process refund, refer to doctor.",
-
-  "=== POLICIES ===",
-  "30-day guarantee: first orders only, opened or unopened, within 30 days of delivery, customer pays return shipping.",
-  "31-60 days: escalate to CS Lead — can give 50% or 100% at Lead discretion. 61+ days: ineligible.",
-  "Shipping times: US 6 days, UK 7 days, SG 5 days, HK 4 days, AU 7 days, CA 16 days.",
-  "Free shipping on subscriptions worldwide EXCEPT Norway/Switzerland $15 flat; Israel/Saudi/UAE at checkout.",
-  "Delay compensation triggers (from fulfillment): US 4-6 BD, UK 5-7 BD, APAC 6-8 BD, Europe 15-17 BD.",
-  "Active sub delay first touch: free 6-pack Essentials with next order + ask to wait. OTP delay first touch: 10% refund + ask to wait.",
-  "Lost package: confirm address, check neighbors/building, 24hr wait, then free replacement. Second claim in 12 months: escalate to Head of CX.",
-  "Damaged product: request photo evidence first, then free replacement — no return needed.",
-  "Unfulfilled 4-6 BD: 50% refund. Unfulfilled 7+ BD: 100% refund. Never cancel unless customer requests.",
-  "Subscription: customers can pause, skip, change frequency, or cancel via Skio portal anytime.",
-
-  "=== CANCELLATION RULES ===",
-  "ALWAYS ask for the reason before cancelling using cancellation macro.",
-  "ONE save attempt maximum per reason — never push after it is declined.",
-  "Cancel immediately (no save): adverse reactions, medical conditions, pregnancy concerns.",
-  "Strong save opportunity: excess product (offer skip/pause), price (offer downgrade/frequency), sub adjustment.",
-  "Always cancel respectfully if customer insists — never make cancellation difficult.",
-
-  "=== DECISION TREE SEGMENTS ===",
-  "Seg 1 safety-adverse: escalate VP Ops, 100% refund, stop all conversation.",
-  "Seg 2 safety-GI: educate probiotics/enzymes, normalize, suggest monitoring, cancel if insist.",
-  "Seg 3 safety-athletes: reassure NSF cert + 3rd party testing.",
-  "Seg 4 safety-medical: share ingredients, refer to doctor, escalate CS Lead.",
-  "Seg 5 safety-pregnancy/age: share ingredients, refer to OB/doctor, no save attempt.",
-  "Seg 6 product-quality-safety: escalate CS Manager, photo+batch required, 100% refund+replace.",
-  "Seg 7 product-quality-texture: escalate CS Lead, 100% replace, advise discard.",
-  "Seg 8 product-quality-damage: photo evidence, free replace, partial/full refund by severity.",
-  "Seg 9 product-quality-cosmetic: explain natural variation (orange=astaxanthin), offer replace if uncomfortable.",
-  "Seg 10 product-timing/dosage: one clear default (once daily morning with water), consistency matters most.",
-  "Seg 11 product-certifications: NSF Certified for Sport Essentials PRO, 3rd-party tested, science page im8health.com/pages/science.",
-  "Seg 12 product-stacking: Beckham Stack or split, both can mix in same glass.",
-  "Seg 13 product-interactions: basic combos use stacking macros; prescription drugs = reclassify as Seg 4.",
-  "Seg 14 product-ingredients: provide ingredient list, refer to dossiers for detail.",
-  "Seg 15 product-taste: normalize, offer mixing tips (more water, colder water, smoothie, frother), 30-day guarantee.",
-  "Seg 16 results-under90: educate 90-day curve, normalize, one save attempt for soft tone.",
-  "Seg 17 results-over90: escalate CS Lead, validate, cancel if firm.",
-  "Seg 18 value-price: frame value, offer downgrade to Essentials only or lower frequency.",
-  "Seg 19 value-competitors: explain 12 hallmarks of aging, NSF, clinical data — no competitor attacks.",
-  "Seg 20 shipping-wrong-address: if not shipped update address; if shipped attempt reroute.",
-  "Seg 21 shipping-delays: check Aftership first, set expectations per delay policy.",
-  "Seg 22 shipping-missing: confirm address, check neighbors, 24hr wait, then replace.",
-  "Seg 23 shipping-wrong-order: acknowledge, send correct immediately, customer keeps wrong item.",
-  "Seg 24 shipping-inquiry: quote actual country timelines, guarantee starts on delivery not order date.",
-  "Seg 25 sub-excess: offer skip/pause/frequency extension first — high save category.",
-  "Seg 26 sub-change/pause: offer adjustment, only cancel if clearly insist.",
-  "Seg 27 sub-inquiry: answer directly, explain Skio portal, no upsell.",
-  "Seg 28 cancellation: ask reason first, use DT, one save attempt, cancel respectfully if firm.",
-  "Seg 29 partnerships: request contact info, escalate to Sam.",
-].join(" ");
-
 const SIM_CUSTOMER_SYSTEM = [
-  "You are a customer of IM8 supplements. Stay in character. Be realistic and skeptical but not abusive.",
+  "You are a customer of LUMÉ, a premium haircare brand (serums + The Hair Edit subscription box). Stay in character. Be realistic and skeptical but not abusive.",
   "Keep responses to 1-2 sentences.",
   "If the agent gives an excellent answer that fully addresses your concern, soften or express satisfaction.",
 ].join(" ");
 
 const SIM_COACH_SYSTEM = [
-  "You are an IM8 CS training coach reviewing an agent-in-training responses.",
+  "You are a LUMÉ CX training coach reviewing an agent-in-training's responses.",
   "Give 2-3 sentences of specific, actionable feedback.",
-  "Reference actual IM8 products, policies, or tone guidelines.",
+  "Reference actual LUMÉ products (Smooth $79, Repair $85, Scalp $89, Glow $75, The Hair Edit $89/month), policies (30-day guarantee from delivery, 4-6 week results timeline, one save attempt max), or voice guidelines (warm, knowledgeable, confident — sign-off 'Warmly, [Name] — LUMÉ').",
   "Always mention one thing done well and one concrete improvement.",
   "Be encouraging but honest.",
-].join(" ");
-
-const TICKET_SYSTEM = [
-  "You are an AI assistant helping IM8 CS agents handle live customer tickets. Your job is to generate a ready-to-send customer reply and internal action steps.",
-  "OUTPUT FORMAT — always use these exact delimiters:",
-  "CATEGORY: [Safety|Product|Results|Value|Shipping|Subscription|Admin]",
-  "PRIORITY: [P1|P2|P3]",
-  "ESCALATE_TO: [VP Ops|CS Manager|CS Lead|none]",
-  "---REPLY---",
-  "[reply text, 80-150 words, IM8 voice, signed off correctly]",
-  "---END REPLY---",
-  "---STEPS---",
-  "1. [internal step naming specific tool]",
-  "---END STEPS---",
-  "PRIORITY DEFINITIONS: P1 = adverse reaction, safety concern, legal threat, media threat. P2 = refund over $100, cancellation save attempt, CS escalation needed. P3 = everything else.",
-  "ESCALATION RULES: VP Ops = adverse reaction / legal / regulatory / media. CS Manager = social media threat / product quality issue / repeat complaint (3+ contacts). CS Lead = results complaint over 90 days. If no escalation needed, write 'none'.",
-  "PRODUCTS:",
-  "IM8 Essentials PRO: 92 ingredients, 20 calories, 13.6g serving, $112 one-time / $89 subscribe / $235 3-pack. Flavors: Acai+Berry, Mango+Passionfruit, Lemon+Orange, Variety Pack. NSF Certified for Sport. Contains MSM (1,500mg) and Saffron 30mg (PRO exclusive), not NMN. Dietary: Vegan, Gluten-Free, Soy-Free, Dairy-Free, No Artificial Sweeteners, Non-GMO. Approved claims: Supports Joint Comfort and Mobility; Promotes Positive Mood and Cognitive Function; Supports Healthy Energy and Performance; Aids Exercise Recovery; Supports Immune System; Supports Digestive Health; Provides Antioxidant Support; Supports Bone and Cardiovascular Health; Supports Healthy Skin, Hair and Nails.",
-  "IM8 Longevity: NMN 300mg, NR 200mg, Resveratrol, CoQ10, Astaxanthin. $149 one-time / $119 new subscriber / $89 grandfathered subscriber / $312 3-pack. NSF PENDING — do NOT tell customers it is NSF certified.",
-  "Beckham Stack (PRO + Longevity): $261 one-time / $208 subscribe / $548 3-pack.",
-  "POLICIES:",
-  "30-day satisfaction guarantee: full refund if contacted within 30 days of delivery, one claim per household per product, no return required.",
-  "Shipping: USA 5-7 business days, Canada 7-14 BD, UK/Europe 7-14 BD, Australia/NZ 10-21 BD, Rest of world 14-21 BD.",
-  "Shipping delays (4-6 BD over standard): offer one free 6-pack as compensation, do not offer refund proactively.",
-  "Lost package: reship after 15 BD USA / 30 BD international if tracking not updated.",
-  "Damaged package: photo required, reship or refund depending on severity.",
-  "NON-NEGOTIABLES: never give medical advice or diagnose. Never offer free samples. Never apologise for a shipping delay — acknowledge and compensate with 6-pack only. Never proactively mention refunds for shipping issues. Do not ask customers to leave Trustpilot reviews. NSF for Longevity is PENDING — never claim it is certified.",
-  "LIABILITY RULES — CRITICAL: NEVER connect the product to any symptom or health issue in the customer reply. NEVER say 'these reactions', 'your body is responding this way', 'the product caused', or any phrase that implies causation. NEVER lead with negative language or anything that admits fault. If a customer mentions feeling unwell, say you are sorry to hear they are not feeling their best — NOT that you are sorry to hear about reactions to the product. Always recommend speaking to a GP as a general health precaution, NOT because IM8 is responsible. The internal escalation note can be direct, but the customer-facing reply must NEVER imply the product harmed them.",
-  "IM8 VOICE: warm, confident, direct, short sentences, human empathy, no corporate jargon. Never say 'I apologise for any inconvenience'. Never say 'rest assured'. Always lead with warmth, never with a negative or an admission.",
-  "SIGN-OFF: if agent name is provided, sign off as that name. Otherwise sign off as 'The IM8 Team'.",
-  "INTERNAL STEPS QUALITY: always name the specific tool — Gorgias (ticket tagging/closing), Shopify (order lookup/refund), Skio (subscription management), Aftership (tracking lookup), Slack (escalation messages). Always include a step to tag and close the Gorgias ticket. If escalating, include: 'Slack [person] with order number and issue summary.'",
-  "DECISION TREE KNOWLEDGE:",
-  "Seg 1 safety/adverse: P1, escalate VP Ops. Customer reply: open with warmth ('Sorry to hear you're not feeling your best'), recommend speaking to a GP as a general precaution, do NOT connect the product to the symptoms, do NOT use the word 'reaction' or 'adverse', do NOT diagnose. Then immediately offer a full refund — do NOT make them come back after seeing their doctor. Close warmly. Example flow: express care → recommend GP → confirm we are processing a full refund → no further action needed from them.",
-  "Seg 2 no results <30 days: validate realistic expectations, 90-day protocol, offer support.",
-  "Seg 3 no results 30-90 days: ask about consistency/diet/sleep, offer tips.",
-  "Seg 4 no results 90+ days: escalate CS Lead, one-time goodwill offer consideration.",
-  "Seg 5 taste: acknowledge, suggest mixing tips, mention flavors.",
-  "Seg 6 mixing issues: suggest blender bottle, cold water, 1 scoop test.",
-  "Seg 7 product questions: use product knowledge, never make medical claims.",
-  "Seg 8 ingredient questions: answer factually, no medical advice.",
-  "Seg 9 comparison: use Compare framework — always compliment before differentiating.",
-  "Seg 10 refund <30 days: verify eligibility, process in Shopify, confirm via email.",
-  "Seg 11 refund >30 days: CS Manager approval required.",
-  "Seg 12 damaged: photo proof required, reship or refund.",
-  "Seg 13 wrong item: apologise, reship correct item immediately.",
-  "Seg 14 missing item: check order, reship ASAP.",
-  "Seg 15 not received USA <15BD: check Aftership, reassure, advise to wait.",
-  "Seg 16 not received USA 15+ BD: reship.",
-  "Seg 17 not received intl <30 BD: check Aftership, advise to wait.",
-  "Seg 18 not received intl 30+ BD: reship.",
-  "Seg 19 tracking stalled: check carrier, reship if over threshold.",
-  "Seg 20 delay complaint: acknowledge, offer 6-pack compensation (no apology for delay).",
-  "Seg 21 promo/discount: apply valid codes, cannot stack, no exceptions.",
-  "Seg 22 billing error: check Shopify, correct promptly.",
-  "Seg 23 payment fail: advise update card in Skio/account.",
-  "Seg 24 sub-cancel save: ask reason, offer skip/pause/frequency change first.",
-  "Seg 25 sub-excess: offer skip/pause/frequency extension first.",
-  "Seg 26 sub-change/pause: offer adjustment, only cancel if clearly insist.",
-  "Seg 27 sub-inquiry: answer directly, explain Skio portal.",
-  "Seg 28 cancellation: ask reason, use decision tree, one save attempt, cancel respectfully if firm.",
-  "Seg 29 partnerships: collect contact info, escalate to Sam.",
 ].join(" ");
 
 // ─── Utility ──────────────────────────────────────────────────────────────────
@@ -1745,10 +321,8 @@ function cellStyle(val, isDiscontinued) {
     padding: "8px 12px", borderBottom: "1px solid #eee",
   };
   if (isDiscontinued) base.opacity = 0.5;
-  if (!val || val === "none") return { ...base, color: "#ccc" };
-  if (val.includes("All 12") || val.includes("increased")) return { ...base, color: RED, fontWeight: "700" };
-  if (val.includes("exclusive")) return { ...base, color: GOLD, fontWeight: "700" };
-  if (val === "confirmed") return { ...base, color: "#2a7a2a", fontWeight: "700" };
+  if (!val || val === "—") return { ...base, color: "#ccc" };
+  if (val.startsWith("$")) return { ...base, color: GOLD, fontWeight: "700" };
   return base;
 }
 
@@ -1782,6 +356,16 @@ export default function App({ userId, role, displayName }) {
   const effectiveRole = viewAsRole || role;
 
   const [tab, setTab] = useState(effectiveRole === "Ops" ? "Logs" : "Home");
+
+  // Role preview gates page content: if the current tab isn't accessible
+  // to the effective (previewed) role, bounce to Home (Ops lands on Logs,
+  // its home base). Without this, switching "View as" while on a gated
+  // page left the gated content mounted with only the tab button hidden.
+  useEffect(() => {
+    if (!canAccessTab(tab, effectiveRole)) {
+      setTab(effectiveRole === "Ops" ? "Logs" : "Home");
+    }
+  }, [tab, effectiveRole]);
 
   // Deep-link from email: parse #records:issues style hashes on mount and
   // jump straight to the right tab. RecordsTab reads the same hash to set
@@ -2105,25 +689,7 @@ export default function App({ userId, role, displayName }) {
           </div>
         </div>
         <div style={{ display: "flex", overflowX: "auto", padding: "0 16px" }}>
-          {TABS.filter(t => {
-            // Hidden until those features are ready — flip individual entries
-            // to false to surface them again.
-            const HIDDEN = { "Ask LUMÉ": false, "Playbook": false, "Training": true, "Affiliates": true };
-            if (HIDDEN[t]) return false;
-            // Ops sees a focused view: only Home + Logs
-            if (effectiveRole === "Ops") return t === "Home" || t === "Logs";
-            if (t === "Logs") return effectiveRole !== "New Starter";
-            if (t === "Reports") return effectiveRole && ["Lead Agent","Manager","Admin","Owner"].includes(effectiveRole);
-            if (t === "Records") return effectiveRole && ["Manager","Admin","Owner"].includes(effectiveRole);
-            // Affiliates playbook — Manager and above (Cherie May 22:
-            // bumped from Lead Agent+ to Manager+ while the workstream
-            // is being re-scoped with a dedicated owner; Lead Agents
-            // shouldn't see it for now either).
-            if (t === "Affiliates") return effectiveRole && ["Manager","Admin","Owner"].includes(effectiveRole);
-            // Team management — Admin + Owner only
-            if (t === "Team") return effectiveRole && ["Admin","Owner"].includes(effectiveRole);
-            return true;
-          }).map(t => (
+          {TABS.filter(t => canAccessTab(t, effectiveRole)).map(t => (
             <button key={t} onClick={() => setTab(t)} style={{ background: "transparent", border: "none", borderBottom: tab === t ? "2px solid " + BURG : "2px solid transparent", color: tab === t ? BURG : "rgba(10,10,9,0.38)", fontFamily: F.sans, fontSize: 12, fontWeight: tab === t ? 700 : 500, padding: "12px 16px", cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.15s", letterSpacing: 1 }}>{t}</button>
           ))}
         </div>
@@ -2189,9 +755,14 @@ export default function App({ userId, role, displayName }) {
 // ─── WELCOME / HOME DATA ──────────────────────────────────────────────────────
 
 // Demo team — replace with client's team members for each deployment
+// Two celebration dates are anchored relative to today (a birthday in
+// 2 days, a work anniversary today) so the Home celebrations block is
+// never empty, whenever the demo is opened.
+const _birthdaySoon = (() => { const d = new Date(); d.setDate(d.getDate() + 2); return d; })();
+const _anniversaryToday = (() => { const d = new Date(); const y = d.getFullYear() - 2; return new Date(y, d.getMonth(), d.getDate()); })();
 const TEAM = [
-  { name: "Maya Chen",     bMonth: 4,  bDay: 12, joinDate: new Date(2023, 0, 15),  location: "Sydney",    title: "CX Manager" },
-  { name: "Jordan Park",   bMonth: 8,  bDay: 3,  joinDate: new Date(2023, 5, 1),   location: "Sydney",    title: "Senior CX Specialist" },
+  { name: "Maya Chen",     bMonth: 4,  bDay: 12, joinDate: _anniversaryToday,      location: "Sydney",    title: "CX Manager" },
+  { name: "Jordan Park",   bMonth: _birthdaySoon.getMonth() + 1, bDay: _birthdaySoon.getDate(), joinDate: new Date(2023, 5, 1), location: "Sydney", title: "Senior CX Specialist" },
   { name: "Priya Sharma",  bMonth: 2,  bDay: 27, joinDate: new Date(2024, 1, 10),  location: "Remote",    title: "CX Specialist" },
   { name: "Aisha Williams",bMonth: 6,  bDay: 19, joinDate: new Date(2024, 6, 15),  location: "Remote",    title: "CX Specialist" },
   { name: "Tom Nguyen",    bMonth: 11, bDay: 8,  joinDate: new Date(2025, 0, 20),  location: "Melbourne", title: "CX Specialist" },
@@ -2246,11 +817,12 @@ const GREETING_LINES_FRIDAY = [
   "End the week on a high.",
 ];
 
+// Dates are relative so the marquee always reads as current.
 const ANNOUNCEMENTS = [
-  { title: "Scalp Serum tingling volume up this week — use SOP 01 for all queries", date: "2026-05-23" },
-  { title: "Hair Edit swap deadline is the 12th — flag any requests coming in after", date: "2026-05-22" },
-  { title: "Failed payments up 18% — proactive outreach campaign launching Monday", date: "2026-05-22" },
-  { title: "Save rate hit 43% this week — great work team 🎉", date: "2026-05-21" },
+  { title: "Scalp Serum tingling volume up this week — use SOP 01 for all queries", date: dateDaysAgo(0) },
+  { title: "Hair Edit swap deadline is the 12th — flag any requests coming in after", date: dateDaysAgo(1) },
+  { title: "Failed payments up 18% — proactive outreach campaign launching Monday", date: dateDaysAgo(1) },
+  { title: "Save rate hit 43% this week — great work team 🎉", date: dateDaysAgo(2) },
 ];
 
 function pickByDay(list, today) {
@@ -2340,8 +912,9 @@ const CREAM_TXT = "#F4F0E8";
 const WARM_GRAY = "#B0AAA2";
 
 function HomeTab({ displayName, setTab, role }) {
-  const [stats, setStats] = useState(null);
-  const [statsLoading, setStatsLoading] = useState(true);
+  // Instant render: seed with the bundled demo summary, then refresh
+  // silently in the background — the tiles never show a loading state.
+  const [stats, setStats] = useState(DEMO_SUMMARY);
   const [statsError, setStatsError] = useState(null);
 
   useEffect(() => {
@@ -2358,8 +931,6 @@ function HomeTab({ displayName, setTab, role }) {
         if (!cancelled) setStats(json);
       } catch (e) {
         if (!cancelled) setStatsError(e.message);
-      } finally {
-        if (!cancelled) setStatsLoading(false);
       }
     })();
     return () => { cancelled = true; };
@@ -2470,22 +1041,22 @@ function HomeTab({ displayName, setTab, role }) {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14, marginBottom: 56 }}>
           <PremiumTile
             label="Tickets handled"
-            value={statsLoading ? "..." : (stats?.volume != null ? stats.volume.toLocaleString() : "—")}
-            hint={stats?.totalAcrossBrands ? `${stats.totalAcrossBrands.toLocaleString()} across brands` : "today"}
+            value={stats?.volume != null ? stats.volume.toLocaleString() : "—"}
+            hint={stats?.volume != null ? `${stats.volume.toLocaleString()} today` : "today"}
           />
           <PremiumTile
             label="CSAT"
-            value={statsLoading ? "..." : (stats?.csat?.average != null ? stats.csat.average.toFixed(2) : "—")}
+            value={stats?.csat?.average != null ? stats.csat.average.toFixed(2) : "—"}
             hint={stats?.csat?.count ? `${stats.csat.count} responses today` : "no responses yet"}
           />
           <PremiumTile
             label="Avg resolution"
-            value={statsLoading ? "..." : formatDuration(stats?.resolution?.avgSeconds)}
+            value={formatDuration(stats?.resolution?.avgSeconds)}
             hint={stats?.resolution?.count ? `${stats.resolution.count} closed` : "—"}
           />
           <PremiumTile
             label="Open"
-            value={statsLoading ? "..." : (stats?.byStatus?.open != null ? stats.byStatus.open.toLocaleString() : "—")}
+            value={stats?.byStatus?.open != null ? stats.byStatus.open.toLocaleString() : "—"}
             hint="awaiting reply · team"
           />
         </div>
@@ -2741,7 +1312,7 @@ function buildRecordsConfig() {
       { key: "customerName",  label: "Customer",      type: "text",     editable: true,  width: 150 },
       { key: "country",       label: "Country",       type: "text",     editable: true,  width: 80 },
       { key: "warehouse",     label: "Warehouse",     type: "select",   editable: true,  width: 110, options: ["", ...ISSUE_WAREHOUSES] },
-      { key: "reasonMains",   label: "Main reason",   type: "csv",      editable: true,  width: 180 },
+      { key: "reasonMains",   label: "Main reason",   type: "csv",      editable: true,  width: 180, labels: REPLACEMENT_REASONS },
       { key: "reasonSubs",    label: "Sub reason",    type: "csv",      editable: true,  width: 220 },
       { key: "itemsAffected", label: "Items",         type: "csv",      editable: true,  width: 200 },
       { key: "courier",       label: "Courier",       type: "text",     editable: true,  width: 100 },
@@ -2810,7 +1381,7 @@ function buildRecordsConfig() {
     columns: [
       { key: "createdAt",            label: "Created",   type: "date",   editable: false, width: 130 },
       { key: "region",               label: "Warehouse", type: "select", editable: true,  width: 100, options: OPS_REGIONS.map(r => r.value) },
-      { key: "im8OrderRef",          label: "Order ref", type: "text",   editable: true,  width: 110 },
+      { key: "orderRef",          label: "Order ref", type: "text",   editable: true,  width: 110 },
       { key: "ticketId",             label: "Ticket #",  type: "text",   editable: true,  width: 110 },
       { key: "recipientName",        label: "Recipient", type: "text",   editable: true,  width: 150 },
       { key: "shipToCity",           label: "City",      type: "text",   editable: true,  width: 110 },
@@ -2820,7 +1391,7 @@ function buildRecordsConfig() {
       { key: "shipCarrier",          label: "Carrier",   type: "text",   editable: true,  width: 100 },
       { key: "awb",                  label: "AWB#",      type: "text",   editable: true,  width: 130 },
       { key: "referenceNumber",      label: "Reference#",type: "text",   editable: true,  width: 130 },
-      { key: "d365SalesOrderNumber", label: "D365 SO#",  type: "text",   editable: true,  width: 130 },
+      { key: "omsOrderNumber", label: "OMS SO#",  type: "text",   editable: true,  width: 130 },
       { key: "shipDate",             label: "Ship date", type: "date",   editable: true,  width: 110 },
       { key: "sent",                 label: "Sent",      type: "bool",   editable: true,  width: 60 },
       { key: "status",               label: "Status",    type: "select", editable: true,  width: 110, options: OPS_STATUSES.map(s => s.value), labels: OPS_STATUSES },
@@ -2893,8 +1464,19 @@ function RecordsTab({ role }) {
   );
 }
 
+// Seed rows per Records list URL — the grid renders instantly and then
+// refreshes silently from the API.
+const RECORDS_SEEDS = {
+  "/api/logs/issues": issuesSeed,
+  "/api/logs/replacements": replacementsSeed,
+  "/api/logs/cancellations": cancellationsSeed,
+  "/api/logs/feedback": feedbackSeed,
+  "/api/logs/adverse-reactions": adverseReactionsSeed,
+  "/api/logs/order-requests": orderRequestsSeed,
+};
+
 function RecordsGrid({ subName, config }) {
-  const [rows, setRows] = useState([]);
+  const [rows, setRows] = useState(() => RECORDS_SEEDS[config.listUrl]?.() ?? []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
@@ -2999,15 +1581,21 @@ function RecordsGrid({ subName, config }) {
   }
 
   function downloadCSV() {
-    const cols = config.columns.map((c) => c.key);
     const escape = (v) => {
-      if (v == null) return "";
-      const s = Array.isArray(v) ? v.join("; ") : (typeof v === "object" ? JSON.stringify(v) : String(v));
+      const s = typeof v === "object" && v !== null && !Array.isArray(v) ? JSON.stringify(v) : String(v ?? "");
       if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
       return s;
     };
+    // Export display values (labels, not enum values) so the CSV reads
+    // the same as the grid.
+    const cell = (col, v) => {
+      if (v == null || v === "") return "";
+      if (col.type === "bool") return v ? "Yes" : "No";
+      if (Array.isArray(v)) return displayCellValue(col, v).replace(/, /g, "; ");
+      return displayCellValue(col, v);
+    };
     const header = config.columns.map((c) => escape(c.label)).join(",");
-    const body = sorted.map((r) => cols.map((k) => escape(r[k])).join(",")).join("\n");
+    const body = sorted.map((r) => config.columns.map((c) => escape(cell(c, r[c.key]))).join(",")).join("\n");
     const blob = new Blob([header + "\n" + body], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -3032,7 +1620,7 @@ function RecordsGrid({ subName, config }) {
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <span style={{ fontFamily: F.sans, fontSize: 11, color: INK, opacity: 0.55 }}>{filtered.length}{search ? ` of ${rows.length}` : ""}</span>
           <button onClick={downloadCSV} style={{ background: "transparent", color: BURG, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700, padding: "8px 14px", letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer", borderRadius: 99 }}>Download CSV</button>
-          <button onClick={load} disabled={loading} style={{ background: "transparent", color: BURG, border: "1px solid " + SOFT_BORDER, fontFamily: F.sans, fontSize: 11, fontWeight: 600, padding: "8px 14px", letterSpacing: 1, cursor: loading ? "wait" : "pointer", borderRadius: 99 }}>{loading ? "..." : "Refresh"}</button>
+          <button onClick={load} disabled={loading} style={{ background: "transparent", color: BURG, border: "1px solid " + SOFT_BORDER, fontFamily: F.sans, fontSize: 11, fontWeight: 600, padding: "8px 14px", letterSpacing: 1, cursor: loading ? "wait" : "pointer", borderRadius: 99 }}>Refresh</button>
         </div>
       </div>
       {error && <div style={{ background: "#fee", border: "1px solid " + RED, color: RED, padding: 8, borderRadius: 6, marginBottom: 10, fontFamily: F.sans, fontSize: 12 }}>{error}</div>}
@@ -3102,9 +1690,23 @@ function RecordsGrid({ subName, config }) {
   );
 }
 
+// Human-readable form of any cell value: maps option values to their
+// labels, strips "main::Sub" composite prefixes, joins arrays. Shared by
+// the Records grid and its CSV export so no raw enum value ever renders.
+function displayCellValue(col, value) {
+  const one = (v) => {
+    const s = String(v ?? "");
+    const bare = s.includes("::") ? s.split("::").pop() : s;
+    const found = col.labels?.find((l) => l.value === bare || l.label === bare);
+    return found ? found.label : bare;
+  };
+  if (Array.isArray(value)) return value.map(one).join(", ");
+  return one(value);
+}
+
 function CellDisplay({ col, value }) {
   if (value == null || value === "") return <span style={{ color: INK, opacity: 0.3 }}>—</span>;
-  if (col.type === "csv") return <span>{Array.isArray(value) ? value.join(", ") : String(value)}</span>;
+  if (col.type === "csv") return <span>{displayCellValue(col, value)}</span>;
   if (col.type === "bool") return <span style={{ color: value ? "#2a7a2a" : INK, fontWeight: value ? 700 : 400 }}>{value ? "✓" : "—"}</span>;
   if (col.type === "date") {
     const d = new Date(value);
@@ -3232,20 +1834,22 @@ function WeeklySummaryView() {
       localStorage.setItem(REPORT_RANGE_KEY, JSON.stringify({ from, to }));
     }
   }, [from, to]);
-  const [gorgias, setGorgias] = useState(null);
-  const [shop, setShop] = useState(null);
-  const [loop, setLoop] = useState(null);
-  const [skio, setSkio] = useState(null);
-  const [skioReasons, setSkioReasons] = useState(null);
+  // Instant render: seed every section from the bundled demo data and
+  // refresh silently — the report never shows a skeleton.
+  const [gorgias, setGorgias] = useState(DEMO_SUMMARY);
+  const [shop, setShop] = useState(DEMO_SHOPIFY);
+  const [loop, setLoop] = useState(DEMO_LOOP);
+  const [skio, setSkio] = useState(DEMO_SKIO);
+  const [skioReasons, setSkioReasons] = useState(DEMO_SKIO_CANCEL_REASONS);
   // trends state removed May 17 — the /api/insights/trends fetch was
   // routinely timing out at 280s for week-long ranges and producing
   // "Took too long" errors in the report. Section dropped from both
   // the Reports UI and the stakeholder email below.
-  const [issues, setIssues] = useState([]);
-  const [replacements, setReplacements] = useState([]);
-  const [cancellations, setCancellations] = useState([]);
-  const [feedback, setFeedback] = useState([]);
-  const [adverse, setAdverse] = useState([]);
+  const [issues, setIssues] = useState(() => issuesSeed());
+  const [replacements, setReplacements] = useState(() => replacementsSeed());
+  const [cancellations, setCancellations] = useState(() => cancellationsSeed());
+  const [feedback, setFeedback] = useState(() => feedbackSeed());
+  const [adverse, setAdverse] = useState(() => adverseReactionsSeed());
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [showSend, setShowSend] = useState(false);
@@ -3304,7 +1908,7 @@ function WeeklySummaryView() {
     setSkioReasons(null);
     setIssues([]); setReplacements([]); setCancellations([]);
     setFeedback([]); setAdverse([]);
-    // Anchor date ranges to HKT (UTC+8) — Prenetics's Gorgias account
+    // Anchor date ranges to AEST (UTC+10) — LUMÉ's Gorgias account
     // timezone. This way the same date range in the Hub matches the same
     // date range in Gorgias's dashboard, regardless of where the viewer
     // is sitting. HKT doesn't observe DST so +08:00 is always correct.
@@ -3325,7 +1929,7 @@ function WeeklySummaryView() {
     //     server-side maxDuration is 300s; we sit just under that.
     //   - gorgias summary: paginates the entire Gorgias ticket list for
     //     the window. On heavier weeks (5-10k tickets across all
-    //     Prenetics brands) this needs 2-3 minutes.
+    //     the account) this needs 2-3 minutes.
     const FETCH_TIMEOUT_MS = 90_000;
     const FETCH_TIMEOUT_OVERRIDES = {
       trends:  280_000, // 4 min 40 sec — server maxDuration is 300s
@@ -3392,10 +1996,13 @@ function WeeklySummaryView() {
     skioReasons,
     // trends/trendsSampleSize/trendsReadAll removed May 17 — see
     // trends-state comment above for the rationale.
-    issuesByWarehouse: groupCount(issues, (r) => r.warehouse || "Unspecified"),
+    issuesByWarehouse: groupCount(issues, (r) => r.warehouse || warehouseFromCountry(r.country)),
     issuesByCategory:  groupCount(issues, (r) => prettyEnum(r.category, ISSUE_CATEGORIES)),
-    replacementsByReason:    groupCount(replacements, (r) => prettyEnum(r.reason, REPLACEMENT_REASONS)),
-    replacementsByWarehouse: groupCount(replacements, (r) => r.warehouse || "Unspecified"),
+    replacementsByReason:    groupCount(
+      replacements.flatMap((r) => (r.reasonMains?.length ? r.reasonMains : [r.reason]).filter(Boolean).map((m) => ({ reasonKey: m }))),
+      (r) => prettyEnum(r.reasonKey, REPLACEMENT_REASONS)
+    ),
+    replacementsByWarehouse: groupCount(replacements, (r) => r.warehouse || warehouseFromCountry(r.country)),
     cancellationReasons: groupCount(cancellations, (r) => prettyEnum(r.cancellationType, CANCELLATION_TYPES)),
     feedbackByTheme:     groupCount(feedback, (r) => prettyEnum(r.theme, FEEDBACK_THEMES)),
     feedbackSamples:     feedback.slice(0, 6),
@@ -3426,7 +2033,7 @@ function WeeklySummaryView() {
             <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={{ padding: "6px 10px", border: "1px solid " + SOFT_BORDER, borderRadius: 6, fontFamily: F.sans, fontSize: 12 }} />
             <span style={{ fontFamily: F.sans, fontSize: 12, color: INK, opacity: 0.5 }}>to</span>
             <input type="date" value={to} onChange={(e) => setTo(e.target.value)} style={{ padding: "6px 10px", border: "1px solid " + SOFT_BORDER, borderRadius: 6, fontFamily: F.sans, fontSize: 12 }} />
-            <button onClick={load} disabled={loading} style={{ background: "transparent", color: BURG, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700, padding: "8px 16px", letterSpacing: 1.5, textTransform: "uppercase", cursor: loading ? "wait" : "pointer", borderRadius: 99, opacity: loading ? 0.5 : 1 }}>{loading ? "Loading..." : "Refresh"}</button>
+            <button onClick={load} disabled={loading} style={{ background: "transparent", color: BURG, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700, padding: "8px 16px", letterSpacing: 1.5, textTransform: "uppercase", cursor: loading ? "wait" : "pointer", borderRadius: 99, opacity: loading ? 0.5 : 1 }}>Refresh</button>
             <button onClick={() => setShowSend(true)} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700, padding: "8px 18px", letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer", borderRadius: 99 }}>Send to Stakeholders</button>
           </div>
         </div>
@@ -3449,7 +2056,6 @@ function WeeklySummaryView() {
           <div style={sectionLabel}>Refunds</div>
           {errors.loop && <ErrorLine text={errors.loop} />}
           {loop && <RefundsSummaryBlock loop={loop} shop={shop} />}
-          {!loop && !errors.loop && <SkeletonLine />}
         </div>
 
         {/* Subscriptions */}
@@ -3457,12 +2063,6 @@ function WeeklySummaryView() {
           <div style={sectionLabel}>Subscriptions (Skio)</div>
           {errors.skio && <ErrorLine text={errors.skio} />}
           {skio && <SkioSummaryBlock skio={skio} />}
-          {!skio && !errors.skio && <SkeletonLine />}
-          {!skioReasons && !errors.skioReasons && skio && (
-            <div style={{ marginTop: 14, fontFamily: F.serif, fontStyle: "italic", fontSize: 13, color: INK, opacity: 0.4 }}>
-              Loading cancellation reasons…
-            </div>
-          )}
           {(skioReasons?.topCancelReasons ?? []).length > 0 && (
             <div style={{ marginTop: 14, background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 10, padding: "16px 20px" }}>
               <div style={{ fontFamily: F.sans, fontSize: 11, color: BURG, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 10 }}>
@@ -3659,7 +2259,10 @@ function WeeklySummaryView() {
 // ── small render helpers ──────────────────────────────────────────
 
 function prettyEnum(value, mapList) {
-  const found = mapList?.find((m) => m.value === value);
+  // Values may be stored as the option value OR already as the display
+  // label (seed data stores labels for free-form reason fields) — both
+  // resolve to the label so grouping and rendering stay consistent.
+  const found = mapList?.find((m) => m.value === value || m.label === value);
   if (found) return found.label;
   // Fallback: kebab-case → Title Case
   return String(value || "").replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -3677,9 +2280,6 @@ function groupCount(rows, keyFn) {
 
 function ErrorLine({ text }) {
   return <div style={{ background: "#fee", border: "1px solid " + RED, color: RED, padding: 10, borderRadius: 8, fontFamily: F.sans, fontSize: 12 }}>{text}</div>;
-}
-function SkeletonLine() {
-  return <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 10, padding: "16px 20px", fontFamily: F.serif, fontStyle: "italic", fontSize: 14, color: INK, opacity: 0.4 }}>Loading…</div>;
 }
 function EmptyLine({ text }) {
   return <div style={{ fontFamily: F.serif, fontStyle: "italic", fontSize: 14, color: INK, opacity: 0.5, padding: "8px 0" }}>{text}</div>;
@@ -3873,7 +2473,7 @@ function LoopOperationsBlock({ loop }) {
         {tile("Awaiting ship-back", open.toLocaleString(), "state = open")}
         {tile("Cancelled / abandoned", cancelled.toLocaleString(), "did not complete")}
         {tile("Labels generated", ops.labelsGenerated.toLocaleString(), pct(ops.labelsGenerated, ops.submitted) + " of submitted")}
-        {tile("Handling fees", formatMoney(ops.handlingFeesTotal), "across all returns · customer-paid vs IM8-paid split TBC with Loop")}
+        {tile("Handling fees", formatMoney(ops.handlingFeesTotal), "across all returns · customer-paid vs LUMÉ-paid split TBC with Loop")}
       </div>
 
       {/* Keep-item / return-required ROI line — Cherie's policy comparison.
@@ -3891,7 +2491,7 @@ function LoopOperationsBlock({ loop }) {
       )}
 
       <div style={{ marginTop: 10, fontFamily: F.serif, fontStyle: "italic", fontSize: 11, color: INK, opacity: 0.45 }}>
-        Loop costs split (customer-covered vs IM8-covered) to be confirmed with Loop. Tracking for return-required policy ROI vs keep-item approach.
+        Loop costs split (customer-covered vs LUMÉ-covered) to be confirmed with Loop. Tracking for return-required policy ROI vs keep-item approach.
       </div>
     </div>
   );
@@ -4047,7 +2647,7 @@ function KeyMetricsBlock({ gorgias, shop, loop, skio, errors }) {
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
-      {tile("Tickets", num(gorgias?.volume), gorgias?.totalAcrossBrands ? `${num(gorgias.totalAcrossBrands)} all brands` : null)}
+      {tile("Tickets", num(gorgias?.volume), gorgias?.volume != null ? `${num(gorgias.volume)} in range` : null)}
       {tile("Open", num(gorgias?.byStatus?.open))}
       {tile("Closed", num(gorgias?.byStatus?.closed))}
       {tile("CSAT", gorgias?.csat?.average != null ? gorgias.csat.average.toFixed(2) : "—", gorgias?.csat?.count ? `${gorgias.csat.count} responses` : null)}
@@ -4244,7 +2844,7 @@ function buildPlainTextEmail(d) {
       lines.push(head);
       (t.quotes ?? []).forEach((q, j) => {
         const tid = t.quoteTicketIds?.[j];
-        const suffix = tid ? `  [#${tid}: https://prenetics.gorgias.com/app/ticket/${tid}]` : "";
+        const suffix = tid ? `  [#${tid}: https://lumebeauty.gorgias.com/app/ticket/${tid}]` : "";
         lines.push(`   "${q}"${suffix}`);
       });
       if (t.signal) lines.push(`   Signal: ${t.signal}`);
@@ -4397,7 +2997,7 @@ function buildHtmlEmail(d) {
   // The hash fragment (#records:Issues etc.) is read on mount by the
   // App and RecordsTab components to land on the right sub-tab — the
   // hub itself is a single-page app, so all tabs share this base URL.
-  const HUB = "https://im8-cs-hub-production.up.railway.app";
+  const HUB = "https://cx.withluma.com.au";
   const drill = (count, sub) =>
     `<a href="${HUB}/#records:${sub}" style="color:#50000B;font-weight:700;text-decoration:underline;">${count}</a>`;
   // "Cancellation reasons (agent-tagged)" block removed at Cherie's
@@ -4568,23 +3168,11 @@ function SendToStakeholdersModal({ report, fromDate, toDate, onClose }) {
 // orphans in case we ever need to revive the tab.
 const LOGS_SUBTABS = ["Order Issue", "Replacements", "Reaction/Concern", "Feedback"];
 
-// Ops Request "Warehouse" dropdown. Per Aina (May 15) — switched from
-// regional labels (US/UK/HK/ME) to the canonical warehouse names so
-// the value here matches the Issue tab's Warehouse field, the
-// warehouseFromCountry helper, and every other warehouse surface
-// in the hub. "Other" is dropped — every order ships from one of the
-// five named warehouses, no escape hatch needed.
-//
-// Historical Ops Request records may carry legacy values (US, UK, HK,
-// ME) — those still render in their select since the option list isn't
-// authoritative for display, just for new selections.
-const OPS_REGIONS = [
-  { value: "Stord US", label: "Stord US" },
-  { value: "Stord EU", label: "Stord EU" },
-  { value: "GPS US",   label: "GPS US" },
-  { value: "GPS UK",   label: "GPS UK" },
-  { value: "HK",       label: "HK" },
-];
+// Ops Request "Warehouse" dropdown — the three canonical LUMÉ
+// warehouses (Parcelline 3PL), matching the Issue tab's Warehouse field,
+// the warehouseFromCountry helper, and every other warehouse surface in
+// the hub. No "Other" — every order ships from one of the three.
+const OPS_REGIONS = WAREHOUSES.map((w) => ({ value: w, label: w }));
 const OPS_STATUSES = [
   { value: "pending",     label: "Pending — awaiting Ops" },
   { value: "in-progress", label: "In progress" },
@@ -4615,8 +3203,8 @@ const AR_STATUS = [
 ];
 const AR_ESCALATION = ["Head of CX", "VP Ops", "Legal", "QC Manager", "Medical Affairs", "Other"];
 const AR_COMMON_SYMPTOMS = [
-  "Rash", "GI / digestive", "Headache", "Nausea", "Dizziness", "Allergic reaction",
-  "Brain fog", "Heart palpitations", "Breathing", "Other",
+  "Redness", "Itching", "Burning sensation", "Rash / hives", "Flaking / dryness",
+  "Swelling", "Watery eyes", "Breakout along hairline", "Other",
 ];
 
 // Combined list — the new May 2026 taxonomy (from REPLACEMENT_MAIN_REASONS)
@@ -4694,28 +3282,11 @@ const ISSUE_RESOLUTIONS = [
   { value: "gift",        label: "Free gift" },
   { value: "no-action",   label: "No action" },
 ];
-const ISSUE_WAREHOUSES = ["AU — Sydney", "US — Los Angeles", "UK — London"];
+// Canonical warehouse list + country mapping live in lib/demo-dates.js
+// (shared with the seed data so every record resolves to a real
+// warehouse — nothing ever buckets as "Unspecified").
+const ISSUE_WAREHOUSES = WAREHOUSES;
 const ISSUE_SEVERITY = ["low", "normal", "high"];
-
-// Best-guess warehouse from shipping country. Used by LOOKUP to pre-fill
-// the Warehouse field so agents stop typing the wrong one. Agent can
-// always override — this is a starting point, not a hard rule.
-function warehouseFromCountry(country) {
-  const c = String(country || "").toUpperCase().trim();
-  if (!c) return "";
-  if (["US", "USA", "UNITED STATES", "UNITED STATES OF AMERICA"].includes(c)) return "Stord US";
-  if (["CA", "CAN", "CANADA"].includes(c)) return "Stord US";
-  if (["GB", "UK", "UNITED KINGDOM"].includes(c)) return "GPS UK";
-  if (["IE", "IRL", "IRELAND", "IM", "ISLE OF MAN"].includes(c)) return "GPS UK";
-  if (["HK", "HONG KONG"].includes(c)) return "HK";
-  // APAC ships from HK warehouse
-  const APAC = ["SG", "SINGAPORE", "JP", "JAPAN", "TW", "TAIWAN", "KR", "SOUTH KOREA",
-                "AU", "AUS", "AUSTRALIA", "NZ", "NEW ZEALAND", "MY", "MALAYSIA",
-                "ID", "INDONESIA", "PH", "PHILIPPINES", "TH", "THAILAND", "VN", "VIETNAM"];
-  if (APAC.includes(c)) return "HK";
-  // Default for EU + ROW = Stord EU
-  return "Stord EU";
-}
 
 // Reusable multi-select chips component (used by Issues Items Affected
 // and Replacement Main/Sub Reason fields). Click to toggle; selected
@@ -5011,7 +3582,7 @@ function IssueLogPanel({ role }) {
   const [lookupError, setLookupError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
-  const [recent, setRecent] = useState([]);
+  const [recent, setRecent] = useState(() => issuesSeed()); // instant render — refreshed silently
   const [scope, setScope] = useState("own");
   const [loading, setLoading] = useState(false);
 
@@ -5129,7 +3700,7 @@ function IssueLogPanel({ role }) {
                 background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700,
                 padding: "0 18px", letterSpacing: 1.5, textTransform: "uppercase", cursor: orderId.trim() && !lookupLoading ? "pointer" : "not-allowed",
                 borderRadius: 8, opacity: orderId.trim() && !lookupLoading ? 1 : 0.5,
-              }}>{lookupLoading ? "..." : "Lookup"}</button>
+              }}>Lookup</button>
             </div>
             {lookupError && <div style={{ fontFamily: F.sans, fontSize: 11, color: RED, marginTop: 4 }}>{lookupError}</div>}
           </div>
@@ -5243,7 +3814,7 @@ function IssueLogPanel({ role }) {
         return (
           <>
             <div style={{ fontFamily: F.sans, fontSize: 11, color: BURG, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", marginBottom: 12 }}>
-              {scope === "all" ? "Recent — all agents · last 7 days" : "Your recent entries · last 7 days"} ({loading ? "..." : recent7.length})
+              {scope === "all" ? "Recent — all agents · last 7 days" : "Your recent entries · last 7 days"} ({recent7.length})
             </div>
             <RecentLogTable
               rows={recent7}
@@ -5290,7 +3861,7 @@ function ReplacementLogPanel({ role }) {
   const [lookupError, setLookupError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
-  const [recent, setRecent] = useState([]);
+  const [recent, setRecent] = useState(() => replacementsSeed()); // instant render — refreshed silently
   const [scopeShown, setScopeShown] = useState("own");
   const [loading, setLoading] = useState(false);
 
@@ -5389,7 +3960,7 @@ function ReplacementLogPanel({ role }) {
             <label style={labelStyle}>Order ID <span style={{ color: RED, fontWeight: 700 }}>*</span></label>
             <div style={{ display: "flex", gap: 8 }}>
               <input value={orderId} onChange={(e) => setOrderId(e.target.value)} placeholder="#LME-10500" style={{ ...inputBase, flex: 1 }} />
-              <button onClick={lookupOrder} disabled={!orderId.trim() || lookupLoading} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700, padding: "0 18px", letterSpacing: 1.5, textTransform: "uppercase", cursor: orderId.trim() && !lookupLoading ? "pointer" : "not-allowed", borderRadius: 8, opacity: orderId.trim() && !lookupLoading ? 1 : 0.5 }}>{lookupLoading ? "..." : "Lookup"}</button>
+              <button onClick={lookupOrder} disabled={!orderId.trim() || lookupLoading} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700, padding: "0 18px", letterSpacing: 1.5, textTransform: "uppercase", cursor: orderId.trim() && !lookupLoading ? "pointer" : "not-allowed", borderRadius: 8, opacity: orderId.trim() && !lookupLoading ? 1 : 0.5 }}>Lookup</button>
             </div>
             {lookupError && <div style={{ fontFamily: F.sans, fontSize: 11, color: RED, marginTop: 4 }}>{lookupError}</div>}
           </div>
@@ -5505,7 +4076,7 @@ function ReplacementLogPanel({ role }) {
         return (
           <>
             <div style={{ fontFamily: F.sans, fontSize: 11, color: BURG, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", marginBottom: 12 }}>
-              {scopeShown === "all" ? "Recent — all agents · last 7 days" : "Your recent entries · last 7 days"} ({loading ? "..." : recent7.length})
+              {scopeShown === "all" ? "Recent — all agents · last 7 days" : "Your recent entries · last 7 days"} ({recent7.length})
             </div>
             <RecentLogTable
               rows={recent7}
@@ -5542,14 +4113,14 @@ function CancellationLogPanel({ role }) {
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [country, setCountry] = useState("");
-  const [cancellationType, setCancellationType] = useState("change-of-mind");
+  const [cancellationType, setCancellationType] = useState(CANCELLATION_TYPES[0].value);
   const [scope, setScope] = useState("subscription");
   const [notes, setNotes] = useState("");
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupError, setLookupError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
-  const [recent, setRecent] = useState([]);
+  const [recent, setRecent] = useState(() => cancellationsSeed()); // instant render — refreshed silently
   const [scopeShown, setScopeShown] = useState("own");
   const [loading, setLoading] = useState(false);
 
@@ -5602,7 +4173,7 @@ function CancellationLogPanel({ role }) {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
       setOrderId(""); setTicketId(""); setCustomerName(""); setCustomerEmail(""); setCountry("");
-      setCancellationType("change-of-mind"); setScope("subscription"); setNotes("");
+      setCancellationType(CANCELLATION_TYPES[0].value); setScope("subscription"); setNotes("");
       loadRecent();
     } catch (e) { setFormError(e.message); }
     finally { setSubmitting(false); }
@@ -5621,7 +4192,7 @@ function CancellationLogPanel({ role }) {
             <label style={labelStyle}>Order ID</label>
             <div style={{ display: "flex", gap: 8 }}>
               <input value={orderId} onChange={(e) => setOrderId(e.target.value)} placeholder="#LME-10500" style={{ ...inputBase, flex: 1 }} />
-              <button onClick={lookupOrder} disabled={!orderId.trim() || lookupLoading} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700, padding: "0 18px", letterSpacing: 1.5, textTransform: "uppercase", cursor: orderId.trim() && !lookupLoading ? "pointer" : "not-allowed", borderRadius: 8, opacity: orderId.trim() && !lookupLoading ? 1 : 0.5 }}>{lookupLoading ? "..." : "Lookup"}</button>
+              <button onClick={lookupOrder} disabled={!orderId.trim() || lookupLoading} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700, padding: "0 18px", letterSpacing: 1.5, textTransform: "uppercase", cursor: orderId.trim() && !lookupLoading ? "pointer" : "not-allowed", borderRadius: 8, opacity: orderId.trim() && !lookupLoading ? 1 : 0.5 }}>Lookup</button>
             </div>
             {lookupError && <div style={{ fontFamily: F.sans, fontSize: 11, color: RED, marginTop: 4 }}>{lookupError}</div>}
           </div>
@@ -5663,7 +4234,7 @@ function CancellationLogPanel({ role }) {
       </div>
 
       <div style={{ fontFamily: F.sans, fontSize: 11, color: BURG, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", marginBottom: 12 }}>
-        {scopeShown === "all" ? "Recent — all agents" : "Your recent entries"} ({loading ? "..." : recent.length})
+        {scopeShown === "all" ? "Recent — all agents" : "Your recent entries"} ({recent.length})
       </div>
       {recent.length === 0 && !loading && (
         <div style={{ fontFamily: F.serif, fontStyle: "italic", fontSize: 14, color: INK, opacity: 0.5, padding: "16px 0" }}>No cancellations logged yet.</div>
@@ -5675,7 +4246,7 @@ function CancellationLogPanel({ role }) {
             <div style={{ fontFamily: F.sans, fontSize: 10, color: INK, opacity: 0.5, letterSpacing: 1 }}>{new Date(r.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>
           </div>
           <div style={{ fontFamily: F.sans, fontSize: 11, color: BURG, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", marginTop: 4 }}>
-            {r.cancellationType} · {r.scope}
+            {prettyEnum(r.cancellationType, CANCELLATION_TYPES)} · {prettyEnum(r.scope, CANCELLATION_SCOPES)}
           </div>
           {r.notes && <div style={{ fontFamily: F.sans, fontSize: 13, color: INK, marginTop: 6, lineHeight: 1.5 }}>{r.notes}</div>}
         </div>
@@ -5697,7 +4268,7 @@ function CancelNoRefundLogPanel({ role }) {
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
-  const [recent, setRecent] = useState([]);
+  const [recent, setRecent] = useState(() => cancelNoRefundSeed()); // instant render — refreshed silently
   const [scopeShown, setScopeShown] = useState("own");
   const [loading, setLoading] = useState(false);
 
@@ -5786,7 +4357,7 @@ function CancelNoRefundLogPanel({ role }) {
       </div>
 
       <div style={{ fontFamily: F.sans, fontSize: 11, color: BURG, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", marginBottom: 12 }}>
-        {scopeShown === "all" ? "Recent — all agents" : "Your recent entries"} ({loading ? "..." : recent.length})
+        {scopeShown === "all" ? "Recent — all agents" : "Your recent entries"} ({recent.length})
       </div>
       {recent.length === 0 && !loading && (
         <div style={{ fontFamily: F.serif, fontStyle: "italic", fontSize: 13, color: INK, opacity: 0.55 }}>None logged yet.</div>
@@ -5839,7 +4410,7 @@ function FeedbackLogPanel({ role }) {
   const [lookupError, setLookupError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
-  const [recent, setRecent] = useState([]);
+  const [recent, setRecent] = useState(() => feedbackSeed()); // instant render — refreshed silently
   const [scopeShown, setScopeShown] = useState("own");
   const [loading, setLoading] = useState(false);
 
@@ -5917,7 +4488,7 @@ function FeedbackLogPanel({ role }) {
             <label style={labelStyle}>Order ID (optional — IG DM has no order)</label>
             <div style={{ display: "flex", gap: 8 }}>
               <input value={orderId} onChange={(e) => setOrderId(e.target.value)} placeholder="#LME-10500" style={{ ...inputBase, flex: 1 }} />
-              <button onClick={lookupOrder} disabled={!orderId.trim() || lookupLoading} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700, padding: "0 18px", letterSpacing: 1.5, textTransform: "uppercase", cursor: orderId.trim() && !lookupLoading ? "pointer" : "not-allowed", borderRadius: 8, opacity: orderId.trim() && !lookupLoading ? 1 : 0.5 }}>{lookupLoading ? "..." : "Lookup"}</button>
+              <button onClick={lookupOrder} disabled={!orderId.trim() || lookupLoading} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700, padding: "0 18px", letterSpacing: 1.5, textTransform: "uppercase", cursor: orderId.trim() && !lookupLoading ? "pointer" : "not-allowed", borderRadius: 8, opacity: orderId.trim() && !lookupLoading ? 1 : 0.5 }}>Lookup</button>
             </div>
             {lookupError && <div style={{ fontFamily: F.sans, fontSize: 11, color: RED, marginTop: 4 }}>{lookupError}</div>}
           </div>
@@ -5970,7 +4541,7 @@ function FeedbackLogPanel({ role }) {
         return (
           <>
             <div style={{ fontFamily: F.sans, fontSize: 11, color: BURG, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", marginBottom: 12 }}>
-              {scopeShown === "all" ? "Recent — all agents · last 7 days" : "Your recent entries · last 7 days"} ({loading ? "..." : recent7.length})
+              {scopeShown === "all" ? "Recent — all agents · last 7 days" : "Your recent entries · last 7 days"} ({recent7.length})
             </div>
             <RecentLogTable
               rows={recent7}
@@ -5997,11 +4568,11 @@ function OrderRequestLogPanel({ role }) {
   const isOpsRole = role === "Ops";
   const canEdit = isOpsRole || (role && ["Lead Agent","Manager","Admin","Owner"].includes(role));
   const [region, setRegion] = useState("US");
-  const [im8OrderRef, setIm8OrderRef] = useState("");
+  const [orderRef, setOrderRef] = useState("");
   const [ticketId, setTicketId] = useState("");
   const [referenceNumber, setReferenceNumber] = useState("");
-  const [d365SalesOrderNumber, setD365SalesOrderNumber] = useState("");
-  const [d365SKUsText, setD365SKUsText] = useState("");
+  const [omsOrderNumber, setOmsOrderNumber] = useState("");
+  const [skusText, setSkusText] = useState("");
   const [dispatchWarehouse, setDispatchWarehouse] = useState("");
   const [shipCarrier, setShipCarrier] = useState("");
   const [awb, setAwb] = useState("");
@@ -6025,7 +4596,7 @@ function OrderRequestLogPanel({ role }) {
   const [lookupError, setLookupError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
-  const [recent, setRecent] = useState([]);
+  const [recent, setRecent] = useState(() => orderRequestsSeed()); // instant render — refreshed silently
   const [scopeShown, setScopeShown] = useState("own");
   const [filterRegion, setFilterRegion] = useState("");
   const [filterPending, setFilterPending] = useState(isOpsRole);
@@ -6048,11 +4619,11 @@ function OrderRequestLogPanel({ role }) {
   useEffect(() => { loadRecent(); }, [filterRegion, filterPending]);
 
   async function lookupOrder() {
-    if (!im8OrderRef.trim()) return;
+    if (!orderRef.trim()) return;
     setLookupLoading(true);
     setLookupError(null);
     try {
-      const res = await fetch(`/api/orders/lookup?id=${encodeURIComponent(im8OrderRef.trim())}`);
+      const res = await fetch(`/api/orders/lookup?id=${encodeURIComponent(orderRef.trim())}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
       const ship = json.shipping ?? {};
@@ -6074,13 +4645,13 @@ function OrderRequestLogPanel({ role }) {
 
   async function submit() {
     setFormError(null);
-    if (!im8OrderRef.trim()) { setFormError("Order ref required"); return; }
+    if (!orderRef.trim()) { setFormError("Order ref required"); return; }
     if (!ticketId.trim()) { setFormError("Gorgias ticket # required"); return; }
     if (!recipientName.trim()) { setFormError("Recipient name required"); return; }
     if (!itemsDescription.trim()) { setFormError("Items description required"); return; }
     setSubmitting(true);
     try {
-      const d365SKUs = d365SKUsText.split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
+      const skus = skusText.split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
       const res = await fetch("/api/logs/order-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -6088,10 +4659,10 @@ function OrderRequestLogPanel({ role }) {
           region,
           requestedBy: requestedBy.trim() || undefined,
           ticketId: ticketId.trim() || undefined,
-          im8OrderRef: im8OrderRef.trim(),
+          orderRef: orderRef.trim(),
           referenceNumber: referenceNumber.trim() || undefined,
-          d365SalesOrderNumber: d365SalesOrderNumber.trim() || undefined,
-          d365SKUs,
+          omsOrderNumber: omsOrderNumber.trim() || undefined,
+          skus,
           dispatchWarehouse: dispatchWarehouse.trim() || undefined,
           shipCarrier: shipCarrier.trim() || undefined,
           awb: awb.trim() || undefined,
@@ -6113,8 +4684,8 @@ function OrderRequestLogPanel({ role }) {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
-      setIm8OrderRef(""); setTicketId(""); setReferenceNumber(""); setD365SalesOrderNumber("");
-      setD365SKUsText(""); setDispatchWarehouse(""); setShipCarrier(""); setAwb("");
+      setOrderRef(""); setTicketId(""); setReferenceNumber(""); setOmsOrderNumber("");
+      setSkusText(""); setDispatchWarehouse(""); setShipCarrier(""); setAwb("");
       setShipDate(""); setSent(false); setRecipientName("");
       setShipToAddress1(""); setShipToAddress2(""); setShipToCity(""); setShipToState("");
       setShipToZip(""); setShipToCountry(""); setShipToPhone(""); setShipToEmail("");
@@ -6143,8 +4714,8 @@ function OrderRequestLogPanel({ role }) {
           <div>
             <label style={labelStyle}>Order ref (auto-fills recipient)</label>
             <div style={{ display: "flex", gap: 8 }}>
-              <input value={im8OrderRef} onChange={(e) => setIm8OrderRef(e.target.value)} placeholder="#LME-10500" style={{ ...inputBase, flex: 1 }} />
-              <button onClick={lookupOrder} disabled={!im8OrderRef.trim() || lookupLoading} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700, padding: "0 18px", letterSpacing: 1.5, textTransform: "uppercase", cursor: im8OrderRef.trim() && !lookupLoading ? "pointer" : "not-allowed", borderRadius: 8, opacity: im8OrderRef.trim() && !lookupLoading ? 1 : 0.5 }}>{lookupLoading ? "..." : "Lookup"}</button>
+              <input value={orderRef} onChange={(e) => setOrderRef(e.target.value)} placeholder="#LME-10500" style={{ ...inputBase, flex: 1 }} />
+              <button onClick={lookupOrder} disabled={!orderRef.trim() || lookupLoading} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700, padding: "0 18px", letterSpacing: 1.5, textTransform: "uppercase", cursor: orderRef.trim() && !lookupLoading ? "pointer" : "not-allowed", borderRadius: 8, opacity: orderRef.trim() && !lookupLoading ? 1 : 0.5 }}>Lookup</button>
             </div>
             {lookupError && <div style={{ fontFamily: F.sans, fontSize: 11, color: RED, marginTop: 4 }}>{lookupError}</div>}
           </div>
@@ -6178,13 +4749,13 @@ function OrderRequestLogPanel({ role }) {
 
         <div style={{ fontFamily: F.sans, fontSize: 10, color: BURG, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", marginBottom: 8, marginTop: 12 }}>Ops detail (filled by Ops once shipped)</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
-          <div><label style={labelStyle}>Dispatch warehouse</label><input value={dispatchWarehouse} onChange={(e) => setDispatchWarehouse(e.target.value)} placeholder="USOPS-WH05 (Stord)" style={inputBase} /></div>
+          <div><label style={labelStyle}>Dispatch warehouse</label><input value={dispatchWarehouse} onChange={(e) => setDispatchWarehouse(e.target.value)} placeholder="SYD-01 (Parcelline)" style={inputBase} /></div>
           <div><label style={labelStyle}>Ship carrier</label><input value={shipCarrier} onChange={(e) => setShipCarrier(e.target.value)} placeholder="FedEx / asendia / etc." style={inputBase} /></div>
           <div><label style={labelStyle}>Tracking AWB#</label><input value={awb} onChange={(e) => setAwb(e.target.value)} style={inputBase} /></div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
           <div><label style={labelStyle}>Reference #</label><input value={referenceNumber} onChange={(e) => setReferenceNumber(e.target.value)} placeholder="ST-20260102-02" style={inputBase} /></div>
-          <div><label style={labelStyle}>D365 SO #</label><input value={d365SalesOrderNumber} onChange={(e) => setD365SalesOrderNumber(e.target.value)} placeholder="U001-SO-478288" style={inputBase} /></div>
+          <div><label style={labelStyle}>OMS SO #</label><input value={omsOrderNumber} onChange={(e) => setOmsOrderNumber(e.target.value)} placeholder="PL-88412" style={inputBase} /></div>
           <div><label style={labelStyle}>Ship date</label><input type="date" value={shipDate} onChange={(e) => setShipDate(e.target.value)} style={inputBase} /></div>
           <div>
             <label style={labelStyle}>Status</label>
@@ -6194,8 +4765,8 @@ function OrderRequestLogPanel({ role }) {
           </div>
         </div>
         <div style={{ marginBottom: 14 }}>
-          <label style={labelStyle}>D365 SKUs (one per line)</label>
-          <textarea value={d365SKUsText} onChange={(e) => setD365SKUsText(e.target.value)} rows={2} placeholder="Smooth Serum x1&#10;Repair Serum x1" style={{ ...inputBase, fontFamily: F.sans, resize: "vertical" }} />
+          <label style={labelStyle}>SKUs (one per line)</label>
+          <textarea value={skusText} onChange={(e) => setSkusText(e.target.value)} rows={2} placeholder="Smooth Serum x1&#10;Repair Serum x1" style={{ ...inputBase, fontFamily: F.sans, resize: "vertical" }} />
         </div>
 
         <div style={{ marginBottom: 14 }}>
@@ -6218,7 +4789,7 @@ function OrderRequestLogPanel({ role }) {
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 12 }}>
         <div style={{ fontFamily: F.sans, fontSize: 11, color: BURG, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase" }}>
-          {isOpsRole ? "Pending fulfillment queue" : (scopeShown === "all" ? "Recent — all agents" : "Your recent entries")} ({loading ? "..." : recent.length})
+          {isOpsRole ? "Pending fulfillment queue" : (scopeShown === "all" ? "Recent — all agents" : "Your recent entries")} ({recent.length})
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <select value={filterRegion} onChange={(e) => setFilterRegion(e.target.value)} style={{ ...inputBase, width: 160, padding: "6px 10px" }}>
@@ -6251,7 +4822,7 @@ function OrderRequestCard({ row, canEdit, onSaved }) {
     setDraft({
       ...row,
       shipDate: row.shipDate ? new Date(row.shipDate).toISOString().slice(0, 10) : "",
-      d365SKUsText: (row.d365SKUs || []).join("\n"),
+      skusText: (row.skus || []).join("\n"),
     });
     setError(null);
     setEditing(true);
@@ -6268,8 +4839,8 @@ function OrderRequestCard({ row, canEdit, onSaved }) {
         shipCarrier: draft.shipCarrier ?? null,
         awb: draft.awb ?? null,
         referenceNumber: draft.referenceNumber ?? null,
-        d365SalesOrderNumber: draft.d365SalesOrderNumber ?? null,
-        d365SKUs: (draft.d365SKUsText ?? "").split(/[\n,]/).map((s) => s.trim()).filter(Boolean),
+        omsOrderNumber: draft.omsOrderNumber ?? null,
+        skus: (draft.skusText ?? "").split(/[\n,]/).map((s) => s.trim()).filter(Boolean),
         shipDate: draft.shipDate || null,
         sent: !!draft.sent,
         status: draft.status,
@@ -6305,7 +4876,7 @@ function OrderRequestCard({ row, canEdit, onSaved }) {
     <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 10, padding: "14px 18px", marginBottom: 10 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
         <div style={{ fontFamily: F.serif, fontSize: 15, color: BURG, fontWeight: 600 }}>
-          {row.im8OrderRef}
+          {row.orderRef}
           <span style={{ fontFamily: F.sans, fontSize: 10, color: GOLD, fontWeight: 800, letterSpacing: 2, padding: "2px 8px", border: "1px solid " + GOLD, borderRadius: 99, marginLeft: 8 }}>{row.region}</span>
           {row.sent && <span style={{ fontFamily: F.sans, fontSize: 10, color: "#2a7a2a", fontWeight: 800, letterSpacing: 1.5, padding: "2px 8px", border: "1px solid #2a7a2a", borderRadius: 99, marginLeft: 6 }}>SENT</span>}
         </div>
@@ -6329,13 +4900,13 @@ function OrderRequestCard({ row, canEdit, onSaved }) {
         <div style={{ marginTop: 12, padding: "12px 14px", background: CREAM, borderRadius: 8 }}>
           <div style={{ fontFamily: F.sans, fontSize: 10, color: BURG, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", marginBottom: 8 }}>Ops fulfillment detail</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
-            <div><label style={labelStyle}>Dispatch warehouse</label><input value={draft.dispatchWarehouse ?? ""} onChange={(e) => set("dispatchWarehouse", e.target.value)} placeholder="USOPS-WH05 (Stord)" style={inputBase} /></div>
+            <div><label style={labelStyle}>Dispatch warehouse</label><input value={draft.dispatchWarehouse ?? ""} onChange={(e) => set("dispatchWarehouse", e.target.value)} placeholder="SYD-01 (Parcelline)" style={inputBase} /></div>
             <div><label style={labelStyle}>Ship carrier</label><input value={draft.shipCarrier ?? ""} onChange={(e) => set("shipCarrier", e.target.value)} placeholder="FedEx" style={inputBase} /></div>
             <div><label style={labelStyle}>Tracking AWB#</label><input value={draft.awb ?? ""} onChange={(e) => set("awb", e.target.value)} style={inputBase} /></div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
             <div><label style={labelStyle}>Reference #</label><input value={draft.referenceNumber ?? ""} onChange={(e) => set("referenceNumber", e.target.value)} placeholder="ST-20260102-02" style={inputBase} /></div>
-            <div><label style={labelStyle}>D365 SO #</label><input value={draft.d365SalesOrderNumber ?? ""} onChange={(e) => set("d365SalesOrderNumber", e.target.value)} placeholder="U001-SO-478288" style={inputBase} /></div>
+            <div><label style={labelStyle}>OMS SO #</label><input value={draft.omsOrderNumber ?? ""} onChange={(e) => set("omsOrderNumber", e.target.value)} placeholder="PL-88412" style={inputBase} /></div>
             <div><label style={labelStyle}>Ship date</label><input type="date" value={draft.shipDate ?? ""} onChange={(e) => set("shipDate", e.target.value)} style={inputBase} /></div>
             <div>
               <label style={labelStyle}>Status</label>
@@ -6345,8 +4916,8 @@ function OrderRequestCard({ row, canEdit, onSaved }) {
             </div>
           </div>
           <div style={{ marginBottom: 10 }}>
-            <label style={labelStyle}>D365 SKUs (one per line)</label>
-            <textarea value={draft.d365SKUsText ?? ""} onChange={(e) => set("d365SKUsText", e.target.value)} rows={2} style={{ ...inputBase, fontFamily: F.sans, resize: "vertical" }} />
+            <label style={labelStyle}>SKUs (one per line)</label>
+            <textarea value={draft.skusText ?? ""} onChange={(e) => set("skusText", e.target.value)} rows={2} style={{ ...inputBase, fontFamily: F.sans, resize: "vertical" }} />
           </div>
 
           <div style={{ fontFamily: F.sans, fontSize: 10, color: BURG, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", marginTop: 14, marginBottom: 8 }}>Recipient</div>
@@ -6429,7 +5000,7 @@ function AdverseReactionLogPanel({ role }) {
   const [lookupError, setLookupError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
-  const [recent, setRecent] = useState([]);
+  const [recent, setRecent] = useState(() => adverseReactionsSeed()); // instant render — refreshed silently
   const [loading, setLoading] = useState(false);
 
   async function loadRecent() {
@@ -6544,7 +5115,7 @@ function AdverseReactionLogPanel({ role }) {
             <label style={labelStyle}>Order ID</label>
             <div style={{ display: "flex", gap: 8 }}>
               <input value={orderId} onChange={(e) => setOrderId(e.target.value)} placeholder="#LME-10500" style={{ ...inputBase, flex: 1 }} />
-              <button onClick={lookupOrder} disabled={!orderId.trim() || lookupLoading} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700, padding: "0 18px", letterSpacing: 1.5, textTransform: "uppercase", cursor: orderId.trim() && !lookupLoading ? "pointer" : "not-allowed", borderRadius: 8, opacity: orderId.trim() && !lookupLoading ? 1 : 0.5 }}>{lookupLoading ? "..." : "Lookup"}</button>
+              <button onClick={lookupOrder} disabled={!orderId.trim() || lookupLoading} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700, padding: "0 18px", letterSpacing: 1.5, textTransform: "uppercase", cursor: orderId.trim() && !lookupLoading ? "pointer" : "not-allowed", borderRadius: 8, opacity: orderId.trim() && !lookupLoading ? 1 : 0.5 }}>Lookup</button>
             </div>
             {lookupError && <div style={{ fontFamily: F.sans, fontSize: 11, color: RED, marginTop: 4 }}>{lookupError}</div>}
           </div>
@@ -6683,7 +5254,7 @@ function AdverseReactionLogPanel({ role }) {
           return (
             <>
               <div style={{ fontFamily: F.sans, fontSize: 11, color: BURG, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", marginBottom: 12 }}>
-                Recent reports · last 7 days ({loading ? "..." : recent7.length})
+                Recent reports · last 7 days ({recent7.length})
               </div>
               <RecentLogTable
                 rows={recent7}
@@ -7011,8 +5582,8 @@ function PlaybookProductsNew({ query }) {
   const [openProduct, setOpenProduct] = useState(null);
   const [chip, setChip] = useState("all");
 
-  // Combined Q&A list (About IM8 + Common Product Q&As) for chip filtering.
-  const allQA = useMemo(() => [...ABOUT_IM8_QA, ...COMMON_PRODUCT_QA], []);
+  // Combined Q&A list (About LUMÉ + Common Product Q&As) for chip filtering.
+  const allQA = useMemo(() => [...ABOUT_BRAND_QA, ...COMMON_PRODUCT_QA], []);
   const filtered = useMemo(() => filterQA(allQA, chip, query), [allQA, chip, query]);
 
   // Counts per chip key (for the chip badges).
@@ -7647,7 +6218,7 @@ function TeamTab({ role }) {
           Team
         </div>
         <div style={{ fontFamily: F.serif, fontStyle: "italic", fontSize: 16, color: INK, opacity: 0.6, marginBottom: 22, maxWidth: 700 }}>
-          Invite people. Assign roles. Manage access. {isOwner ? "You're the Owner — you can do anything here." : "You're an Admin — you can manage everyone except other Admins and the Owner."}
+          Invite people. Assign roles. Manage access. {isOwner ? "You're the Owner — you can do anything here." : role === "Admin" ? "You're an Admin — you can manage everyone except other Admins and the Owner." : `You're viewing as ${/^[AEIOU]/.test(role || "") ? "an" : "a"} ${role} — team management is read-only from this role.`}
         </div>
 
         {/* Safety banner — unassigned roles */}
@@ -7661,7 +6232,7 @@ function TeamTab({ role }) {
         {/* Top bar — invite + refresh */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
           <div style={{ fontFamily: F.sans, fontSize: 11, color: BURG, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase" }}>
-            {loading ? "Loading…" : `${users.length} user${users.length === 1 ? "" : "s"}`}
+            {loading ? "" : `${users.length} user${users.length === 1 ? "" : "s"}`}
             {pending.length > 0 && ` · ${pending.length} pending invite${pending.length === 1 ? "" : "s"}`}
           </div>
           <div style={{ display: "flex", gap: 8 }}>
@@ -7894,7 +6465,7 @@ function InviteUserModal({ viewerIsOwner, onClose, onInvited }) {
 
 function PlaybookMacros({ role }) {
   const [macros, setMacros] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [category, setCategory] = useState("All");
   const [query, setQuery] = useState("");
@@ -7998,10 +6569,7 @@ function PlaybookMacros({ role }) {
           })}
         </div>
 
-        {/* Loading / error / empty */}
-        {loading && (
-          <div style={{ fontFamily: F.serif, fontStyle: "italic", fontSize: 16, color: INK, opacity: 0.5 }}>Loading macros…</div>
-        )}
+        {/* Error / empty */}
         {error && (
           <div style={{ background: "#fee", border: "1px solid " + RED, color: RED, padding: 12, borderRadius: 12, fontFamily: F.sans, fontSize: 13, marginBottom: 16 }}>
             {error}
@@ -8092,7 +6660,7 @@ function PlaybookRules() {
         <div style={{ fontSize: 22 }}>✍️</div>
         <div>
           <div style={{ fontFamily: F.sans, fontSize: 10, fontWeight: 700, color: BURG, opacity: 0.7, textTransform: "uppercase", letterSpacing: 2.5, marginBottom: 4 }}>Close every response with</div>
-          <div style={{ fontFamily: F.serif, fontSize: 16, fontWeight: 600, color: BURG }}>With Health, Team IM8</div>
+          <div style={{ fontFamily: F.serif, fontSize: 16, fontWeight: 600, color: BURG }}>Warmly, Team LUMÉ</div>
         </div>
       </div>
     </div>
@@ -8372,9 +6940,9 @@ function QuizTab({ selMod, setSelMod, qIdx, chosen, answers, sessionScores, comp
   );
 }
 
-// ─── ASK IM8 TAB ─────────────────────────────────────────────────────────────
+// ─── ASK LUMÉ TAB ─────────────────────────────────────────────────────────────
 
-// Minimal markdown renderer for the Ask IM8 chat. Handles **bold**,
+// Minimal markdown renderer for the Ask LUMÉ chat. Handles **bold**,
 // *italic*, `code`, numbered lists (1. text), and bullet lists (- text).
 // Zero dependencies — purpose-built for the bot's typical output shape.
 function renderChatMarkdown(text) {
@@ -9706,12 +8274,11 @@ function AffiliatesAskPlaybook() {
 function AffiliatesStats() {
   const [days, setDays] = useState(30);
   const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     setError(null);
     fetch(`/api/affiliates/copy/stats?days=${days}`)
       .then(async (res) => {
@@ -9777,11 +8344,6 @@ function AffiliatesStats() {
         <Range value={90} label="Last 90 days" />
       </div>
 
-      {loading && (
-        <div style={{ background: W, border: "1px solid " + SOFT_BORDER, borderRadius: 10, padding: "20px 24px", fontFamily: F.serif, fontStyle: "italic", fontSize: 14, color: INK, opacity: 0.5 }}>
-          Loading copy stats…
-        </div>
-      )}
       {error && (
         <div style={{ background: "#fee", border: "1px solid " + RED, color: RED, padding: 12, borderRadius: 8, fontFamily: F.sans, fontSize: 13, marginBottom: 16 }}>
           {error}
@@ -9813,7 +8375,7 @@ function AffiliatesStats() {
 }
 
 // Trustpilot lifetime stats — kept as plain constants, refreshed manually
-// by visiting https://www.trustpilot.com/review/im8health.com and copying
+// by visiting https://www.trustpilot.com/review/withluma.com.au and copying
 // the current values. Cherie's call: skip the API integration (Business
 // tier + key dance) and just show the public-facing numbers on the hub.
 // Last refreshed 2026-05-15.
@@ -9977,20 +8539,17 @@ function SimTab({ selScen, setSelScen, simMsgs, simInput, setSimInput, simLoadin
 // ─── COMPARE TAB ──────────────────────────────────────────────────────────────
 function CompareMatrix({ showDiscontinued = true }) {
   const allHeaders = [
-    { label: "Essentials PRO",      disc: false, key: "essPro" },
-    { label: "Longevity Powder",    disc: false, key: "longevity" },
-    { label: "Original Essentials", disc: true,  key: "origEss" },
-    { label: "Longevity Capsule",   disc: true,  key: "longevityCap" },
+    { label: "Smooth Serum", disc: false, key: "smooth" },
+    { label: "Repair Serum", disc: false, key: "repair" },
+    { label: "Scalp Serum",  disc: false, key: "scalp" },
+    { label: "Glow Serum",   disc: false, key: "glow" },
   ];
   const headers = showDiscontinued ? allHeaders : allHeaders.filter(h => !h.disc);
 
   return (
     <div>
       <div style={{ fontFamily: F.sans, fontSize: 12, color: "#aaa", textAlign: "center", marginBottom: 16 }}>
-        <span style={{ color: GOLD, fontWeight: 700 }}>Gold</span>{" = exclusive to PRO   "}
-        <span style={{ color: RED, fontWeight: 700 }}>Red</span>{" = increased vs original   "}
-        <span style={{ color: "#2a7a2a", fontWeight: 700 }}>Green</span>{" = confirmed"}
-        {showDiscontinued && "   Faded = discontinued"}
+        The four LUMÉ serums side by side — pairings, timelines, and prices.
       </div>
       <div style={{ overflowX: "auto" }}>
         <table style={{ minWidth: 480, width: "100%", borderCollapse: "collapse", background: W, borderRadius: 10, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
@@ -10226,7 +8785,7 @@ function ResultsTreeBlock() {
     over90_any: {
       action: "Validate, Escalate to CS Lead, Cancel if Insisted",
       color: "#a40011", bg: "#fff0f0",
-      steps: ["Validate that they gave IM8 a real, full trial — acknowledge this genuinely", "Escalate to CS Lead before processing anything", "CS Lead may probe routine, offer a different approach, or check in on health goals", "If the customer insists after that: cancel with full empathy and no pushback", "Tag as 'over-90-results' churn for product feedback"],
+      steps: ["Validate that they gave LUMÉ a real, full trial — acknowledge this genuinely", "Escalate to CS Lead before processing anything", "CS Lead may probe routine, offer a different approach, or check in on health goals", "If the customer insists after that: cancel with full empathy and no pushback", "Tag as 'over-90-results' churn for product feedback"],
       never: "Never cancel an over-90 results ticket without escalating to CS Lead first."
     }
   };
@@ -10241,7 +8800,7 @@ function ResultsTreeBlock() {
       <div style={{ padding: "14px" }}>
         {/* Step 1 */}
         <div style={{ marginBottom: 12 }}>
-          <div style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Step 1 — How long has the customer been taking IM8?</div>
+          <div style={{ fontFamily: F.sans, fontSize: 12, fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Step 1 — How long has the customer been using LUMÉ?</div>
           <div style={{ display: "flex", gap: 8 }}>
             <Btn label="Under 90 days" color={days === "sub90" ? RED : BURG} onClick={() => { setDays("sub90"); setTone(null); }} />
             <Btn label="90+ days (or unknown)" color={days === "over90" ? RED : BURG} onClick={() => { setDays("over90"); setTone(null); }} />
@@ -10367,7 +8926,7 @@ function BootcampTab({ bcProgress, saveBcProgress, bcView, setBcView, bcDay, set
         <div style={{ fontFamily: F.sans, fontSize: 48, marginBottom: 8 }}>{"🎓"}</div>
         <div style={{ fontFamily: F.serif, fontSize: 28, color: GOLD, fontWeight: 600, marginBottom: 8 }}>Training Complete</div>
         {playerName && <div style={{ fontFamily: F.serif, fontSize: 22, color: W, marginBottom: 6 }}>{playerName}</div>}
-        <div style={{ fontFamily: F.sans, fontSize: 14, color: "rgba(255,255,255,0.7)", marginBottom: 24 }}>has successfully completed the IM8 CS Agent 5-Day Bootcamp</div>
+        <div style={{ fontFamily: F.sans, fontSize: 14, color: "rgba(255,255,255,0.7)", marginBottom: 24 }}>has successfully completed the LUMÉ CX Agent Bootcamp</div>
         <div style={{ background: "rgba(200,151,58,0.15)", border: "2px solid " + GOLD, borderRadius: 12, padding: "20px 40px", marginBottom: 28 }}>
           <div style={{ fontFamily: F.sans, fontSize: 12, color: GOLD, textTransform: "uppercase", letterSpacing: 2, marginBottom: 8 }}>Total Quiz Score</div>
           <div style={{ fontFamily: F.serif, fontSize: 40, color: GOLD, fontWeight: 700 }}>{totalPts} / {totalPoss}</div>
@@ -10380,7 +8939,7 @@ function BootcampTab({ bcProgress, saveBcProgress, bcView, setBcView, bcDay, set
             <div style={{ fontFamily: F.sans, fontSize: 12, color: GOLD }}>{bcProgress[day.day]?.quizScore || 0}/{day.quiz.length}</div>
           </div>
         ))}
-        <div style={{ marginTop: 28, fontFamily: F.serif, fontSize: 16, color: "rgba(255,255,255,0.7)", fontStyle: "italic" }}>You represent IM8 in every interaction.</div>
+        <div style={{ marginTop: 28, fontFamily: F.serif, fontSize: 16, color: "rgba(255,255,255,0.7)", fontStyle: "italic" }}>You represent LUMÉ in every interaction.</div>
         <button onClick={() => setBcView("overview")} style={{ marginTop: 24, background: "transparent", border: "1px solid rgba(255,255,255,0.4)", color: "rgba(255,255,255,0.7)", fontFamily: F.sans, fontSize: 13, padding: "10px 24px", borderRadius: 8, cursor: "pointer" }}>Back to Bootcamp</button>
       </div>
     );
@@ -10671,7 +9230,7 @@ function BootcampTab({ bcProgress, saveBcProgress, bcView, setBcView, bcDay, set
         </div>
         {!bcWriteDone ? (
           <>
-            <div style={{ fontFamily: F.sans, fontSize: 13, color: "#555", marginBottom: 10, lineHeight: 1.5 }}>Write your response in IM8 voice. Apply the policies and tone you have learned. Claude will grade it.</div>
+            <div style={{ fontFamily: F.sans, fontSize: 13, color: "#555", marginBottom: 10, lineHeight: 1.5 }}>Write your response in the LUMÉ voice. Apply the policies and tone you have learned. Claude will grade it.</div>
             <textarea
               value={bcWriteInput}
               onChange={e => setBcWriteInput(e.target.value)}
@@ -10680,7 +9239,7 @@ function BootcampTab({ bcProgress, saveBcProgress, bcView, setBcView, bcDay, set
               style={{ width: "100%", fontFamily: F.sans, fontSize: 14, padding: "12px 14px", border: "2px solid #ddd", borderRadius: 8, resize: "vertical", lineHeight: 1.6, outline: "none", boxSizing: "border-box", marginBottom: 12 }}
             />
             <button onClick={submitWritingExercise} disabled={bcWriteLoading || !bcWriteInput.trim()} style={{ background: bcWriteLoading ? "#aaa" : RED, color: W, fontFamily: F.sans, fontWeight: 700, fontSize: 14, padding: "14px 28px", border: "none", borderRadius: 8, cursor: bcWriteLoading ? "not-allowed" : "pointer", width: "100%" }}>
-              {bcWriteLoading ? "Grading..." : "Submit for AI Grading"}
+              {bcWriteLoading ? "Grading" : "Submit for AI Grading"}
             </button>
           </>
         ) : (
@@ -10757,45 +9316,37 @@ function InsightsTab({ role }) {
   const [from, setFrom] = useState(initial.from);
   const [to, setTo] = useState(initial.to);
   const [activePreset, setActivePreset] = useState("Today");
-  const [data, setData] = useState(null);
+  // Instant render: every dataset starts pre-seeded with the bundled
+  // demo data and refreshes silently — no loading pass, ever.
+  const [data, setData] = useState(DEMO_SUMMARY);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   // Trends state intentionally removed May 17 — see TrendsCard comment
   // below for re-enable instructions. Reports tab handles trends now.
-  const [shop, setShop] = useState(null);
+  const [shop, setShop] = useState(DEMO_SHOPIFY);
   const [shopLoading, setShopLoading] = useState(false);
   const [shopError, setShopError] = useState(null);
-  const [skio, setSkio] = useState(null);
+  const [skio, setSkio] = useState(DEMO_SKIO);
   const [skioLoading, setSkioLoading] = useState(false);
   const [skioError, setSkioError] = useState(null);
-  const [loop, setLoop] = useState(null);
+  const [loop, setLoop] = useState(DEMO_LOOP);
   const [loopLoading, setLoopLoading] = useState(false);
   const [loopError, setLoopError] = useState(null);
-  // skio cancel reasons live at a separate endpoint than the main skio
-  // metrics (it paginates Skio's V3Session.pathTaken). Fetched independently
-  // so the page renders fast even when this one is on a cold cache.
-  const [skioReasons, setSkioReasons] = useState(null);
+  const [skioReasons, setSkioReasons] = useState(DEMO_SKIO_CANCEL_REASONS);
   const [skioReasonsError, setSkioReasonsError] = useState(null);
 
   async function load(rangeFrom = from, rangeTo = to) {
-    setLoading(true);
     setError(null);
-    setData(null);
-    setShop(null);
     setShopError(null);
-    setSkio(null);
     setSkioError(null);
-    setLoop(null);
     setLoopError(null);
-    setSkioReasons(null);
     setSkioReasonsError(null);
 
-    // Anchor date ranges to HKT (UTC+8) — Prenetics's Gorgias account
-    // timezone. This way the same date range in the Hub matches the same
-    // date range in Gorgias's dashboard, regardless of where the viewer
-    // is sitting. HKT doesn't observe DST so +08:00 is always correct.
-    const fromIso = new Date(rangeFrom + "T00:00:00+08:00").toISOString();
-    const toIso = new Date(rangeTo + "T23:59:59+08:00").toISOString();
+    // Anchor date ranges to AEST (UTC+10) — LUMÉ's Gorgias account
+    // timezone, so the same date range in the Hub matches Gorgias's
+    // dashboard regardless of where the viewer is sitting.
+    const fromIso = new Date(rangeFrom + "T00:00:00+10:00").toISOString();
+    const toIso = new Date(rangeTo + "T23:59:59+10:00").toISOString();
 
     // Fire integrations in parallel so one failing doesn't blank the rest.
     // Trends call removed May 17 — was the slow-LLM read of customer
@@ -10818,7 +9369,6 @@ function InsightsTab({ role }) {
   }
 
   async function loadShop(fromIso, toIso) {
-    setShopLoading(true);
     setShopError(null);
     try {
       const res = await fetch(`/api/insights/shopify?from=${fromIso}&to=${toIso}`);
@@ -10833,7 +9383,6 @@ function InsightsTab({ role }) {
   }
 
   async function loadLoop(fromIso, toIso) {
-    setLoopLoading(true);
     setLoopError(null);
     try {
       const res = await fetch(`/api/insights/loop?from=${fromIso}&to=${toIso}`);
@@ -10848,7 +9397,6 @@ function InsightsTab({ role }) {
   }
 
   async function loadSkio(fromIso, toIso) {
-    setSkioLoading(true);
     setSkioError(null);
     try {
       const res = await fetch(`/api/insights/skio?from=${fromIso}&to=${toIso}`);
@@ -10916,7 +9464,7 @@ function InsightsTab({ role }) {
           <span style={{ color: "#999", fontFamily: F.sans, fontSize: 12 }}>to</span>
           <input type="date" value={to} onChange={onManualDateChange(setTo)} style={{ padding: "6px 10px", border: "1px solid #ddd", borderRadius: 6, fontFamily: F.sans, fontSize: 13 }} />
           <button onClick={() => load()} disabled={loading} style={{ background: BURG, color: W, border: "none", padding: "7px 16px", borderRadius: 6, fontFamily: F.sans, fontSize: 13, fontWeight: 600, cursor: loading ? "wait" : "pointer", opacity: loading ? 0.6 : 1 }}>
-            {loading ? "Loading..." : "Refresh"}
+            Refresh
           </button>
         </div>
       </div>
@@ -10938,10 +9486,6 @@ function InsightsTab({ role }) {
         </div>
       )}
 
-      {loading && !data && !shop && !skio && (
-        <div style={{ textAlign: "center", padding: "40px 0", color: "#888", fontFamily: F.sans }}>Loading...</div>
-      )}
-
       {data && (
         <>
           {/* Tiles trimmed to only the stats we can match Gorgias on
@@ -10950,7 +9494,7 @@ function InsightsTab({ role }) {
               bulk lookup that's too slow to run inline) — pulled until we
               have a pre-warmed lookup. */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 24 }}>
-            <KpiTile label="Tickets" value={data.volume?.toLocaleString() ?? "—"} hint={data.totalAcrossBrands ? `${data.totalAcrossBrands.toLocaleString()} across all brands` : null} />
+            <KpiTile label="Tickets" value={data.volume?.toLocaleString() ?? "—"} hint={data.volume != null ? `${data.volume.toLocaleString()} in range` : null} />
             <KpiTile label="CSAT" value={data.csat?.average != null ? data.csat.average.toFixed(2) : "—"} hint={data.csat?.count ? `${data.csat.count} responses` : "no responses"} />
             <KpiTile label="Closed" value={(data.byStatus?.closed ?? 0).toLocaleString()} hint={fmtPct(data.byStatus?.closed ?? 0, data.volume)} />
             <KpiTile label="Open" value={(data.byStatus?.open ?? 0).toLocaleString()} hint={fmtPct(data.byStatus?.open ?? 0, data.volume)} />
@@ -10980,16 +9524,16 @@ function InsightsTab({ role }) {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 24 }}>
             <KpiTile
               label="Orders"
-              value={shopLoading ? "..." : (shop?.orders != null ? shop.orders.toLocaleString() : "—")}
+              value={shop?.orders != null ? shop.orders.toLocaleString() : "—"}
               hint={shopError ? "error" : null}
             />
             <KpiTile
               label="Refund rate ($)"
-              value={shopLoading ? "..." : (
+              value={
                 shop?.refundRateDollars != null
                   ? `${(shop.refundRateDollars * 100).toFixed(2)}%`
                   : (shop?.refundRate != null ? `${(shop.refundRate * 100).toFixed(2)}%` : "—")
-              )}
+              }
               hint={(() => {
                 const parts = [];
                 if (shop?.refundRate != null) parts.push(`${(shop.refundRate * 100).toFixed(2)}% by count`);
@@ -10999,7 +9543,7 @@ function InsightsTab({ role }) {
             />
             <KpiTile
               label="Cancel rate"
-              value={shopLoading ? "..." : (shop?.cancelRate != null ? `${(shop.cancelRate * 100).toFixed(2)}%` : "—")}
+              value={shop?.cancelRate != null ? `${(shop.cancelRate * 100).toFixed(2)}%` : "—"}
               hint={shop?.cancelled != null ? `${shop.cancelled.toLocaleString()} cancelled` : null}
             />
           </div>
@@ -11033,27 +9577,27 @@ function InsightsTab({ role }) {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 12 }}>
             <KpiTile
               label="Active subs"
-              value={skioLoading ? "..." : (skio?.active != null ? skio.active.toLocaleString() : "—")}
+              value={skio?.active != null ? skio.active.toLocaleString() : "—"}
               hint={skio?.paused != null ? `${skio.paused.toLocaleString()} paused` : null}
             />
             <KpiTile
               label="Churn rate"
-              value={skioLoading ? "..." : (skio?.churnRate != null ? `${(skio.churnRate * 100).toFixed(2)}%` : "—")}
+              value={skio?.churnRate != null ? `${(skio.churnRate * 100).toFixed(2)}%` : "—"}
               hint={skio?.activeAtStart != null ? `${skio.cancelled?.toLocaleString() ?? 0} of ${skio.activeAtStart.toLocaleString()} at start` : null}
             />
             <KpiTile
               label="Cancellations"
-              value={skioLoading ? "..." : (skio?.cancelled != null ? skio.cancelled.toLocaleString() : "—")}
+              value={skio?.cancelled != null ? skio.cancelled.toLocaleString() : "—"}
               hint="in range"
             />
             <KpiTile
               label="New subs"
-              value={skioLoading ? "..." : (skio?.created != null ? skio.created.toLocaleString() : "—")}
+              value={skio?.created != null ? skio.created.toLocaleString() : "—"}
               hint={skio?.netChange != null ? `${skio.netChange >= 0 ? "+" : ""}${skio.netChange.toLocaleString()} net` : null}
             />
             <KpiTile
               label="Failed payments"
-              value={skioLoading ? "..." : (skio?.failedPayments != null ? skio.failedPayments.toLocaleString() : "—")}
+              value={skio?.failedPayments != null ? skio.failedPayments.toLocaleString() : "—"}
               hint="in range"
             />
           </div>
@@ -11100,7 +9644,7 @@ function LoopRefundsCard({ loop, shop, loading, error }) {
         <div>
           <div style={{ fontFamily: F.sans, fontSize: 11, color: "#999", textTransform: "uppercase", letterSpacing: 1.5 }}>Refunds</div>
           <div style={{ fontFamily: F.serif, fontSize: 22, color: BURG, fontWeight: 700 }}>
-            {loading ? "..." : formatMoney(totalAmount)}
+            {formatMoney(totalAmount)}
             <span style={{ fontFamily: F.sans, fontSize: 12, color: INK, opacity: 0.6, fontWeight: 500, marginLeft: 10 }}>
               {loading ? "" : `· ${totalCount.toLocaleString()} cases`}
             </span>
@@ -11434,7 +9978,7 @@ function TrendItem({ index, trend }) {
 // Inline link from a trend quote to its source ticket in Gorgias.
 // Renders as a small "#1234 ↗" tag after the closing quote mark.
 function GorgiasTicketLink({ id }) {
-  const href = `https://prenetics.gorgias.com/app/ticket/${id}`;
+  const href = `https://lumebeauty.gorgias.com/app/ticket/${id}`;
   return (
     <a
       href={href}
