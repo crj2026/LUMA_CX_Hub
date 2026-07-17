@@ -5129,7 +5129,7 @@ function OrderRequestCard({ row, canEdit, onSaved }) {
             </label>
             <div style={{ display: "flex", gap: 8 }}>
               <button onClick={cancel} disabled={saving} style={{ background: "transparent", color: INK, border: "1px solid " + SOFT_BORDER, fontFamily: F.sans, fontSize: 11, fontWeight: 600, padding: "8px 16px", letterSpacing: 1, textTransform: "uppercase", cursor: saving ? "wait" : "pointer", borderRadius: 99 }}>Cancel</button>
-              <button onClick={save} disabled={saving} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700, padding: "8px 18px", letterSpacing: 1.5, textTransform: "uppercase", cursor: saving ? "wait" : "pointer", borderRadius: 99, opacity: saving ? 0.6 : 1 }}>{saving ? "Saving..." : "Save"}</button>
+              <button onClick={save} disabled={saving} style={{ background: BURG, color: CREAM, border: "1px solid " + BURG, fontFamily: F.sans, fontSize: 11, fontWeight: 700, padding: "8px 18px", letterSpacing: 1.5, textTransform: "uppercase", cursor: saving ? "wait" : "pointer", borderRadius: 99, opacity: saving ? 0.6 : 1 }}>{saving ? "Saving" : "Save"}</button>
             </div>
           </div>
           {error && <div style={{ fontFamily: F.sans, fontSize: 12, color: RED, marginTop: 8 }}>{error}</div>}
